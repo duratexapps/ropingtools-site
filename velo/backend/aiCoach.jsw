@@ -1,0 +1,178 @@
+// backend/aiCoach.jsw
+//
+// Server-side proxy for the video-coach AI analysis feature. Replaces the
+// original client-side fetch() straight to api.anthropic.com — see
+// HANDOFF_BRIEF.md, Technical Requirements #1.
+//
+// Called from velo/pages/course-page.js (parent-page Velo Page Code), never
+// directly from the embedded iframe — the iframe has no Wix session, so
+// there's nothing to authenticate there. Page Code calls this via a normal
+// `import` from frontend code, which means it automatically runs with the
+// signed-in visitor's Wix session attached, so currentMember.getMember()
+// below is authoritative and can't be spoofed by client input.
+//
+// Verify these API names/signatures against current Velo docs before first
+// deploy — Wix's backend member/secrets APIs have shifted across versions
+// (e.g. wix-members-backend vs. the newer wix-members-v2 SDK module).
+
+import { currentMember } from 'wix-members-backend';
+import { getSecret } from 'wix-secrets-backend';
+import wixData from 'wix-data';
+
+const ANTHROPIC_API_KEY_SECRET_NAME = 'ANTHROPIC_API_KEY'; // set in Secrets Manager
+const ANTHROPIC_MODEL = 'claude-sonnet-4-6'; // keep in sync with the model used in the original prototype
+
+const CREDIT_LEDGER_COLLECTION = 'CreditLedger';
+const VIDEO_ANALYSIS_LOG_COLLECTION = 'VideoAnalysisLog';
+
+// Server-side source of truth for credit cost per tier — never trust a
+// client-supplied cost. The client's `tierCredits` field is only used to
+// sanity-check against this table; the deduction always uses this value.
+const TIER_COSTS = {
+  'Quick Look': 1,
+  'Full Rep': 1.25,
+  'Extended Run': 1.75
+};
+
+/**
+ * @param {{
+ *   chapterId: string,
+ *   position: string,
+ *   skill: string,
+ *   goal: string,
+ *   chapterFocus: string,
+ *   tierName: 'Quick Look' | 'Full Rep' | 'Extended Run',
+ *   tierCredits: number,
+ *   frames: string[] // base64 JPEG frames, no data: URL prefix
+ * }} params
+ */
+export async function analyzeRoping(params) {
+  const member = await currentMember.getMember(); // throws if not logged in
+  const memberId = member._id;
+
+  const tierCost = TIER_COSTS[params.tierName];
+  if (!tierCost) {
+    throw new Error('Unrecognized analysis tier: ' + params.tierName);
+  }
+  if (!Array.isArray(params.frames) || params.frames.length === 0) {
+    throw new Error('No frames were received for analysis.');
+  }
+
+  const balance = await getCreditBalance(memberId);
+  if (balance < tierCost) {
+    throw new Error(
+      'Not enough credits for a ' + params.tierName + ' analysis (needs ' + tierCost +
+      ', you have ' + balance + '). Buy more credits or check your plan to continue.'
+    );
+  }
+
+  const apiKey = await getSecret(ANTHROPIC_API_KEY_SECRET_NAME);
+  const promptText = buildCoachPrompt(params);
+
+  const content = [{ type: 'text', text: promptText }];
+  params.frames.forEach((frame) => {
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: frame } });
+  });
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 1000,
+      messages: [{ role: 'user', content }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('The coach couldn\'t reach the analysis service (status ' + response.status + ').');
+  }
+  const data = await response.json();
+  const text = (data.content || []).map((b) => b.text || '').join('\n').trim();
+  if (!text) {
+    throw new Error('No feedback came back from the analysis service — try again in a moment.');
+  }
+
+  // Deduct credits and log usage together. Wix Data doesn't have
+  // cross-collection transactions the way SQL does — this is a
+  // best-effort sequential write. For a product at this scale (AI coaching
+  // credits, not real money movement), an occasional race on rapid
+  // double-submits is an acceptable risk; if that becomes a real problem,
+  // revisit with a per-member lock or a Wix Data hook that recomputes
+  // balance from the ledger's transaction log rather than a stored counter.
+  const creditsRemaining = await deductCredits(memberId, tierCost, params);
+  await logVideoAnalysis(memberId, params, tierCost);
+
+  return { text, creditsRemaining };
+}
+
+function buildCoachPrompt(params) {
+  return (
+    'You are "the coach" for an integrated team roping training system — an independent instructor voice synthesizing documented technique from many generations of champion team ropers into one coherent teaching system. A student practicing on the ground dummy has submitted video frames from a practice session for feedback.\n\n' +
+    'Student context:\n' +
+    '- Position: ' + params.position + '\n' +
+    '- Self-reported skill level: ' + params.skill + '\n' +
+    '- What they say they are working on: ' + params.goal + '\n' +
+    '- Course chapter just completed: "' + params.chapterFocus + '"\n\n' +
+    'You are looking at ' + params.frames.length + ' still frames sampled evenly across one practice video. Analyze what is visible across these frames as a single sequence (address, swing, delivery, follow-through), not as unrelated images.\n\n' +
+    'Evaluate, wherever visible in the frames: swing mechanics (including number of revolutions before delivery), tail and coil management, slack (the rope between the coils and the loop), loop size before and after feeding, spoke (the distance from the hand to the honda, distinct from loop size), approach and delivery angles, delivery timing and target, follow-through, slack handling after the catch, left hand (rein/off-hand) position, throwing distance to the dummy, breakover position relative to the target, and overall performance — all judged against the standards taught in this course (correct loop size measured by wrist-to-shoulder-and-back-down, tip floating just above the target, breakover at 1 o\'clock for headers / 12 o\'clock for heelers, a centered upright seat, momentum-driven swing built over several revolutions, delivery focus locked on the exact target, and full follow-through toward that target).\n\n' +
+    'If spoke is visible in the frames (how much rope sits between the hand and the honda relative to the loop), note what you observe about it as part of the overall loop setup, without assuming a specific ideal ratio beyond what this course teaches.\n\n' +
+    'Pay particular attention to WHERE the roper breaks over relative to the dummy\'s horns (header) or heel pipes (heeler) — not just the clock position of the breakover itself, but where that breakover point sits in space relative to the target given the roper\'s throwing position and distance from the dummy. Specifically:\n' +
+    '- If the student is a beginner or novice and their breakover consistently lands off-target (too early, too late, or off to one side relative to the horns/heels), the more likely fix is usually adjusting WHERE they are standing or throwing from relative to the dummy — their positioning and distance — rather than asking them to master compensating for a flawed position. Recommend they reset their throwing position first, and re-check whether the breakover lines up naturally from there.\n' +
+    '- If the student is intermediate or advanced and shows solid, repeatable fundamentals, it is more appropriate to teach them to adjust their breakover timing and point FROM wherever they end up positioned — since at that skill level, learning to make the breakover work correctly from a range of positions and distances (not just one ideal setup) is the more valuable skill, and mirrors having to adapt position in live competition.\n' +
+    '- Name explicitly which of these two cases applies to this student, and explain briefly why, based on both their stated skill level and what you can actually see in the frames.\n\n' +
+    'Structure your response as:\n' +
+    '1. Open with genuine, specific strengths you can actually see in these frames — not generic encouragement.\n' +
+    '2. Then 3-4 concrete, specific things to work on, each tied to what this course teaches and to what is actually visible in the frames — including your breakover-position assessment above. If something isn\'t clearly visible in the frames (e.g. follow-through, if the clip ends at delivery), say so plainly rather than guessing.\n' +
+    '3. Close with one or two concrete drills or focus points for the next practice session, calibrated to their stated skill level and goal.\n\n' +
+    'Keep the tone direct, warm, and specific — like a good coach, not a generic review. Do not invent details you cannot see. Keep your full response under 450 words.'
+  );
+}
+
+async function getCreditBalance(memberId) {
+  const result = await wixData.query(CREDIT_LEDGER_COLLECTION)
+    .eq('memberId', memberId)
+    .find();
+  if (result.items.length === 0) return 0;
+  return result.items[0].balance || 0;
+}
+
+async function deductCredits(memberId, amount, params) {
+  const result = await wixData.query(CREDIT_LEDGER_COLLECTION)
+    .eq('memberId', memberId)
+    .find();
+
+  if (result.items.length === 0) {
+    throw new Error('No credit ledger found for this member — this shouldn\'t happen if getCreditBalance ran first.');
+  }
+
+  const record = result.items[0];
+  const newBalance = (record.balance || 0) - amount;
+  if (newBalance < 0) {
+    throw new Error('Not enough credits — balance changed since this request started. Refresh and try again.');
+  }
+
+  record.balance = newBalance;
+  record.lastTransaction = {
+    type: 'debit',
+    amount: amount,
+    reason: params.tierName + ' analysis, chapter ' + params.chapterId,
+    timestamp: new Date().toISOString()
+  };
+  await wixData.update(CREDIT_LEDGER_COLLECTION, record);
+  return newBalance;
+}
+
+async function logVideoAnalysis(memberId, params, tierCost) {
+  await wixData.insert(VIDEO_ANALYSIS_LOG_COLLECTION, {
+    memberId: memberId,
+    chapterId: params.chapterId,
+    tier: params.tierName,
+    credits: tierCost,
+    timestamp: new Date()
+  });
+}

@@ -1,0 +1,49 @@
+// backend/legalAcknowledgments.jsw
+//
+// Persists risk-disclaimer acknowledgment so the modal only shows once per
+// member per disclaimer version. See HANDOFF_BRIEF.md's "What's already
+// wired into the course file" section under Legal documents.
+
+import { currentMember } from 'wix-members-backend';
+import wixData from 'wix-data';
+
+const LEGAL_ACK_COLLECTION = 'LegalAcknowledgments';
+const DOCUMENT_TYPE = 'risk-disclaimer';
+
+/**
+ * @param {{ disclaimerVersion: string }} params
+ */
+export async function acknowledgeRisk(params) {
+  const member = await currentMember.getMember(); // throws if not logged in
+
+  await wixData.insert(LEGAL_ACK_COLLECTION, {
+    memberId: member._id,
+    documentType: DOCUMENT_TYPE,
+    version: params.disclaimerVersion,
+    timestamp: new Date()
+  });
+}
+
+/**
+ * Called on page load (from course-page.js) to decide whether the modal
+ * should show at all for a logged-in member.
+ * @param {{ disclaimerVersion: string }} params
+ * @returns {Promise<boolean>} true if the modal should be skipped
+ */
+export async function hasAcknowledgedCurrentVersion(params) {
+  let member;
+  try {
+    member = await currentMember.getMember();
+  } catch (e) {
+    return false; // not logged in — always show the modal (matches current prototype behavior for anonymous visitors)
+  }
+
+  const result = await wixData.query(LEGAL_ACK_COLLECTION)
+    .eq('memberId', member._id)
+    .eq('documentType', DOCUMENT_TYPE)
+    .eq('version', params.disclaimerVersion)
+    .limit(1)
+    .find();
+
+  return result.items.length > 0;
+}

@@ -1,0 +1,46 @@
+// backend/progress.jsw
+//
+// Persists quiz attempts. See HANDOFF_BRIEF.md's "Progress tracking" section
+// — this is the server-side landing spot for recordQuizResult()'s
+// "TODO: sync to backend" comment in the course file.
+//
+// video-coach usage is logged separately, as part of the credit-deduction
+// transaction in aiCoach.jsw's logVideoAnalysis() — no separate call needed
+// for that from the frontend.
+
+import { currentMember } from 'wix-members-backend';
+import wixData from 'wix-data';
+
+const QUIZ_ATTEMPTS_COLLECTION = 'QuizAttempts';
+
+/**
+ * @param {{ chapterId: string, score: number, total: number }} params
+ */
+export async function recordQuizResult(params) {
+  const member = await currentMember.getMember(); // throws if not logged in
+
+  await wixData.insert(QUIZ_ATTEMPTS_COLLECTION, {
+    memberId: member._id,
+    chapterId: params.chapterId,
+    score: params.score,
+    total: params.total,
+    timestamp: new Date()
+  });
+}
+
+/**
+ * Loads a member's full quiz history for the "My Progress" report page.
+ * Called from course-page.js when the report page loads, not from a
+ * studentProgress mutation — see ARCHITECTURE.md.
+ */
+export async function getQuizHistory() {
+  const member = await currentMember.getMember();
+
+  const result = await wixData.query(QUIZ_ATTEMPTS_COLLECTION)
+    .eq('memberId', member._id)
+    .ascending('timestamp')
+    .limit(1000)
+    .find();
+
+  return result.items;
+}

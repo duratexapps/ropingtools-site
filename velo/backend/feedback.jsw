@@ -1,0 +1,42 @@
+// backend/feedback.jsw
+//
+// Writes structured feedback to a Wix Data Collection so it can be triaged
+// from the Wix Content Manager dashboard instead of only living in an email
+// inbox. See HANDOFF_BRIEF.md's "Feedback" section.
+//
+// Deliberately allows anonymous (logged-out) submission — the free-preview
+// chapter doesn't require login, and feedback from a not-yet-purchasing
+// visitor is still useful. memberId is recorded when available, null
+// otherwise.
+
+import { currentMember } from 'wix-members-backend';
+import wixData from 'wix-data';
+
+const FEEDBACK_COLLECTION = 'Feedback';
+
+/**
+ * @param {{ type: string, location: string, message: string, email: string }} params
+ */
+export async function submitFeedback(params) {
+  if (!params.message || !params.message.trim()) {
+    throw new Error('Feedback message is required.');
+  }
+
+  let memberId = null;
+  try {
+    const member = await currentMember.getMember();
+    memberId = member ? member._id : null;
+  } catch (e) {
+    // Not logged in — fine, this endpoint allows anonymous submissions.
+  }
+
+  await wixData.insert(FEEDBACK_COLLECTION, {
+    memberId: memberId,
+    type: params.type,
+    location: params.location,
+    message: params.message,
+    email: params.email,
+    status: 'new',
+    timestamp: new Date()
+  });
+}
