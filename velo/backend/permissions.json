@@ -1,0 +1,56 @@
+{
+  "web-methods": {
+    "*": {
+      "*": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": false },
+        "anonymous": { "invoke": false }
+      }
+    },
+    "backend/aiCoach.jsw": {
+      "analyzeRoping": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": false }
+      }
+    },
+    "backend/progress.jsw": {
+      "recordQuizResult": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": false }
+      },
+      "getQuizHistory": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": false }
+      }
+    },
+    "backend/feedback.jsw": {
+      "submitFeedback": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      }
+    },
+    "backend/legalAcknowledgments.jsw": {
+      "acknowledgeRisk": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": false }
+      },
+      "hasAcknowledgedCurrentVersion": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": false }
+      }
+    },
+    "backend/content.jsw": {
+      "getChapterContent": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      }
+    }
+  }
+}

@@ -77,25 +77,68 @@ embedded HTML content under (may differ between the Wix preview domain and
 the connected `ropingtools.com` custom domain) needs to be observed on a
 real, published site, not guessed.
 
-## What's still open / explicitly not done in this pass
+## Content gating (quizData + lesson HTML)
 
-### Content gating (quizData + lesson HTML) — the big remaining piece
-The brief's Technical Requirement #3 asks for chapter content and quiz
-questions to move behind a backend check. **This wasn't done yet.** The
-32 chapters' teaching content is static HTML baked directly into the file
-(not generated from a JS data object the way quiz questions are), which
-means gating it properly means restructuring how chapters render — fetch
-chapter HTML from the backend after an entitlement check, rather than
-having it all present in the DOM from page load. That's a bigger, riskier
-change than anything done in this pass, and it's the kind of thing that
-should be built and tested against the real Wix Members Area / purchase
-records once those actually exist — not designed blind. Recommend tackling
-this as its own focused pass once auth + at least one purchase path is
-live, so there's something real to gate against.
+The brief's Technical Requirement #3 asked for chapter content and quiz
+questions to move behind a backend check — originally all 32 chapters'
+teaching content and all 320 quiz Q&As were static HTML/JS baked directly
+into the file, visible to anyone via view-source, gating or no gating.
 
-In the meantime: **all 32 chapters' content and all quiz answers are still
-visible in page source**, same as the original file. This is a known,
-pre-existing gap, not a regression introduced here.
+**Done in this pass**, via a scripted extraction (not hand-edited — a
+471KB file with 32 chapters isn't something to slice by hand reliably):
+
+- A one-off Node script walked the original file's DOM structure (matching
+  `<div class="chapter">` blocks by brace-depth, not fixed line numbers, so
+  it wasn't order- or whitespace-fragile) and pulled each chapter's teaching
+  HTML out from between its `.chapter-body` open tag and its `<!-- QUIZ -->`
+  comment, plus the entire `quizData` object.
+- That extracted content now lives in **`velo/backend/courseContent.js`** —
+  a plain backend `.js` file (not `.jsw`), which per Wix's own repo
+  structure is importable by other backend files but **never exposed to the
+  frontend at all**. This is stricter than "check permissions before
+  returning it" — the content literally isn't reachable from client code.
+- **`velo/backend/content.jsw`**'s `getChapterContent(chapterId)` is the
+  only way this content reaches a browser: it checks `currentMember`, then
+  queries `Purchases`/`Subscriptions` for entitlement, and only then returns
+  the HTML + quiz array. Not logged in, or logged in but not entitled, both
+  return `{ locked: true }` — no content, no chapter title leak beyond what
+  was already public in `chapterTitles`.
+- In `public/course-embed.html`, every chapter except **1.1** (the free
+  preview, which stays fully inline/public, matching the brief's free-tier
+  spec) now has its teaching-content region replaced with a
+  `.chapter-locked` placeholder (teaser + "Unlock This Chapter" button) plus
+  an empty `.chapter-content-mount` div. `toggleChapter()` — the existing
+  function that already lazily rendered quizzes on first expand — now also
+  calls the new `unlockChapter()` on first expand of a locked chapter, which
+  round-trips through `wixBridge.call('getChapterContent', ...)`. If
+  entitled, the mount div gets filled with the real HTML, `quizData[id]` gets
+  populated client-side for that one chapter, and the existing `renderQuiz()`
+  runs unchanged. If not entitled, the teaser text updates in place with a
+  purchase prompt — no separate error state to build.
+- The client-side `quizData` object now contains **only chapter 1-1's**
+  10 questions — the other 310 questions across 31 chapters are gone from
+  page source entirely, confirmed by grepping the shipped file for known
+  chapter-1.2-only text after the transform (zero matches) alongside chapter
+  1.1's text (still present, as expected).
+
+**Not yet meaningful in practice**: `isEntitled()` in `content.jsw` queries
+real `Purchases`/`Subscriptions` collections, but **no checkout flow writes
+to those collections yet** (payment is still an open decision — see below).
+Until that's built, every non-1.1 chapter will correctly show as locked for
+every visitor, including the site owner testing it, because there's nothing
+in those collections to match against. That's expected, not a bug — nothing
+else needs to change in the gating logic once a real purchase writes a row
+there.
+
+**Verified**: the transform script's output was syntax-checked (`new
+Function(...)` on the extracted `<script>` block) and structurally verified
+(31 `.chapter-locked` placeholders, 32 intact `.chapter` shells, 32 intact
+`.quiz-section`/12 `.video-coach-box` elements untouched, chapter-1.2-only
+text absent from the client file, chapter-1.1 text still present). **Not**
+verified: the actual `unlockChapter()` round-trip against a live Wix page,
+since that depends on the postMessage bridge itself being live-verified
+first (see below) and on `Purchases`/`Subscriptions` collections existing
+with real test data.
 
 ### Not touched
 - Payment (Wix Pricing Plans vs. Stripe-via-Velo) — brief explicitly leaves
@@ -111,17 +154,31 @@ pre-existing gap, not a regression introduced here.
 - Monthly credit refresh for Annual plans — needs a Wix scheduled job, not
   written.
 
-## What still needs live verification
+## What's actually been verified live vs. what's still on paper
 
-Everything above was written against current Wix/Velo documentation, not
-tested in an actual Wix Editor, because this session doesn't have access to
-the client's Wix account. Before trusting any of this in production:
+**Verified against the real site** (`duratexapps/roping-tools`, connected
+to the mycamperspot.com Wix account with Dev Mode on): Git Integration
+works end-to-end — repo cloned, Wix CLI authenticated via device login,
+`npm install` + `wix sync-types` succeed, no Velo Packages conflict was
+present, and the backend `.jsw` modules + locked-down `permissions.json`
+have been pushed to `main`. That's real, not theoretical.
 
-- Confirm `$w('#courseEmbed').onMessage()` / `.postMessage()` actually
+**Still on paper, not live-tested** — because they all require a page in
+the Editor with the HTML embed element actually placed (see task "Create
+course page with HTML embed element," still pending):
+
+- Whether `$w('#courseEmbed').onMessage()` / `.postMessage()` actually
   round-trips with a pasted HTML iframe embed (vs. only Custom Elements) —
   this is the single riskiest unverified assumption in the whole bridge.
-- Confirm the iframe's `event.origin` / the parent's actual origin, to lock
-  down `PARENT_ORIGIN`.
-- Confirm current `wix-members-backend` / `wix-secrets-backend` API names
-  match what's used in the `.jsw` files — Wix has been migrating some
-  backend modules toward newer `-v2` / SDK-style equivalents.
+- The iframe's `event.origin` / the parent's actual origin, needed to lock
+  down `PARENT_ORIGIN` from `'*'` to the real value.
+- Current `wix-members-backend` / `wix-secrets-backend` API names matching
+  what's used in the `.jsw` files — Wix has been migrating some backend
+  modules toward newer `-v2` / SDK-style equivalents.
+- The `unlockChapter()` / `getChapterContent()` round trip end-to-end,
+  including against real rows in `Purchases`/`Subscriptions` (collections
+  don't exist yet either — see pending task).
+
+None of this is blocked on anything technical, just on the remaining manual
+Editor steps (Secrets Manager, the course page + embed element, the Data
+Collections) landing first.

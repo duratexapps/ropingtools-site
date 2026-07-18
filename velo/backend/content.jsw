@@ -1,0 +1,71 @@
+// backend/content.jsw
+//
+// Entitlement-checked chapter content delivery. Closes the gap flagged in
+// HANDOFF_BRIEF.md's Technical Requirement #3: originally, all 32 chapters'
+// teaching content and all 320 quiz questions/answers were visible in page
+// source to anyone, logged in or not. They now live in backend/courseContent.js
+// (never imported into anything client-reachable) and are only handed out
+// through getChapterContent() below, after checking purchase/subscription
+// status.
+//
+// Chapter 1.1 is the free preview — course-embed.html keeps it inline and
+// public, so the frontend never actually calls this for '1-1' today, but
+// it's handled here too for a uniform code path (and in case that changes).
+
+import { currentMember } from 'wix-members-backend';
+import wixData from 'wix-data';
+import { chapterContent, quizData } from 'backend/courseContent.js';
+
+const PURCHASES_COLLECTION = 'Purchases';
+const SUBSCRIPTIONS_COLLECTION = 'Subscriptions';
+const FREE_PREVIEW_CHAPTER = '1-1';
+
+/**
+ * @param {{ chapterId: string }} params
+ * @returns {Promise<{ locked: true } | { locked: false, html: string, quiz: object[] }>}
+ */
+export async function getChapterContent(params) {
+  const chapterId = params.chapterId;
+  if (!chapterContent[chapterId] || !quizData[chapterId]) {
+    throw new Error('Unknown chapter: ' + chapterId);
+  }
+
+  if (chapterId === FREE_PREVIEW_CHAPTER) {
+    return { locked: false, html: chapterContent[chapterId], quiz: quizData[chapterId] };
+  }
+
+  let member;
+  try {
+    member = await currentMember.getMember();
+  } catch (e) {
+    return { locked: true }; // not logged in — no purchase to check
+  }
+
+  const entitled = await isEntitled(member._id);
+  if (!entitled) return { locked: true };
+
+  return { locked: false, html: chapterContent[chapterId], quiz: quizData[chapterId] };
+}
+
+// NOTE: as of this writing, no checkout flow exists yet (see
+// HANDOFF_BRIEF.md §4 — Wix Pricing Plans vs. Stripe-via-Velo is still an
+// open decision), so Purchases/Subscriptions will be empty and every
+// non-1.1 chapter will correctly show as locked for everyone until that's
+// built and actually writes rows here. This function is ready for that —
+// nothing else needs to change on the content-gating side once purchases
+// exist.
+async function isEntitled(memberId) {
+  const purchase = await wixData.query(PURCHASES_COLLECTION)
+    .eq('memberId', memberId)
+    .eq('plan', 'whole-course')
+    .limit(1)
+    .find();
+  if (purchase.items.length > 0) return true;
+
+  const subscription = await wixData.query(SUBSCRIPTIONS_COLLECTION)
+    .eq('memberId', memberId)
+    .eq('status', 'active')
+    .limit(1)
+    .find();
+  return subscription.items.length > 0;
+}

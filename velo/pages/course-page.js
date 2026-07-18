@@ -21,6 +21,7 @@ import { analyzeRoping } from 'backend/aiCoach.jsw';
 import { recordQuizResult } from 'backend/progress.jsw';
 import { submitFeedback } from 'backend/feedback.jsw';
 import { acknowledgeRisk, hasAcknowledgedCurrentVersion } from 'backend/legalAcknowledgments.jsw';
+import { getChapterContent } from 'backend/content.jsw';
 
 // Must match the production origin used in public/course-embed.html's
 // PARENT_ORIGIN constant once that's locked down — keep these two in sync.
@@ -55,6 +56,8 @@ async function handleAction(action, payload) {
       return acknowledgeRisk(payload);
     case 'hasAcknowledgedCurrentVersion':
       return hasAcknowledgedCurrentVersion(payload);
+    case 'getChapterContent':
+      return getChapterContent(payload);
     default:
       throw new Error('Unknown bridge action: ' + action);
   }
