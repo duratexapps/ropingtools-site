@@ -143,6 +143,20 @@ of building the submission form.
 
 ---
 
+## `DrawProWaitlist`
+"Get Notified" signups from the Draw Pro coming-soon page
+(`public/drawpro/index.html`). Same permission pattern as `Feedback` —
+Admin-only, written via `velo/backend/drawPro.jsw`'s `joinDrawProWaitlist()`,
+which allows anonymous callers (no Members Area account required to join a
+waitlist).
+
+| Field | Type | Notes |
+|---|---|---|
+| `email` | Text | Lowercased/trimmed before storage; `drawPro.jsw` checks for an existing row before inserting to avoid duplicates. |
+| `timestamp` | Date/Time | |
+
+---
+
 ## Not yet covered here
 
 `Members` is provided natively by the Wix Members Area — extend it with

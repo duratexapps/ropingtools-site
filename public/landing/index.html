@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RopingTools — Everything Roping Needs to Run Smarter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+
+  :root {
+    --brown: #171C24;
+    --brown-mid: #262E3A;
+    --tan: #AEB9C4;
+    --tan-light: #E9EDF1;
+    --cream: #F4F5F7;
+    --gold: #EA580C;
+    --gold-light: #FB923C;
+    --rust: #DC2626;
+    --sage: #059669;
+    --sky: #0369A1;
+    --text: #14181C;
+    --text-mid: #475569;
+    --text-light: #6B7280;
+    --border: #E2E5EA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', serif; }
+  a { color: inherit; }
+
+  /* ─── HERO ─────────────────────────────────────────── */
+  .hero {
+    background: var(--brown);
+    color: var(--tan-light);
+    padding: 5rem 2rem 4.5rem;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-light);
+    margin-bottom: 1rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.1rem, 5vw, 3.4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    max-width: 16ch;
+    margin: 0 auto 1.5rem;
+  }
+  .hero p {
+    font-size: 1.15rem;
+    color: var(--tan);
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ─── TOOL CARDS ───────────────────────────────────── */
+  .cards-section {
+    padding: 4rem 1.5rem;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+  }
+  .tool-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .tool-card:hover { box-shadow: 0 12px 28px rgba(23,28,36,0.10); transform: translateY(-2px); }
+  .tool-tag {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sky);
+    margin-bottom: 0.75rem;
+  }
+  .tool-card.card-external .tool-tag { color: var(--sage); }
+  .tool-card.card-soon .tool-tag { color: var(--text-light); }
+  .tool-card h3 { font-size: 1.4rem; color: var(--brown); margin-bottom: 0.75rem; }
+  .tool-card p { color: var(--text-mid); font-size: 0.95rem; flex-grow: 1; margin-bottom: 1.5rem; }
+  .tool-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--gold);
+    text-decoration: none;
+    padding: 0.75rem 0;
+  }
+  .tool-card.card-external .tool-cta { color: var(--sage); }
+  .tool-card.card-soon .tool-cta-primary { color: var(--gold); margin-bottom: 0.5rem; }
+  .tool-card.card-soon .tool-cta-secondary {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    text-decoration: underline;
+  }
+  .external-icon { font-size: 0.8em; }
+  .badge-coming-soon {
+    display: inline-block;
+    background: var(--tan-light);
+    color: var(--text-light);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    margin-bottom: 0.75rem;
+    align-self: flex-start;
+  }
+
+  /* ─── AUDIENCE BREAKDOWN ─────────────────────────────── */
+  .audience-section {
+    background: var(--brown);
+    color: var(--tan-light);
+    padding: 4rem 1.5rem;
+  }
+  .audience-inner { max-width: 1000px; margin: 0 auto; }
+  .audience-section h2 {
+    text-align: center;
+    font-size: 1.9rem;
+    color: #fff;
+    margin-bottom: 2.5rem;
+  }
+  .audience-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2rem;
+  }
+  .audience-item h4 {
+    font-family: 'Source Sans 3', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold-light);
+    margin-bottom: 0.6rem;
+  }
+  .audience-item p { color: var(--tan); font-size: 0.95rem; line-height: 1.6; }
+
+  /* ─── FOOTER ─────────────────────────────────────────── */
+  .landing-footer {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    font-size: 0.8rem;
+    color: var(--text-light);
+  }
+
+  @media (max-width: 640px) {
+    .hero { padding: 3.5rem 1.5rem 3rem; }
+  }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-eyebrow">The RopingTools Suite</div>
+  <h1>Everything Roping Needs to Run Smarter.</h1>
+  <p>Whether you're chasing a check, running the show, working the back office, or hosting the event — RopingTools is building the tools that cut the busywork, the overhead, and the guesswork out of every corner of the sport.</p>
+</section>
+
+<section class="cards-section">
+  <div class="cards-grid">
+
+    <div class="tool-card">
+      <div class="tool-tag">For Ropers</div>
+      <h3>Get Coached. Actually.</h3>
+      <p>A complete, integrated roping course — swing mechanics to mental game — built around one coherent system instead of a stack of contradictory tips from ten different clinics. Upload your own video and get real, specific feedback on your loop, your delivery, and your position. Try the first chapter free.</p>
+      <a class="tool-cta" href="/coaching">Start Learning <span>→</span></a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-tag">For Ropers &amp; Producers</div>
+      <h3>Skip the Draw. Keep the Check.</h3>
+      <p>Find and lock in your own partner ahead of time — no draw-in fee, no luck of the draw. Producers get entries who show up ready to pay, not owing it out of their winnings. And coming soon: tap straight through to the venue to lock down your RV spot and stalls before you ever hit the road.</p>
+      <a class="tool-cta" href="/steerme">Find Your Partner <span>→</span></a>
+    </div>
+
+    <div class="tool-card card-external">
+      <div class="tool-tag">For Ropers on the Road</div>
+      <h3>Stalled in Two Minutes. Gone When You Are.</h3>
+      <p>A patent-pending, panel-free stalling system that mounts straight to your trailer — no bulky panels, no tangled rope, no wasted storage. Deploy it, use it, stow it, and get back on the road.</p>
+      <a class="tool-cta" href="https://twominutestall.com" target="_blank" rel="noopener">See Two Minute Stall <span class="external-icon">↗</span></a>
+    </div>
+
+    <div class="tool-card card-soon">
+      <div class="badge-coming-soon">Coming Soon</div>
+      <h3>Draw Pro</h3>
+      <p>The one-stop way to run your draw and notify every entrant — without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely. It's not live yet — but Steer Me already eliminates the need for a draw on a huge share of your entries today. Start there while Draw Pro finishes the rest.</p>
+      <a class="tool-cta tool-cta-primary" href="/steerme">Try Steer Me Now <span>→</span></a>
+      <br>
+      <a class="tool-cta-secondary" href="/drawpro">Get Notified When Draw Pro Launches</a>
+    </div>
+
+  </div>
+</section>
+
+<section class="audience-section">
+  <div class="audience-inner">
+    <h2>Built for Every Seat at the Table</h2>
+    <div class="audience-grid">
+      <div class="audience-item">
+        <h4>Ropers</h4>
+        <p>Get better with Coaching, find a partner and skip the draw-in fee with Steer Me, and travel lighter with Two Minute Stall.</p>
+      </div>
+      <div class="audience-item">
+        <h4>Producers</h4>
+        <p>List and manage events with Steer Me today; run the whole draw hands-free with Draw Pro, coming soon.</p>
+      </div>
+      <div class="audience-item">
+        <h4>Back Office</h4>
+        <p>Stop printing, cutting, and hand-delivering entrant info — Draw Pro is built to take that off your plate. Steer Me already collects more reliably-paid entries for you in the meantime.</p>
+      </div>
+      <div class="audience-item">
+        <h4>Venues</h4>
+        <p>Coming soon inside Steer Me: get linked directly from every event listing, so entrants can book your RV spots and stalls straight through the app instead of calling a number off a flier.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="landing-footer">
+  &copy; <span id="landing-year"></span> RopingTools. All rights reserved.
+</footer>
+
+<script>
+// This page is pure navigation/marketing content — no backend calls, no
+// postMessage bridge needed. The Draw Pro email capture (which DOES need
+// the bridge, to write to the DrawProWaitlist collection) lives on the
+// /drawpro page itself, not here — this page only links out to it.
+document.getElementById('landing-year').textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>

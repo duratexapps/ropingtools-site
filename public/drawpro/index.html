@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro — Coming Soon | RopingTools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+
+  :root {
+    --brown: #171C24;
+    --tan: #AEB9C4;
+    --tan-light: #E9EDF1;
+    --cream: #F4F5F7;
+    --gold: #EA580C;
+    --gold-light: #FB923C;
+    --rust: #DC2626;
+    --sage: #059669;
+    --text: #14181C;
+    --text-mid: #475569;
+    --text-light: #6B7280;
+    --border: #E2E5EA;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--brown);
+    color: var(--tan-light);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+  }
+  .drawpro-card {
+    max-width: 560px;
+    text-align: center;
+  }
+  .badge-coming-soon {
+    display: inline-block;
+    background: var(--tan-light);
+    color: var(--text-light);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 1.25rem;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    margin-bottom: 1.25rem;
+  }
+  .drawpro-body {
+    color: var(--tan);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 2rem;
+  }
+  .drawpro-body strong { color: #fff; }
+
+  .waitlist-form {
+    display: flex;
+    gap: 0.6rem;
+    max-width: 420px;
+    margin: 0 auto 0.75rem;
+  }
+  .waitlist-form input[type="email"] {
+    flex: 1;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  .waitlist-form button {
+    background: var(--gold);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .waitlist-form button:hover:not(:disabled) { background: #C2410C; }
+  .waitlist-form button:disabled { opacity: 0.6; cursor: default; }
+
+  .waitlist-note { font-size: 0.85rem; min-height: 1.3em; margin-bottom: 2rem; }
+  .waitlist-note.success { color: var(--sage); font-weight: 600; }
+  .waitlist-note.error { color: var(--rust); font-weight: 600; }
+
+  .drawpro-links { font-size: 0.9rem; }
+  .drawpro-links a {
+    color: var(--gold-light);
+    text-decoration: none;
+    font-weight: 600;
+    margin: 0 0.6rem;
+  }
+  .drawpro-links a:hover { text-decoration: underline; }
+
+  @media (max-width: 480px) {
+    .waitlist-form { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="drawpro-card">
+  <div class="badge-coming-soon">Coming Soon</div>
+  <h1>Draw Pro</h1>
+  <p class="drawpro-body">
+    The one-stop way to run your draw and notify every entrant — without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely.
+    <br><br>
+    It's not live yet — but <strong>Steer Me</strong> already eliminates the need for a draw on a huge share of your entries today. Start there while Draw Pro finishes the rest.
+  </p>
+
+  <form class="waitlist-form" id="waitlist-form" onsubmit="return false;">
+    <input type="email" id="waitlist-email" placeholder="you@example.com" required autocomplete="email">
+    <button type="button" id="waitlist-btn" onclick="joinWaitlist()">Get Notified</button>
+  </form>
+  <div class="waitlist-note" id="waitlist-note"></div>
+
+  <div class="drawpro-links">
+    <a href="/steerme">Try Steer Me Now →</a>
+    <a href="/">Back to RopingTools</a>
+  </div>
+</div>
+
+<script>
+// ═══════════ WIX BRIDGE (parent-page communication) ═══════════
+// Same postMessage pattern as public/course-embed.html — see that file's
+// comments and docs/ARCHITECTURE.md for the full explanation.
+const PARENT_ORIGIN = '*'; // TODO: lock down to the production origin before launch, see course-embed.html
+const wixBridge = (() => {
+  const pending = new Map();
+  let reqSeq = 0;
+  window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (!msg || msg.source !== 'ropingtools-parent' || !msg.reqId) return;
+    const entry = pending.get(msg.reqId);
+    if (!entry) return;
+    pending.delete(msg.reqId);
+    if (msg.error) entry.reject(new Error(msg.error));
+    else entry.resolve(msg.result);
+  });
+  function call(action, payload, timeoutMs) {
+    timeoutMs = timeoutMs || 15000;
+    return new Promise((resolve, reject) => {
+      const reqId = 'req_' + (++reqSeq) + '_' + Date.now();
+      pending.set(reqId, { resolve, reject });
+      window.parent.postMessage({ source: 'ropingtools-drawpro', action: action, payload: payload, reqId: reqId }, PARENT_ORIGIN);
+      setTimeout(() => {
+        if (pending.has(reqId)) {
+          pending.delete(reqId);
+          reject(new Error('Timed out — try again in a moment.'));
+        }
+      }, timeoutMs);
+    });
+  }
+  return { call: call };
+})();
+
+function isValidEmail(value) {
+  // Deliberately simple — real validation happens server-side too.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function joinWaitlist() {
+  const input = document.getElementById('waitlist-email');
+  const btn = document.getElementById('waitlist-btn');
+  const note = document.getElementById('waitlist-note');
+  const email = input.value.trim();
+
+  note.className = 'waitlist-note';
+  note.textContent = '';
+
+  if (!isValidEmail(email)) {
+    note.className = 'waitlist-note error';
+    note.textContent = 'Enter a valid email address.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  wixBridge.call('joinDrawProWaitlist', { email: email })
+    .then((result) => {
+      btn.textContent = 'Get Notified';
+      btn.disabled = false;
+      note.className = 'waitlist-note success';
+      note.textContent = (result && result.alreadyJoined)
+        ? "You're already on the list — we'll email you when Draw Pro launches."
+        : "You're on the list! We'll email you when Draw Pro launches.";
+      input.value = '';
+    })
+    .catch((err) => {
+      btn.textContent = 'Get Notified';
+      btn.disabled = false;
+      note.className = 'waitlist-note error';
+      note.textContent = 'Something went wrong: ' + (err && err.message ? err.message : 'try again in a moment.');
+    });
+}
+</script>
+
+</body>
+</html>

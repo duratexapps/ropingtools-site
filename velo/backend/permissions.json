@@ -51,6 +51,13 @@
         "siteMember": { "invoke": true },
         "anonymous": { "invoke": true }
       }
+    },
+    "backend/drawPro.jsw": {
+      "joinDrawProWaitlist": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      }
     }
   }
 }

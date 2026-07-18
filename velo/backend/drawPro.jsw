@@ -1,0 +1,37 @@
+// backend/drawPro.jsw
+//
+// Draw Pro "Get Notified" waitlist. No auth required — this is a public
+// coming-soon page, anyone can join without a Wix Members Area account.
+// See public/drawpro/index.html for the frontend and
+// data-collections/SCHEMA.md for the DrawProWaitlist collection shape.
+
+import wixData from 'wix-data';
+
+const DRAW_PRO_WAITLIST_COLLECTION = 'DrawProWaitlist';
+
+/**
+ * @param {{ email: string }} params
+ * @returns {Promise<{ alreadyJoined: boolean }>}
+ */
+export async function joinDrawProWaitlist(params) {
+  const email = (params.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('That email address doesn\'t look valid.');
+  }
+
+  const existing = await wixData.query(DRAW_PRO_WAITLIST_COLLECTION)
+    .eq('email', email)
+    .limit(1)
+    .find();
+
+  if (existing.items.length > 0) {
+    return { alreadyJoined: true };
+  }
+
+  await wixData.insert(DRAW_PRO_WAITLIST_COLLECTION, {
+    email: email,
+    timestamp: new Date()
+  });
+
+  return { alreadyJoined: false };
+}
