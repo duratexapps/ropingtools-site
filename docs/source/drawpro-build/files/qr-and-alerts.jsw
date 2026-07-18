@@ -1,0 +1,169 @@
+/**
+ * qr-and-alerts.jsw
+ * Velo backend web module — two related features:
+ *
+ * 1. QR code generation: a producer gets a scannable code pointing
+ *    straight at their event's entry page, for printing on fliers.
+ * 2. Entry alerts: if someone scans the code (or visits the entry
+ *    link) before the event has opened, they can leave an email to
+ *    be notified the moment it opens — a lead-gen channel with real
+ *    intent behind it (they scanned a flier for THIS event).
+ *
+ * QR generation uses a hosted QR image API (no auth, no dependency
+ * risk in Velo's runtime) rather than a bundled rendering library.
+ * Swap ENTRY_BASE_URL for the real ropingtools.com path once routing
+ * is finalized.
+ */
+
+import wixData from 'wix-data';
+import { fetch } from 'wix-fetch';
+import { getSecret } from 'wix-secrets-backend';
+
+const EVENTS = 'DrawProEvents';
+const ENTRY_ALERTS = 'DrawProEntryAlerts';
+
+const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro/enter';
+const QR_IMAGE_API = 'https://api.qrserver.com/v1/create-qr-code/';
+const QR_SIZE = '400x400';
+
+const EMAIL_PROVIDER_SECRET_NAME = 'drawpro-email-api-key';
+const EMAIL_SEND_ENDPOINT = 'https://api.sendgrid.com/v3/mail/send';
+const SEND_FROM_ADDRESS = 'draws@ropingtools.com';
+
+/* ------------------------------------------------------------------ */
+/* QR code generation                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Builds the entry URL for an event and generates a QR code pointing
+ * at it. Cached on the event record — call this once (e.g. a "Generate
+ * QR Code" button) rather than regenerating on every page load, since
+ * the URL never changes for a given event.
+ */
+export async function generateEventQrCode(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    const entryUrl = buildEntryUrl(eventId);
+    const qrImageUrl = `${QR_IMAGE_API}?size=${QR_SIZE}&data=${encodeURIComponent(entryUrl)}`;
+
+    await wixData.update(EVENTS, {
+        ...event,
+        qrCodeUrl: qrImageUrl,
+        qrCodeGeneratedDate: new Date()
+    });
+
+    return { entryUrl, qrImageUrl };
+}
+
+function buildEntryUrl(eventId) {
+    return `${ENTRY_BASE_URL}?event=${eventId}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Entry alerts — "notify me when entries open"                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Called from the entry page when a visitor lands on an event that
+ * hasn't opened yet (status = 'draft', or 'open' with a future
+ * entryOpenDateTime). Records the email against the event; dedupes
+ * so the same address doesn't get logged twice for one event.
+ */
+export async function subscribeToEntryAlert(eventId, email) {
+    if (!isValidEmail(email)) {
+        throw new Error('Enter a valid email address.');
+    }
+
+    const existing = await wixData.query(ENTRY_ALERTS)
+        .eq('eventId', eventId)
+        .eq('email', email.trim().toLowerCase())
+        .find();
+
+    if (existing.items.length > 0) {
+        return existing.items[0]; // already subscribed, no duplicate row
+    }
+
+    return wixData.insert(ENTRY_ALERTS, {
+        eventId,
+        email: email.trim().toLowerCase(),
+        createdDate: new Date(),
+        notified: false,
+        notifiedTimestamp: null,
+        convertedToAccount: null
+    });
+}
+
+/**
+ * Fires when an event's status flips to 'open' — call this from
+ * event-setup.jsw's openEvent() function. Emails everyone who signed
+ * up for an alert on this event, marks each as notified.
+ */
+export async function sendEntryOpenAlerts(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    const pending = await wixData.query(ENTRY_ALERTS)
+        .eq('eventId', eventId)
+        .eq('notified', false)
+        .find();
+
+    if (pending.items.length === 0) return { sent: 0 };
+
+    let sentCount = 0;
+    for (const alert of pending.items) {
+        try {
+            await sendAlertEmail(event, alert.email);
+            await wixData.update(ENTRY_ALERTS, {
+                ...alert,
+                notified: true,
+                notifiedTimestamp: new Date()
+            });
+            sentCount++;
+        } catch (err) {
+            // Leave notified = false so it can be retried; don't let one
+            // failure block the rest of the batch.
+            console.error(`Failed to send entry-open alert to ${alert.email}: ${err.message}`);
+        }
+    }
+
+    return { sent: sentCount, total: pending.items.length };
+}
+
+async function sendAlertEmail(event, toEmail) {
+    const apiKey = await getSecret(EMAIL_PROVIDER_SECRET_NAME);
+    const entryUrl = buildEntryUrl(event._id);
+
+    const response = await fetch(EMAIL_SEND_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            personalizations: [{ to: [{ email: toEmail }] }],
+            from: { email: SEND_FROM_ADDRESS },
+            subject: `Entries are open: ${event.title}`,
+            content: [{
+                type: 'text/plain',
+                value:
+                    `Entries just opened for ${event.title}.\n\n` +
+                    `Enter here: ${entryUrl}\n\n` +
+                    `— RopingTools Draw Pro`
+            }]
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`Email provider responded ${response.status}`);
+    }
+}
+
+function isValidEmail(email) {
+    return typeof email === 'string' && /^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(email.trim());
+}
+
+/**
+ * Convenience for a producer dashboard: how many people are waiting
+ * on this event, independent of whether it's opened yet. Useful as an
+ * early demand signal before entries even start.
+ */
+export async function getAlertSubscriberCount(eventId) {
+    return wixData.query(ENTRY_ALERTS).eq('eventId', eventId).count();
+}

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Draw Pro — Entrant Entry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=JetBrains+Mono:wght@700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --brass-light: #C9A54F;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Work Sans', sans-serif; background:transparent; color:var(--ink);
+    display:flex; gap:28px; justify-content:center; flex-wrap:wrap; padding:24px;
+  }
+  .phone{
+    width:340px; min-height:600px; background:var(--cream); border-radius:32px;
+    border:8px solid var(--leather-dark); overflow:hidden; position:relative;
+    box-shadow:0 20px 50px rgba(42,35,28,0.35); display:flex; flex-direction:column;
+  }
+  .topbar{
+    background:var(--leather); color:var(--cream); padding:20px 18px 14px;
+    background-image: radial-gradient(circle at 90% -10%, rgba(169,129,46,0.35), transparent 60%);
+  }
+  .topbar .eyebrow{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--brass-light); }
+  .topbar h1{ font-family:'Playfair Display', serif; font-weight:900; font-size:22px; letter-spacing:0.5px; margin-top:2px; }
+  .topbar .sub{ font-size:11.5px; color:var(--rope); margin-top:2px; }
+  .content{ flex:1; padding:18px; }
+
+  .toggle-row{ display:flex; gap:8px; margin-bottom:16px; }
+  .toggle{ flex:1; text-align:center; font-size:12px; font-weight:600; padding:9px; border-radius:6px; border:1.5px solid var(--rope); color:var(--leather); }
+  .toggle.active{ background:var(--leather); color:var(--cream); border-color:var(--leather); }
+
+  label{ display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--leather); margin:12px 0 5px; }
+  label:first-child{ margin-top:0; }
+  input{ width:100%; padding:11px 13px; border-radius:5px; border:1.5px solid var(--rope); background:var(--tan-light); font-family:'Work Sans', sans-serif; font-size:13.5px; color:var(--ink); }
+
+  .role-row{ display:flex; gap:8px; margin:14px 0; }
+  .role{ flex:1; text-align:center; font-size:12px; font-weight:600; padding:9px; border-radius:6px; border:1.5px solid var(--rope); color:var(--leather); }
+  .role.active{ background:var(--rust); color:var(--cream); border-color:var(--rust); }
+
+  .btn-primary{ display:block; width:100%; text-align:center; padding:14px; border-radius:6px; border:none; background:var(--rust); color:var(--cream); font-weight:700; font-size:14.5px; }
+  .hint{ font-size:10.5px; color:#6b5c47; text-align:center; margin-top:10px; }
+
+  .confirm-wrap{ display:flex; flex-direction:column; align-items:center; padding-top:18px; }
+  .tag.big{
+    width:96px; height:96px; border-radius:50%;
+    background:linear-gradient(155deg, var(--brass-light) 0%, var(--rust) 55%, #6E5119 100%);
+    border:2px solid #4a3813; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.15), inset 0 2px 5px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+    margin-bottom:14px;
+  }
+  .tag.big .lbl{ font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:#2A2005; opacity:0.75; }
+  .tag.big span{ font-family:'Playfair Display', serif; font-weight:900; color:#2A2005; font-size:28px; line-height:1.1; }
+  .confirm-name{ font-family:'Playfair Display', serif; font-weight:700; font-size:18px; color:var(--leather); text-align:center; }
+  .confirm-sub{ font-size:12.5px; color:#6b5c47; text-align:center; margin-top:2px; }
+  .partner-line{ font-size:13px; color:var(--ink); text-align:center; margin-top:12px; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="topbar">
+    <div class="eyebrow">Enter the draw</div>
+    <h1>Saturday jackpot</h1>
+    <div class="sub">10.5 cap</div>
+  </div>
+  <div class="content">
+    <div class="toggle-row">
+      <div class="toggle active">Solo</div>
+      <div class="toggle">With a partner</div>
+    </div>
+    <label>First and last name</label>
+    <input value="Jess Alvarez" readonly>
+    <label>Classification number</label>
+    <input value="4.5" readonly>
+    <label>Email</label>
+    <input value="jess@email.com" readonly>
+    <div class="role-row">
+      <div class="role active">Header</div>
+      <div class="role">Heeler</div>
+    </div>
+    <button class="btn-primary">Enter the draw</button>
+    <div class="hint">We'll email your team number once the draw is run</div>
+  </div>
+</div>
+
+<div class="phone">
+  <div class="topbar">
+    <div class="eyebrow">You're entered</div>
+    <h1>Saturday jackpot</h1>
+    <div class="sub">Draw complete</div>
+  </div>
+  <div class="content confirm-wrap">
+    <div class="tag big">
+      <span class="lbl">Team</span>
+      <span>07</span>
+    </div>
+    <div class="confirm-name">Jess Alvarez</div>
+    <div class="confirm-sub">Header</div>
+    <div class="partner-line">Partner: M. Chen</div>
+    <div class="hint">Watch for teams 04&ndash;06 so you're ready</div>
+  </div>
+</div>
+
+</body>
+</html>

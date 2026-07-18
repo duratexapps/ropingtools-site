@@ -1,0 +1,265 @@
+/**
+ * event-setup.jsw
+ * Velo backend web module — Draw Pro event configuration and entry intake.
+ * Covers Option 2 (self-service entry) plumbing; Option 1 (scanned cards)
+ * writes to the same DrawProEntrants collection via a separate scan-import
+ * module (not included here — same validation rules apply).
+ */
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+import { sendEntryOpenAlerts } from 'backend/qr-and-alerts.jsw';
+
+const EVENTS = 'DrawProEvents';
+const ENTRANTS = 'DrawProEntrants';
+const AUDIT_LOG = 'DrawProAuditLog';
+
+const MANDATORY_ENTRY_FIELDS = ['firstName', 'lastName', 'classificationNumber', 'email'];
+
+/* ------------------------------------------------------------------ */
+/* Event creation                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates a new Draw Pro event in draft status.
+ * @param {Object} eventInput
+ * @param {string} eventInput.title
+ * @param {Date} eventInput.eventDate
+ * @param {number} eventInput.capNumber
+ * @param {Date} eventInput.entryOpenDateTime
+ * @param {'time'|'teamCount'} eventInput.entryCloseMode
+ * @param {Date} [eventInput.entryCloseDateTime]
+ * @param {number} [eventInput.entryCloseTeamCount]
+ * @param {boolean} eventInput.preEntryEnabled
+ * @param {string[]} [eventInput.requiredEntryFields]
+ * @param {string} [eventInput.steerMeEventId]
+ */
+export async function createEvent(eventInput) {
+    validateEventInput(eventInput);
+
+    const member = await currentMember.getMember();
+    if (!member) {
+        throw new Error('Must be signed in as a producer to create an event.');
+    }
+
+    const record = {
+        title: eventInput.title,
+        producerId: member._id,
+        eventDate: eventInput.eventDate,
+        capNumber: eventInput.capNumber,
+        entryOpenDateTime: eventInput.entryOpenDateTime,
+        entryCloseMode: eventInput.entryCloseMode,
+        entryCloseDateTime: eventInput.entryCloseDateTime || null,
+        entryCloseTeamCount: eventInput.entryCloseTeamCount || null,
+        preEntryEnabled: !!eventInput.preEntryEnabled,
+        requiredEntryFields: eventInput.requiredEntryFields || [],
+        steerMeEventId: eventInput.steerMeEventId || null,
+        status: 'draft'
+    };
+
+    return wixData.insert(EVENTS, record);
+}
+
+function validateEventInput(eventInput) {
+    if (!eventInput.title || !eventInput.title.trim()) {
+        throw new Error('Event title is required.');
+    }
+    if (typeof eventInput.capNumber !== 'number' || eventInput.capNumber <= 0) {
+        throw new Error('Cap number must be a positive number (e.g. 10.5).');
+    }
+    if (eventInput.entryCloseMode === 'time' && !eventInput.entryCloseDateTime) {
+        throw new Error('entryCloseDateTime is required when entryCloseMode is "time".');
+    }
+    if (eventInput.entryCloseMode === 'teamCount' && !eventInput.entryCloseTeamCount) {
+        throw new Error('entryCloseTeamCount is required when entryCloseMode is "teamCount".');
+    }
+}
+
+/**
+ * Opens an event for entries. Producer-triggered, or can be scheduled
+ * via a Wix job that flips status at entryOpenDateTime.
+ */
+export async function openEvent(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    if (event.status !== 'draft') {
+        throw new Error(`Event must be in draft status to open. Current status: ${event.status}`);
+    }
+    const opened = await wixData.update(EVENTS, { ...event, status: 'open' });
+
+    // Notify anyone who signed up for a "tell me when this opens" alert
+    // via the QR/entry link before entries were live. Fire-and-forget-ish:
+    // don't block the open action if the alert batch has an issue.
+    sendEntryOpenAlerts(eventId).catch(err =>
+        console.error(`Entry-open alerts failed for event ${eventId}: ${err.message}`)
+    );
+
+    return opened;
+}
+
+/* ------------------------------------------------------------------ */
+/* Entry submission                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Submits a solo entry (will be matched by the draw algorithm) or a
+ * pre-formed team entry (two entrants who chose each other).
+ *
+ * @param {string} eventId
+ * @param {Object} entrantInput - header/heeler fields, see MANDATORY_ENTRY_FIELDS
+ * @param {Object} [partnerInput] - present only for pre-formed team entries
+ */
+export async function submitEntry(eventId, entrantInput, partnerInput) {
+    const event = await wixData.get(EVENTS, eventId);
+    await assertEntryWindowOpen(event);
+
+    validateEntrant(entrantInput, event);
+    await enforceGuestCapIfApplicable(entrantInput);
+
+    if (partnerInput) {
+        // Pre-formed team: both entrants validated, both roles must differ,
+        // no cap check here — cap only constrains the ALGORITHM's random
+        // pairing of solo entrants, not entrants who chose each other.
+        validateEntrant(partnerInput, event);
+        if (entrantInput.role === partnerInput.role) {
+            throw new Error('A pre-formed team needs one header and one heeler.');
+        }
+        await enforceGuestCapIfApplicable(partnerInput);
+
+        const entrantRecord = buildEntrantRecord(eventId, entrantInput, 'preformed_team');
+        const partnerRecord = buildEntrantRecord(eventId, partnerInput, 'preformed_team');
+
+        const savedEntrant = await wixData.insert(ENTRANTS, entrantRecord);
+        const savedPartner = await wixData.insert(ENTRANTS, partnerRecord);
+
+        // Link them to each other
+        await wixData.update(ENTRANTS, { ...savedEntrant, teamPartnerEntrantId: savedPartner._id });
+        await wixData.update(ENTRANTS, { ...savedPartner, teamPartnerEntrantId: savedEntrant._id });
+
+        await maybeAutoCloseOnTeamCount(event);
+        return { entrant: savedEntrant, partner: savedPartner };
+    }
+
+    const record = buildEntrantRecord(eventId, entrantInput, 'solo');
+    const saved = await wixData.insert(ENTRANTS, record);
+    await maybeAutoCloseOnTeamCount(event);
+    return { entrant: saved };
+}
+
+function buildEntrantRecord(eventId, input, entryType) {
+    return {
+        eventId,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        classificationNumber: input.classificationNumber,
+        globalMembershipId: input.globalMembershipId || null,
+        email: input.email,
+        phone: input.phone || null,
+        role: input.role,
+        entryType,
+        teamPartnerEntrantId: null,
+        isGuestEntry: !!input.isGuestEntry,
+        guestContactHash: input.isGuestEntry ? hashContact(input.email, input.phone) : null,
+        source: 'self_entry',
+        scanVerified: false,
+        entryTimestamp: new Date()
+    };
+}
+
+function validateEntrant(input, event) {
+    for (const field of MANDATORY_ENTRY_FIELDS) {
+        if (!input[field] && input[field] !== 0) {
+            throw new Error(`Missing required field: ${field}`);
+        }
+    }
+    if (input.role !== 'header' && input.role !== 'heeler') {
+        throw new Error('role must be "header" or "heeler".');
+    }
+    if (typeof input.classificationNumber !== 'number' || input.classificationNumber <= 0) {
+        throw new Error('classificationNumber must be a positive number.');
+    }
+    // Note: individual classification is NOT checked against the cap here —
+    // a single entrant's number under the cap is fine on its own (e.g. a 6.5
+    // can enter a 10.5 roping); it's the PAIR SUM that the cap constrains,
+    // enforced in the matching engine.
+    for (const requiredField of event.requiredEntryFields || []) {
+        if (!input[requiredField]) {
+            throw new Error(`Missing producer-required field: ${requiredField}`);
+        }
+    }
+}
+
+async function assertEntryWindowOpen(event) {
+    if (event.status !== 'open') {
+        throw new Error('This event is not currently open for entries.');
+    }
+    const now = new Date();
+    if (event.entryCloseMode === 'time' && event.entryCloseDateTime && now > new Date(event.entryCloseDateTime)) {
+        await closeEvent(event._id);
+        throw new Error('Entries have closed for this event.');
+    }
+}
+
+async function maybeAutoCloseOnTeamCount(event) {
+    if (event.entryCloseMode !== 'teamCount') return;
+    const currentCount = await countEntrantsForEvent(event._id);
+    // Team count target is in TEAMS, entrants come in as individuals/pairs —
+    // caller-side team count is approximated as entrants/2 for solo pool
+    // plus actual pre-formed teams; exact reconciliation happens at close.
+    if (currentCount >= event.entryCloseTeamCount * 2) {
+        await closeEvent(event._id);
+    }
+}
+
+async function countEntrantsForEvent(eventId) {
+    const result = await wixData.query(ENTRANTS).eq('eventId', eventId).count();
+    return result;
+}
+
+export async function closeEvent(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    if (event.status !== 'open') return event; // already closed/beyond
+    return wixData.update(EVENTS, { ...event, status: 'closed' });
+}
+
+/* ------------------------------------------------------------------ */
+/* Guest-entry rate limiting                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Placeholder cap — frequency TBD pending product decision.
+ * Wire this constant up once a number is chosen (e.g. 3 guest entries
+ * per rolling 90 days).
+ */
+const GUEST_ENTRY_LIMIT = 3;
+const GUEST_ENTRY_WINDOW_DAYS = 90;
+
+async function enforceGuestCapIfApplicable(input) {
+    if (!input.isGuestEntry) return;
+
+    const contactHash = hashContact(input.email, input.phone);
+    const windowStart = new Date(Date.now() - GUEST_ENTRY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const recentGuestEntries = await wixData.query(ENTRANTS)
+        .eq('guestContactHash', contactHash)
+        .ge('entryTimestamp', windowStart)
+        .count();
+
+    if (recentGuestEntries >= GUEST_ENTRY_LIMIT) {
+        throw new Error(
+            `Guest entry limit reached (${GUEST_ENTRY_LIMIT} per ${GUEST_ENTRY_WINDOW_DAYS} days). ` +
+            `Create a free RopingTools account to continue entering without limits.`
+        );
+    }
+}
+
+function hashContact(email, phone) {
+    // Simple stable hash for rate-limit lookups — not for security purposes.
+    // Swap for a proper hashing util (e.g. wix-crypto) before production use.
+    const raw = (email || '').trim().toLowerCase() + '|' + (phone || '').replace(/\D/g, '');
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+        hash = (hash << 5) - hash + raw.charCodeAt(i);
+        hash |= 0;
+    }
+    return String(hash);
+}
