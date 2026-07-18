@@ -132,40 +132,16 @@
 </div>
 
 <script>
-// =========== WIX BRIDGE (parent-page communication) ===========
-// Same postMessage pattern as public/course-embed.html - see that file's
-// comments and docs/ARCHITECTURE.md for the full explanation.
-// Wix's own Velo docs warn against '*' as targetOrigin here - locked to the
-// real production origin now that this is live.
-const PARENT_ORIGIN = 'https://www.ropingtools.com';
-const wixBridge = (() => {
-  const pending = new Map();
-  let reqSeq = 0;
-  window.addEventListener('message', (event) => {
-    const msg = event.data;
-    if (!msg || msg.source !== 'ropingtools-parent' || !msg.reqId) return;
-    const entry = pending.get(msg.reqId);
-    if (!entry) return;
-    pending.delete(msg.reqId);
-    if (msg.error) entry.reject(new Error(msg.error));
-    else entry.resolve(msg.result);
-  });
-  function call(action, payload, timeoutMs) {
-    timeoutMs = timeoutMs || 15000;
-    return new Promise((resolve, reject) => {
-      const reqId = 'req_' + (++reqSeq) + '_' + Date.now();
-      pending.set(reqId, { resolve, reject });
-      window.parent.postMessage({ source: 'ropingtools-drawpro', action: action, payload: payload, reqId: reqId }, PARENT_ORIGIN);
-      setTimeout(() => {
-        if (pending.has(reqId)) {
-          pending.delete(reqId);
-          reject(new Error('Timed out - try again in a moment.'));
-        }
-      }, timeoutMs);
-    });
-  }
-  return { call: call };
-})();
+// =========== BACKEND CALL (Wix HTTP Function) ===========
+// Was originally a $w('#drawProEmbed').onMessage()/postMessage bridge to
+// Velo Page Code (see docs/ARCHITECTURE.md's history on this). Live testing
+// showed $w('#drawProEmbed') reliably returns an empty array in this Editor
+// version, so the classic HTML Component messaging API Wix's docs describe
+// doesn't apply here. Switched to calling a Wix HTTP Function directly via
+// fetch() instead - see backend/http-functions.js's post_joinDrawProWaitlist.
+// This sidesteps $w/onMessage entirely, which is fine for this action since
+// it doesn't need a logged-in member's identity.
+const WAITLIST_ENDPOINT = 'https://www.ropingtools.com/_functions/joinDrawProWaitlist';
 
 function isValidEmail(value) {
   // Deliberately simple - real validation happens server-side too.
@@ -190,7 +166,17 @@ function joinWaitlist() {
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
-  wixBridge.call('joinDrawProWaitlist', { email: email })
+  fetch(WAITLIST_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  })
+    .then((response) => {
+      return response.json().then((data) => {
+        if (!response.ok) throw new Error((data && data.error) || 'Something went wrong.');
+        return data;
+      });
+    })
     .then((result) => {
       btn.textContent = 'Get Notified';
       btn.disabled = false;

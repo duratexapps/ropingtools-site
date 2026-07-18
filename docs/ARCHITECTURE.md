@@ -182,3 +182,51 @@ course page with HTML embed element," still pending):
 None of this is blocked on anything technical, just on the remaining manual
 Editor steps (Secrets Manager, the course page + embed element, the Data
 Collections) landing first.
+
+## Update: the `$w.onMessage()` bridge was live-tested and doesn't work — replaced with HTTP Functions
+
+Once the Draw Pro coming-soon page's embed was actually live, its "Get
+Notified" waitlist consistently failed with a timeout. Live console
+debugging (in the Local Editor's Preview mode, with browser DevTools open)
+found the real cause: `$w('#drawProEmbed')` returns `{ type: undefined,
+constructor: Array, keys: [] }` — an **empty array**, not the HTML
+Component reference Wix's own docs describe. This was confirmed repeatable
+across multiple page reloads and Local Editor reconnects, with the element
+ID visually confirmed correct in the Editor ("Section: drawProEmbed" badge
+matched exactly). The classic `$w.HtmlComponent` messaging API
+(`onMessage()`/`postMessage()`) that Wix's docs describe for the "HTML
+iFrame Element" does not appear to apply to whatever component type the
+current Editor's "Custom Embeds"/"Embed a Widget" flow actually creates —
+this looks like a real platform gap or naming/version mismatch between
+Wix's documentation and the current Editor, not a mistake in our setup.
+
+**Fix: switched to Wix HTTP Functions instead**, for actions that don't
+need a logged-in member's identity. `backend/http-functions.js` exposes
+`post_joinDrawProWaitlist` / `options_joinDrawProWaitlist` as a plain REST
+endpoint at `https://www.ropingtools.com/_functions/joinDrawProWaitlist`,
+called directly via `fetch()` from `public/drawpro/index.html` — no `$w`,
+no `onMessage`, no Page Code involvement at all. CORS headers are set
+explicitly and permissively (`Access-Control-Allow-Origin: '*'`) since it
+wasn't confirmed whether the embed iframe is same-origin with
+`www.ropingtools.com` (a `filesusr.com` asset-domain URL was observed in
+one network trace, suggesting it may not be) — tighten this once confirmed,
+same as the `PARENT_ORIGIN` lockdown.
+
+**What this means for everything else:**
+- **Draw Pro's real build** (native `$w` elements + Page Code, not an HTML
+  embed at all — see the build package from Claude Chat) is unaffected by
+  this bug entirely, since native elements don't go through
+  `$w('#id').onMessage()` on an HTML Component — this bug is specific to
+  HTML/Custom-Embed iframe elements.
+- **The Coaching course page** (`course-page.js` / `course-embed.html`)
+  almost certainly has the same broken bridge — it hasn't been re-tested
+  live since this was found. Its actions need real member identity
+  (`currentMember` in the backend), which HTTP Functions can't get for
+  free the way Page Code can — an HTTP Function would need the visitor's
+  session to arrive via cookies on a cross-origin-safe request, which is
+  unconfirmed. **This needs verifying before assuming the same fix applies
+  there** — don't port this blind.
+- **Steer Me web**, if it uses any HTML-embed pattern for interactive
+  pieces, should default to HTTP Functions (or native `$w` elements, like
+  Draw Pro's real build) from the start rather than the `$w.onMessage()`
+  bridge — no reason to re-discover this same bug a third time.
