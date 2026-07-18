@@ -2772,14 +2772,11 @@
 // (which run with the visitor's authenticated Wix session), and posts the
 // result back down into this iframe.
 //
-// SECURITY NOTE: PARENT_ORIGIN is left as '*' below because the actual origin
-// Wix serves this embed under (custom domain vs. editorx/wixsite preview
-// vs. the ropingtools.com production domain) needs to be confirmed once this
-// is actually pasted into the Wix HTML element and tested live. Before real
-// launch, replace '*' with the exact production origin (e.g.
-// 'https://www.ropingtools.com') in both postMessage calls AND the
-// event.origin check below - do not ship '*' to production.
-const PARENT_ORIGIN = '*';
+// SECURITY NOTE: Wix's own Velo docs explicitly warn against '*' as the
+// targetOrigin when posting from an HTML Component to page code ("your
+// message can be intercepted by a malicious site") - locked to the real
+// production origin now that this is live on www.ropingtools.com.
+const PARENT_ORIGIN = 'https://www.ropingtools.com';
 
 const wixBridge = (() => {
   const pending = new Map();

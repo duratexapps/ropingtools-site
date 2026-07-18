@@ -135,7 +135,9 @@
 // =========== WIX BRIDGE (parent-page communication) ===========
 // Same postMessage pattern as public/course-embed.html - see that file's
 // comments and docs/ARCHITECTURE.md for the full explanation.
-const PARENT_ORIGIN = '*'; // TODO: lock down to the production origin before launch, see course-embed.html
+// Wix's own Velo docs warn against '*' as targetOrigin here - locked to the
+// real production origin now that this is live.
+const PARENT_ORIGIN = 'https://www.ropingtools.com';
 const wixBridge = (() => {
   const pending = new Map();
   let reqSeq = 0;
