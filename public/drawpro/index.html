@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Draw Pro — Coming Soon | RopingTools</title>
+<title>Draw Pro - Coming Soon | RopingTools</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
 
@@ -114,9 +114,9 @@
   <div class="badge-coming-soon">Coming Soon</div>
   <h1>Draw Pro</h1>
   <p class="drawpro-body">
-    The one-stop way to run your draw and notify every entrant — without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely.
+    The one-stop way to run your draw and notify every entrant - without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely.
     <br><br>
-    It's not live yet — but <strong>Steer Me</strong> already eliminates the need for a draw on a huge share of your entries today. Start there while Draw Pro finishes the rest.
+    It's not live yet - but <strong>Steer Me</strong> already eliminates the need for a draw on a huge share of your entries today. Start there while Draw Pro finishes the rest.
   </p>
 
   <form class="waitlist-form" id="waitlist-form" onsubmit="return false;">
@@ -126,14 +126,14 @@
   <div class="waitlist-note" id="waitlist-note"></div>
 
   <div class="drawpro-links">
-    <a href="/steerme">Try Steer Me Now →</a>
+    <a href="/steerme">Try Steer Me Now &#8594;</a>
     <a href="/">Back to RopingTools</a>
   </div>
 </div>
 
 <script>
-// ═══════════ WIX BRIDGE (parent-page communication) ═══════════
-// Same postMessage pattern as public/course-embed.html — see that file's
+// =========== WIX BRIDGE (parent-page communication) ===========
+// Same postMessage pattern as public/course-embed.html - see that file's
 // comments and docs/ARCHITECTURE.md for the full explanation.
 const PARENT_ORIGIN = '*'; // TODO: lock down to the production origin before launch, see course-embed.html
 const wixBridge = (() => {
@@ -157,7 +157,7 @@ const wixBridge = (() => {
       setTimeout(() => {
         if (pending.has(reqId)) {
           pending.delete(reqId);
-          reject(new Error('Timed out — try again in a moment.'));
+          reject(new Error('Timed out - try again in a moment.'));
         }
       }, timeoutMs);
     });
@@ -166,7 +166,7 @@ const wixBridge = (() => {
 })();
 
 function isValidEmail(value) {
-  // Deliberately simple — real validation happens server-side too.
+  // Deliberately simple - real validation happens server-side too.
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
@@ -194,7 +194,7 @@ function joinWaitlist() {
       btn.disabled = false;
       note.className = 'waitlist-note success';
       note.textContent = (result && result.alreadyJoined)
-        ? "You're already on the list — we'll email you when Draw Pro launches."
+        ? "You're already on the list - we'll email you when Draw Pro launches."
         : "You're on the list! We'll email you when Draw Pro launches.";
       input.value = '';
     })
