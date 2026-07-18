@@ -1,0 +1,2 @@
+memberId,type,location,message,email,status,timestamp
+example-member-id,bug,Chapter 1.1,Example feedback message,example@example.com,new,2026-01-01T00:00:00.000Z

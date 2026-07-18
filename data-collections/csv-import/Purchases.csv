@@ -1,0 +1,2 @@
+memberId,plan,amountPaid,purchasedAt,unlockedStandingDiscount
+example-member-id,whole-course,199,2026-01-01T00:00:00.000Z,false
