@@ -1,137 +1,204 @@
-// backend/drawpro-notifications.jsw
-//
-// Sends team-number notifications once a draw executes, and reports which
-// entrants need manual contact (no usable email on file).
-//
-// Uses Wix's native Triggered Emails (wix-crm-backend), not an external
-// provider — matches the decision already made for this exact question
-// (see docs/ARCHITECTURE.md and the conversation that led to switching
-// Draw Pro's waitlist off SendGrid). backend/qr-and-alerts.jsw still uses
-// SendGrid as of this writing — that's a leftover inconsistency, not
-// intentional; it should be updated to match this same pattern.
-//
-// SETUP NEEDED BEFORE THIS WORKS: create a Triggered Email template in the
-// Wix dashboard (Marketing → Automations, or Dev Mode → Triggered Emails)
-// with variables eventTitle, teamNumber, partnerName, role. Copy its real
-// email ID into DRAW_NOTIFICATION_EMAIL_ID below. Until that's done, every
-// call here will fail with a clear "email ID not configured" error rather
-// than a confusing platform error.
-//
-// Entrants are stored as plain name/email in DrawProEntrants — most guest
-// entrants won't already be a Wix Contact, so emailContact() (which needs
-// a contact ID, not a raw address) can't be called directly. Each send
-// first resolves/creates a Contact via contacts.appendOrCreateContact(),
-// then emails that contact ID.
+/**
+ * notifications.jsw
+ * Velo backend web module — email-only notification delivery (v1).
+ *
+ * Fires after the draw sheet reaches 'drawn' status. Batched/throttled
+ * send so a single sign-off triggering 200+ emails doesn't hit provider
+ * rate limits or Wix's own backend function execution time limit — a
+ * real event can be 300-1000+ teams, i.e. 2,000+ individual emails, and
+ * an unbatched sequential loop at that volume is a genuine timeout risk,
+ * not just a style preference. SMS is intentionally NOT implemented
+ * here — add a parallel sendSms() path once volume justifies Twilio +
+ * 10DLC setup; the NotificationLog schema already has a `channel` field
+ * ready for it.
+ *
+ * MERGED VERSION: batching structure is Claude Chat's; transport is Wix's
+ * native Triggered Emails (wix-crm-backend) instead of an external ESP —
+ * see docs/ARCHITECTURE.md and data-collections/SCHEMA.md for why
+ * (documented `elevate()` platform-permission gap pushed the Wix/Velo
+ * side of this build toward Wix-native mechanisms wherever available).
+ *
+ * SETUP NEEDED BEFORE THIS WORKS: create a Triggered Email template in
+ * the Wix dashboard (Marketing -> Automations, or Dev Mode -> Triggered
+ * Emails) with variables eventTitle, teamNumber, partnerName, role. Copy
+ * its real email ID into DRAW_NOTIFICATION_EMAIL_ID below. Until that's
+ * done, sendDrawNotifications() throws a clear "not configured" error
+ * rather than a confusing platform error partway through a batch.
+ *
+ * Entrants are stored as plain name/email in DrawProEntrants — most
+ * guest entrants won't already be a Wix Contact, so emailContact()
+ * (which needs a contact ID, not a raw address) can't be called
+ * directly. Each send first resolves/creates a Contact via
+ * contacts.appendOrCreateContact(), then emails that contact ID.
+ */
 
 import wixData from 'wix-data';
 import { contacts, triggeredEmails } from 'wix-crm-backend';
 
-const EVENTS = 'DrawProEvents';
-const ENTRANTS = 'DrawProEntrants';
 const TEAMS = 'DrawProTeams';
-const NOTIFICATION_LOG = 'DrawProNotificationLog';
+const ENTRANTS = 'DrawProEntrants';
+const EVENTS = 'DrawProEvents';
 const DRAW_SHEETS = 'DrawProDrawSheets';
+const NOTIFICATION_LOG = 'DrawProNotificationLog';
 
 const DRAW_NOTIFICATION_EMAIL_ID = null; // TODO: set once the Triggered Email template exists — see setup note above
 
+const BATCH_SIZE = 20;
+const BATCH_DELAY_MS = 1000; // throttle between batches
+
 /**
- * Sends every team's notification (one email per entrant — header and
- * heeler each get their own, addressed to them specifically) for a drawn
- * event, logs each attempt, and flips the event/draw-sheet status once done.
+ * Entry point — call this once the draw sheet status is 'drawn'.
+ * Loops all teams for the event, sends header + heeler their team
+ * number and partner info, and logs delivery status per entrant.
  */
 export async function sendDrawNotifications(eventId) {
-  if (!DRAW_NOTIFICATION_EMAIL_ID) {
-    throw new Error('Draw notification email template is not configured yet — see backend/drawpro-notifications.jsw setup note.');
-  }
+    if (!DRAW_NOTIFICATION_EMAIL_ID) {
+        throw new Error('Draw notification email template is not configured yet — see backend/notifications.jsw setup note.');
+    }
 
-  const event = await wixData.get(EVENTS, eventId);
-  const teamsResult = await wixData.query(TEAMS).eq('eventId', eventId).limit(1000).find();
+    const event = await wixData.get(EVENTS, eventId);
+    const sheet = await getDrawSheetOrThrow(eventId);
 
-  let sent = 0;
-  let bounced = 0;
+    if (sheet.status !== 'drawn') {
+        throw new Error(`Draw sheet must be in 'drawn' status to notify. Current status: ${sheet.status}`);
+    }
 
-  for (const team of teamsResult.items) {
-    const header = await wixData.get(ENTRANTS, team.headerEntrantId);
-    const heeler = await wixData.get(ENTRANTS, team.heelerEntrantId);
+    const teamsResult = await wixData.query(TEAMS).eq('eventId', eventId).ascending('teamNumber').limit(1000).find();
+    const teams = teamsResult.items;
 
-    const headerOutcome = await sendOneNotification(event, team, header, heeler, 'Header');
-    const heelerOutcome = await sendOneNotification(event, team, heeler, header, 'Heeler');
+    const sendJobs = [];
+    for (const team of teams) {
+        const header = await wixData.get(ENTRANTS, team.headerEntrantId);
+        const heeler = await wixData.get(ENTRANTS, team.heelerEntrantId);
 
-    if (headerOutcome === 'sent') sent++;
-    if (headerOutcome === 'bounced') bounced++;
-    if (heelerOutcome === 'sent') sent++;
-    if (heelerOutcome === 'bounced') bounced++;
-  }
+        sendJobs.push({ team, entrant: header, partner: heeler, role: 'Header' });
+        sendJobs.push({ team, entrant: heeler, partner: header, role: 'Heeler' });
+    }
 
-  await wixData.update(EVENTS, { ...event, status: 'notified' });
+    const results = await sendInBatches(sendJobs, event);
 
-  const sheetResult = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
-  if (sheetResult.items.length > 0) {
-    await wixData.update(DRAW_SHEETS, { ...sheetResult.items[0], status: 'notifications_sent' });
-  }
+    await wixData.update(DRAW_SHEETS, { ...sheet, status: 'notifications_sent' });
+    await wixData.update(EVENTS, { ...event, status: 'notified' });
 
-  return { sent, bounced };
+    return summarize(results);
 }
 
-async function sendOneNotification(event, team, entrant, partner, role) {
-  if (!entrant.email) {
-    await logNotification(event._id, entrant._id, team._id, 'manual_contact_needed', null, 'No email on file.');
-    return 'manual';
-  }
-
-  try {
-    const { contactId } = await contacts.appendOrCreateContact({
-      name: { first: entrant.firstName, last: entrant.lastName },
-      emails: [{ email: entrant.email }]
-    });
-
-    await triggeredEmails.emailContact(DRAW_NOTIFICATION_EMAIL_ID, contactId, {
-      variables: {
-        eventTitle: event.title,
-        teamNumber: String(team.teamNumber),
-        partnerName: `${partner.firstName} ${partner.lastName}`,
-        role
-      }
-    });
-
-    // Wix's triggered-email API doesn't hand back a provider message ID
-    // the way an external ESP would — providerMessageId stays null here,
-    // not a bug.
-    await logNotification(event._id, entrant._id, team._id, 'sent', null, null);
-    return 'sent';
-  } catch (err) {
-    await logNotification(event._id, entrant._id, team._id, 'bounced', null, err && err.message ? err.message : String(err));
-    return 'bounced';
-  }
+async function sendInBatches(sendJobs, event) {
+    const results = [];
+    for (let i = 0; i < sendJobs.length; i += BATCH_SIZE) {
+        const batch = sendJobs.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(batch.map(job => sendOne(job, event)));
+        results.push(...batchResults);
+        if (i + BATCH_SIZE < sendJobs.length) {
+            await delay(BATCH_DELAY_MS);
+        }
+    }
+    return results;
 }
 
-async function logNotification(eventId, entrantId, teamId, status, providerMessageId, errorDetail) {
-  await wixData.insert(NOTIFICATION_LOG, {
-    eventId,
-    entrantId,
-    teamId,
-    channel: 'email',
-    status,
-    providerMessageId,
-    sentTimestamp: status === 'sent' ? new Date() : null,
-    errorDetail
-  });
+async function sendOne(job, event) {
+    const { team, entrant, partner, role } = job;
+
+    if (!entrant.email) {
+        // Card-scan entrant with only a phone number, or missing data
+        // that slipped through — no delivery channel available in v1.
+        return logNotification({
+            eventId: event._id,
+            entrantId: entrant._id,
+            teamId: team._id,
+            channel: 'email',
+            status: 'manual_contact_needed',
+            errorDetail: 'No email on file for this entrant.'
+        });
+    }
+
+    try {
+        const { contactId } = await contacts.appendOrCreateContact({
+            name: { first: entrant.firstName, last: entrant.lastName },
+            emails: [{ email: entrant.email }]
+        });
+
+        await triggeredEmails.emailContact(DRAW_NOTIFICATION_EMAIL_ID, contactId, {
+            variables: {
+                eventTitle: event.title,
+                teamNumber: String(team.teamNumber),
+                partnerName: `${partner.firstName} ${partner.lastName}`,
+                role
+            }
+        });
+
+        // Wix's triggered-email API doesn't hand back a provider message
+        // ID the way an external ESP would — providerMessageId stays
+        // null here, not a bug.
+        return logNotification({
+            eventId: event._id,
+            entrantId: entrant._id,
+            teamId: team._id,
+            channel: 'email',
+            status: 'sent',
+            sentTimestamp: new Date()
+        });
+    } catch (err) {
+        return logNotification({
+            eventId: event._id,
+            entrantId: entrant._id,
+            teamId: team._id,
+            channel: 'email',
+            status: 'bounced',
+            errorDetail: String(err.message || err)
+        });
+    }
+}
+
+async function logNotification(record) {
+    return wixData.insert(NOTIFICATION_LOG, {
+        eventId: record.eventId,
+        entrantId: record.entrantId,
+        teamId: record.teamId,
+        channel: record.channel,
+        status: record.status,
+        providerMessageId: record.providerMessageId || null,
+        sentTimestamp: record.sentTimestamp || null,
+        errorDetail: record.errorDetail || null
+    });
+}
+
+function summarize(results) {
+    const summary = { sent: 0, bounced: 0, manual_contact_needed: 0 };
+    for (const r of results) {
+        if (summary[r.status] !== undefined) summary[r.status]++;
+    }
+    return summary;
+}
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function getDrawSheetOrThrow(eventId) {
+    const result = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
+    if (result.items.length === 0) {
+        throw new Error('No draw sheet found for this event.');
+    }
+    return result.items[0];
 }
 
 /**
- * Entrants who need the producer to contact them directly — either no
- * email was on file at all, or their notification attempt bounced.
+ * Convenience for the producer's post-draw dashboard: which entrants
+ * still need manual contact — either no email was on file at all, or
+ * their notification attempt bounced. Broadened from just
+ * 'manual_contact_needed' to also include 'bounced', since both cases
+ * mean the same thing operationally: the producer needs to reach this
+ * entrant some other way. Note the page-code caller currently only uses
+ * .length, not the reason — its status message text ("no email on
+ * file") undersells bounced entries specifically; worth a small wording
+ * fix in producer-draw-sheet-review.js at some point, not done here
+ * since that's outside this file.
  */
 export async function getManualContactList(eventId) {
-  const result = await wixData.query(NOTIFICATION_LOG)
-    .eq('eventId', eventId)
-    .hasSome('status', ['manual_contact_needed', 'bounced'])
-    .find();
-
-  const entrantIds = [...new Set(result.items.map((r) => r.entrantId))];
-  const entrants = [];
-  for (const id of entrantIds) {
-    entrants.push(await wixData.get(ENTRANTS, id));
-  }
-  return entrants;
+    const result = await wixData.query(NOTIFICATION_LOG)
+        .eq('eventId', eventId)
+        .hasSome('status', ['manual_contact_needed', 'bounced'])
+        .find();
+    return result.items;
 }

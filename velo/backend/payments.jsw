@@ -1,251 +1,592 @@
-// backend/payments.jsw
-//
-// Draw Pro payment calculation and processing. See data-model.md's
-// "Revenue rule" note for the two mutually-exclusive paths this
-// implements: cash (producer collects directly, no fee added, Draw Pro is
-// instead paid via DrawProExecutionCharges) and online (Draw Pro's cut +
-// the processor's cut are itemized on top of the entrant's charge, the
-// producer receives their full stated fee undiminished).
-//
-// STATUS: calculateEntrantCharge() and getPayoutProfile() are complete —
-// pure calculation and a plain data lookup, nothing external needed.
-// processOnlinePayment() is NOT functional yet — it needs a real Stripe
-// account (specifically Stripe Connect, since producers need to receive
-// payouts to their own bank account, not just RopingTools') before it can
-// actually charge anyone. The structure below follows Stripe's standard
-// "destination charge" pattern for a marketplace, but has never been
-// tested against a real Stripe account. Confirm this is the intended
-// processor before wiring in real keys — data-model.md's
-// DrawProProducerPayoutProfiles.payoutProvider field says "e.g. stripe"
-// specifically as a placeholder, not a confirmed decision.
+/**
+ * payments.jsw
+ * Velo backend web module — event fee configuration, entry payment
+ * (cash or online), producer payout profiles, cash-side execution
+ * billing, and the partner-invite flow for lightweight team entries.
+ *
+ * Revenue rule: online and cash are mutually exclusive revenue paths.
+ * Online — Draw Pro's cut + the processor's cut are charged ON TOP of
+ * the entrant's fee, paid by the entrant; producer gets the full,
+ * undiminished amount. Cash — entrant pays only the producer's stated
+ * fee; Draw Pro is instead paid by the PRODUCER via an execution charge
+ * (subscription or per-team, above a free threshold), since no money
+ * moves through the platform to take a cut of.
+ *
+ * MERGED VERSION: this file combines the full fee/subscription/
+ * execution-charge design built across several turns with Claude Chat
+ * with the Wix-native email decision made independently on the Wix/
+ * Velo side (see docs/ARCHITECTURE.md and data-collections/SCHEMA.md
+ * for why: `elevate()` doesn't work as documented in this runtime,
+ * which pushed everything toward Wix-native mechanisms where available
+ * — Triggered Emails over an external ESP is one consequence of that,
+ * not a competing design). Partner-invite emails below use Wix's
+ * native Triggered Emails (wix-crm-backend) instead of SendGrid.
+ *
+ * PLATFORM_FEE_PERCENT/FLAT below are the CONFIRMED rate (4% + $1.50
+ * flat) — not a placeholder as of this version. Processor rate,
+ * per-team execution rate, free-team threshold, and subscription price
+ * are still placeholders — see data-model.md for what's still unset.
+ */
 
 import wixData from 'wix-data';
 import { fetch } from 'wix-fetch';
 import { getSecret } from 'wix-secrets-backend';
 import { currentMember } from 'wix-members-backend';
+import { contacts, triggeredEmails } from 'wix-crm-backend';
 
 const EVENTS = 'DrawProEvents';
 const ENTRANTS = 'DrawProEntrants';
+const TEAMS = 'DrawProTeams';
 const PAYMENTS = 'DrawProPayments';
 const PAYOUT_PROFILES = 'DrawProProducerPayoutProfiles';
+const SUBSCRIPTIONS = 'DrawProProducerSubscriptions';
+const EXECUTION_CHARGES = 'DrawProExecutionCharges';
 const AUDIT_LOG = 'DrawProAuditLog';
 
-// PLACEHOLDER RATES — not a confirmed business decision, just a value to
-// develop against. Confirm the real Draw Pro cut before this goes live;
-// see the open pricing question already flagged in data-model.md and
-// HANDOFF_BRIEF.md.
-const DRAWPRO_FEE_PERCENT = 0.05; // 5% of the producer's stated fee
-// Stripe's own published standard card rate (2.9% + $0.30) — this part
-// isn't really "made up," it's the processor's real published rate, but
-// still depends on Stripe actually being the chosen processor.
-const PROCESSOR_FEE_PERCENT = 0.029;
-const PROCESSOR_FEE_FIXED = 0.30;
+// CONFIRMED — 4% + $1.50 flat, matching Steer Me's stated rate.
+const PLATFORM_FEE_PERCENT = 0.04;
+const PLATFORM_FEE_FLAT = 1.50;
 
-const STRIPE_SECRET_KEY_SECRET_NAME = 'drawpro-stripe-secret-key';
+// Placeholder — actual processor's real rate belongs here once chosen.
+const PROCESSOR_FEE_PERCENT = 0.029;
+const PROCESSOR_FEE_FLAT = 0.30;
+
+// Placeholders for the cash-side execution fee — from the pricing
+// discussion, not yet finalized numbers.
+const FREE_TEAM_THRESHOLD = 50; // teams per event before any charge applies
+const PER_TEAM_EXECUTION_RATE = 0.50;
+
+const PAYMENT_PROVIDER_SECRET_NAME = 'drawpro-payment-api-key';
+const PAYMENT_CHARGE_ENDPOINT = 'https://api.stripe.com/v1/payment_intents'; // placeholder
+
+// TODO: same one-time setup as backend/notifications.jsw and
+// backend/qr-and-alerts.jsw — create this Triggered Email template
+// (variables: inviterName, eventTitle) in the Wix dashboard, then set
+// this to its real email ID. Until set, sendPartnerInvite() throws a
+// clear "not configured" error instead of silently failing.
+const PARTNER_INVITE_EMAIL_ID = null;
+
+const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro/enter';
 
 /* ------------------------------------------------------------------ */
-/* Fee calculation — pure, no external dependency                      */
+/* Fee calculation                                                     */
 /* ------------------------------------------------------------------ */
 
 /**
- * @param {number} rate - producer's per-entry rate (pricePerEntry or
- *   pricePerPreformedTeamEntry, whichever applies to this entry)
- * @param {number} count - requestedEntryCount
- * @param {'cash'|'online'} paymentMethod
+ * The producer's own stated fee for a given entry count — what they
+ * receive, regardless of payment method. Pure linear rate — see the
+ * interpretation note in data-model.md.
  */
-export async function calculateEntrantCharge(rate, count, paymentMethod) {
-  const producerAmount = round2(rate * count);
+export function calculateProducerFee(pricePerEntry, requestedEntryCount) {
+    if (typeof pricePerEntry !== 'number' || pricePerEntry < 0) {
+        throw new Error('Invalid pricePerEntry.');
+    }
+    if (!Number.isInteger(requestedEntryCount) || requestedEntryCount < 1) {
+        throw new Error('requestedEntryCount must be a positive whole number.');
+    }
+    return round2(pricePerEntry * requestedEntryCount);
+}
 
-  if (paymentMethod === 'cash') {
-    return {
-      producerAmount,
-      drawProFee: null,
-      processingFee: null,
-      totalChargedToEntrant: producerAmount,
-      netToProducer: producerAmount
-    };
-  }
+function calculatePlatformCut(producerAmount) {
+    return round2(producerAmount * PLATFORM_FEE_PERCENT + PLATFORM_FEE_FLAT);
+}
 
-  const drawProFee = round2(producerAmount * DRAWPRO_FEE_PERCENT);
-  const processingFee = round2(producerAmount * PROCESSOR_FEE_PERCENT + PROCESSOR_FEE_FIXED);
-  const totalChargedToEntrant = round2(producerAmount + drawProFee + processingFee);
+function calculateProcessorCut(chargeBase) {
+    return round2(chargeBase * PROCESSOR_FEE_PERCENT + PROCESSOR_FEE_FLAT);
+}
 
-  return {
-    producerAmount,
-    drawProFee,
-    processingFee,
-    totalChargedToEntrant,
-    netToProducer: producerAmount
-  };
+/**
+ * What the ENTRANT actually pays, which differs by method. Cash: exactly
+ * the producer's fee, nothing added. Online: the producer's fee plus
+ * Draw Pro's cut plus the processor's cut, all itemized.
+ */
+export function calculateEntrantCharge(pricePerEntry, requestedEntryCount, paymentMethod) {
+    const producerAmount = calculateProducerFee(pricePerEntry, requestedEntryCount);
+
+    if (paymentMethod === 'cash') {
+        return { producerAmount, drawProFee: null, processingFee: null, totalChargedToEntrant: producerAmount };
+    }
+
+    const drawProFee = calculatePlatformCut(producerAmount);
+    // Processor typically charges on the full amount actually moving,
+    // including the platform's own cut.
+    const processingFee = calculateProcessorCut(producerAmount + drawProFee);
+    const totalChargedToEntrant = round2(producerAmount + drawProFee + processingFee);
+
+    return { producerAmount, drawProFee, processingFee, totalChargedToEntrant };
 }
 
 function round2(n) {
-  return Math.round(n * 100) / 100;
+    return Math.round(n * 100) / 100;
 }
 
 /* ------------------------------------------------------------------ */
-/* Payout profile — plain data lookup                                  */
+/* Producer payout profile — set up once, reused across all events     */
 /* ------------------------------------------------------------------ */
 
 export async function getPayoutProfile(producerId) {
-  const result = await wixData.query(PAYOUT_PROFILES).eq('producerId', producerId).find();
-  return result.items.length > 0 ? result.items[0] : null;
+    const result = await wixData.query(PAYOUT_PROFILES).eq('producerId', producerId).find();
+    return result.items.length > 0 ? result.items[0] : null;
 }
-
-export async function createOrUpdatePayoutProfile(fields) {
-  const member = await currentMember.getMember();
-  if (!member) throw new Error('Must be signed in as the producer.');
-
-  const existing = await getPayoutProfile(member._id);
-  const record = {
-    producerId: member._id,
-    payoutProvider: fields.payoutProvider || 'stripe',
-    payoutAccountId: fields.payoutAccountId || null,
-    onboardingStatus: fields.onboardingStatus || 'not_started',
-    payoutContactEmail: fields.payoutContactEmail
-  };
-
-  if (existing) {
-    return wixData.update(PAYOUT_PROFILES, { ...existing, ...record });
-  }
-  return wixData.insert(PAYOUT_PROFILES, record);
-}
-
-/* ------------------------------------------------------------------ */
-/* Online payment — NOT FUNCTIONAL until a real Stripe Connect account  */
-/* exists and STRIPE_SECRET_KEY_SECRET_NAME is set in Secrets Manager.  */
-/* ------------------------------------------------------------------ */
 
 /**
- * Charges the entrant via Stripe (destination charge: the full amount is
- * charged to the entrant's card, drawProFee is retained as Draw Pro's
- * application fee, the remainder — the producer's full stated rate —
- * transfers to the producer's connected Stripe account automatically).
- *
- * paymentMethodToken is expected to come from a Stripe Elements card
- * field on the entry page — not built as part of this backend module,
- * see entrant-entry-form.js's placeholder comment on this.
+ * Producer supplies whatever AR info the chosen payment provider needs
+ * (bank account, tax ID, etc. — collected via the provider's own hosted
+ * onboarding flow in practice, not raw fields here). This function just
+ * records the resulting connected-account reference and status.
  */
-export async function processOnlinePayment(eventId, entrantId, paymentMethodToken) {
-  const event = await wixData.get(EVENTS, eventId);
-  const entrant = await wixData.get(ENTRANTS, entrantId);
+export async function createOrUpdatePayoutProfile(payoutAccountId, payoutContactEmail) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as a producer.');
 
-  if (event.paymentMethod !== 'online') {
-    throw new Error('This event is not set up for online payment.');
-  }
+    const existing = await getPayoutProfile(member._id);
+    const record = {
+        producerId: member._id,
+        payoutProvider: 'stripe', // placeholder
+        payoutAccountId,
+        onboardingStatus: payoutAccountId ? 'pending' : 'not_started',
+        payoutContactEmail
+    };
 
-  const payoutProfile = await getPayoutProfile(event.producerId);
-  if (!payoutProfile || payoutProfile.onboardingStatus !== 'complete' || !payoutProfile.payoutAccountId) {
-    throw new Error('This producer has not finished payout setup — online payment is not available for this event.');
-  }
-
-  const rate = entrant.entryType === 'preformed_team'
-    ? (event.pricePerPreformedTeamEntry || event.pricePerEntry)
-    : event.pricePerEntry;
-  const charge = await calculateEntrantCharge(rate, entrant.requestedEntryCount || 1, 'online');
-
-  const stripeSecretKey = await getSecret(STRIPE_SECRET_KEY_SECRET_NAME);
-  if (!stripeSecretKey) {
-    throw new Error('Online payment is not configured yet — no Stripe account is connected. See backend/payments.jsw setup note.');
-  }
-
-  // Stripe Connect "destination charge": charge the full amount on the
-  // platform account, automatically transfer everything except
-  // application_fee_amount to the producer's connected account.
-  const response = await fetch('https://api.stripe.com/v1/payment_intents', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${stripeSecretKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams({
-      amount: String(Math.round(charge.totalChargedToEntrant * 100)), // Stripe wants cents
-      currency: 'usd',
-      payment_method: paymentMethodToken,
-      confirm: 'true',
-      application_fee_amount: String(Math.round((charge.drawProFee + charge.processingFee) * 100)),
-      'transfer_data[destination]': payoutProfile.payoutAccountId
-    }).toString()
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.error && result.error.message ? result.error.message : 'Payment failed.');
-  }
-
-  const referenceNumber = generateReferenceNumber();
-
-  await wixData.insert(PAYMENTS, {
-    eventId,
-    entrantId,
-    producerAmount: charge.producerAmount,
-    drawProFee: charge.drawProFee,
-    processingFee: charge.processingFee,
-    totalChargedToEntrant: charge.totalChargedToEntrant,
-    netToProducer: charge.netToProducer,
-    method: 'online',
-    referenceNumber,
-    providerTransactionId: result.id,
-    status: 'completed',
-    timestamp: new Date()
-  });
-
-  await wixData.update(ENTRANTS, {
-    ...entrant,
-    paymentStatus: 'paid',
-    paymentReferenceNumber: referenceNumber,
-    feeOwed: charge.producerAmount
-  });
-
-  return { amountCharged: charge.totalChargedToEntrant, referenceNumber };
+    if (existing) {
+        return wixData.update(PAYOUT_PROFILES, { ...existing, ...record });
+    }
+    return wixData.insert(PAYOUT_PROFILES, record);
 }
 
 /**
- * Cash path: producer confirms payment was collected at the gate. No
- * external processor involved — just marks the entrant paid and logs it.
+ * Called once the payment provider confirms onboarding is fully done
+ * (e.g. a Stripe Connect "account.updated" webhook showing charges/payouts
+ * enabled). Only after this can the producer pick paymentMethod: 'online'
+ * on an event.
+ */
+export async function markPayoutOnboardingComplete(producerId) {
+    const profile = await getPayoutProfile(producerId);
+    if (!profile) throw new Error('No payout profile found for this producer.');
+    return wixData.update(PAYOUT_PROFILES, { ...profile, onboardingStatus: 'complete' });
+}
+
+/* ------------------------------------------------------------------ */
+/* Recording an entry's fee at submission time                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Called from event-setup.jsw's submitEntry() right after an entrant
+ * record is created — snapshots what the PRODUCER'S fee is (before any
+ * online markup, which is calculated separately at payment time since
+ * it only applies if/when the entrant actually pays online) and sets
+ * initial payment status based on the event's paymentMethod.
+ *
+ * Uses pricePerPreformedTeamEntry for team entries (the Steer Me
+ * incentive rate) and pricePerEntry for solo/draw-in entries.
+ *
+ * NOTE: event-setup.jsw's current submitEntry() sets feeOwed directly
+ * on the entrant record at insert time (via calculateProducerFee(),
+ * exported above) rather than inserting bare and calling this function
+ * as a second step — both approaches compute the identical number, this
+ * one is just left available for a flow that inserts first and sets the
+ * fee after (e.g. scan-import's OCR path, if it ends up needing that
+ * shape).
+ */
+export async function initializeEntryFee(eventId, entrantId, requestedEntryCount) {
+    const event = await wixData.get(EVENTS, eventId);
+    const entrant = await wixData.get(ENTRANTS, entrantId);
+
+    const rate = entrant.entryType === 'preformed_team'
+        ? (event.pricePerPreformedTeamEntry || event.pricePerEntry)
+        : event.pricePerEntry;
+
+    const feeOwed = calculateProducerFee(rate, requestedEntryCount);
+    const initialStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
+
+    return wixData.update(ENTRANTS, {
+        ...entrant,
+        requestedEntryCount,
+        feeOwed,
+        paymentStatus: initialStatus
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Cash payments — confirmed by producer/staff at the event            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Producer/staff marks a cash payment received. No processor or
+ * platform cut applies — the producer collects and keeps it directly,
+ * Draw Pro just records that it happened.
  */
 export async function recordCashPayment(eventId, entrantId) {
-  const member = await currentMember.getMember();
-  if (!member) throw new Error('Must be signed in as the producer.');
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer or event staff.');
 
-  const event = await wixData.get(EVENTS, eventId);
-  if (event.producerId !== member._id) throw new Error('Not authorized for this event.');
+    const entrant = await wixData.get(ENTRANTS, entrantId);
+    if (entrant.eventId !== eventId) throw new Error('Entrant does not belong to this event.');
+    if (entrant.paymentStatus === 'paid') throw new Error('This entry is already marked paid.');
 
-  const entrant = await wixData.get(ENTRANTS, entrantId);
-  const referenceNumber = generateReferenceNumber();
+    const referenceNumber = generateReferenceNumber();
 
-  await wixData.insert(PAYMENTS, {
-    eventId,
-    entrantId,
-    producerAmount: entrant.feeOwed,
-    drawProFee: null,
-    processingFee: null,
-    totalChargedToEntrant: entrant.feeOwed,
-    netToProducer: entrant.feeOwed,
-    method: 'cash',
-    referenceNumber,
-    providerTransactionId: null,
-    status: 'completed',
-    timestamp: new Date()
-  });
+    await wixData.update(ENTRANTS, {
+        ...entrant,
+        paymentStatus: 'paid',
+        paymentReferenceNumber: referenceNumber
+    });
 
-  const updated = await wixData.update(ENTRANTS, {
-    ...entrant,
-    paymentStatus: 'paid',
-    paymentReferenceNumber: referenceNumber
-  });
+    await wixData.insert(PAYMENTS, {
+        eventId,
+        entrantId,
+        producerAmount: entrant.feeOwed,
+        drawProFee: null,
+        processingFee: null,
+        totalChargedToEntrant: entrant.feeOwed,
+        netToProducer: entrant.feeOwed,
+        method: 'cash',
+        referenceNumber,
+        providerTransactionId: null,
+        status: 'completed',
+        timestamp: new Date()
+    });
 
-  await wixData.insert(AUDIT_LOG, {
-    eventId,
-    actionType: 'payment_recorded',
-    performedByUserId: member._id,
-    timestamp: new Date(),
-    detail: `Recorded cash payment of $${entrant.feeOwed.toFixed(2)} for ${entrant.firstName} ${entrant.lastName}.`
-  });
+    await wixData.insert(AUDIT_LOG, {
+        eventId,
+        actionType: 'payment_recorded',
+        performedByUserId: member._id,
+        timestamp: new Date(),
+        detail: `Recorded cash payment of $${entrant.feeOwed.toFixed(2)} from ` +
+                 `${entrant.firstName} ${entrant.lastName}. Reference ${referenceNumber}.`
+    });
 
-  return updated;
+    return { referenceNumber };
+}
+
+/**
+ * Whether an event's draw sheet is safe to finalize given cash-payment
+ * status — "not final until funds are received prior to closing of the
+ * books." Called from matching-engine.jsw's finalizeDrawSheet.
+ */
+export async function getUnpaidCashEntrants(eventId) {
+    const result = await wixData.query(ENTRANTS)
+        .eq('eventId', eventId)
+        .eq('paymentStatus', 'pending_cash')
+        .find();
+    return result.items;
+}
+
+/* ------------------------------------------------------------------ */
+/* Online payments                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Entrant-initiated. Charges the entrant the FULL itemized total
+ * (producer's fee + Draw Pro's cut + processor's cut), and records
+ * that the producer's payout is the full, undiminished producer fee —
+ * Draw Pro's and the processor's cuts come from what the entrant paid
+ * on top, not from the producer's share. Returns a reference number
+ * for the entrant's confirmation screen.
+ */
+export async function processOnlinePayment(eventId, entrantId, paymentMethodToken) {
+    const event = await wixData.get(EVENTS, eventId);
+    const entrant = await wixData.get(ENTRANTS, entrantId);
+
+    if (event.paymentMethod !== 'online') {
+        throw new Error('This event is not set up for online payment.');
+    }
+    if (entrant.paymentStatus === 'paid') {
+        throw new Error('This entry has already been paid.');
+    }
+
+    const producerProfile = await getPayoutProfile(event.producerId);
+    if (!producerProfile || producerProfile.onboardingStatus !== 'complete') {
+        throw new Error('This producer has not finished payout setup — online payment is unavailable for this event.');
+    }
+
+    const rate = entrant.entryType === 'preformed_team'
+        ? (event.pricePerPreformedTeamEntry || event.pricePerEntry)
+        : event.pricePerEntry;
+
+    const { producerAmount, drawProFee, processingFee, totalChargedToEntrant } =
+        calculateEntrantCharge(rate, entrant.requestedEntryCount, 'online');
+
+    // The entrant is charged the full total; the connected account
+    // (producer) receives only their share — the provider call below
+    // should be configured to route producerAmount to the producer and
+    // keep (drawProFee + processingFee) on the platform side. Exact
+    // mechanics depend on the provider chosen (e.g. Stripe Connect's
+    // application_fee_amount pattern) — placeholder shape here.
+    const providerResult = await chargeViaProvider(totalChargedToEntrant, producerAmount, paymentMethodToken, producerProfile.payoutAccountId);
+
+    const referenceNumber = generateReferenceNumber();
+
+    await wixData.update(ENTRANTS, {
+        ...entrant,
+        feeOwed: producerAmount,
+        paymentStatus: 'paid',
+        paymentReferenceNumber: referenceNumber
+    });
+
+    await wixData.insert(PAYMENTS, {
+        eventId,
+        entrantId,
+        producerAmount,
+        drawProFee,
+        processingFee,
+        totalChargedToEntrant,
+        netToProducer: producerAmount,
+        method: 'online',
+        referenceNumber,
+        providerTransactionId: providerResult.transactionId,
+        status: 'completed',
+        timestamp: new Date()
+    });
+
+    return { referenceNumber, amountCharged: totalChargedToEntrant, producerAmount, drawProFee, processingFee };
+}
+
+async function chargeViaProvider(totalChargedToEntrant, producerAmount, paymentMethodToken, connectedAccountId) {
+    const apiKey = await getSecret(PAYMENT_PROVIDER_SECRET_NAME);
+    const platformRetained = round2(totalChargedToEntrant - producerAmount);
+
+    const response = await fetch(PAYMENT_CHARGE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            amount: String(Math.round(totalChargedToEntrant * 100)), // cents, full amount charged to entrant
+            currency: 'usd',
+            payment_method: paymentMethodToken,
+            'transfer_data[destination]': connectedAccountId,
+            application_fee_amount: String(Math.round(platformRetained * 100)), // Draw Pro + processor's share stays on platform side
+            confirm: 'true'
+        }).toString()
+    });
+
+    if (!response.ok) {
+        throw new Error(`Payment provider responded ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { transactionId: data.id };
 }
 
 function generateReferenceNumber() {
-  return 'DP-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    // Human-readable confirmation code, not a security token.
+    const stamp = Date.now().toString(36).toUpperCase();
+    const rand = Math.floor(Math.random() * 1296).toString(36).toUpperCase().padStart(2, '0');
+    return `DP-${stamp}-${rand}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Producer subscriptions — optional, covers cash-event execution fees */
+/* ------------------------------------------------------------------ */
+
+export async function getSubscription(producerId) {
+    const result = await wixData.query(SUBSCRIPTIONS).eq('producerId', producerId).find();
+    return result.items.length > 0 ? result.items[0] : null;
+}
+
+async function hasActiveSubscription(producerId) {
+    const sub = await getSubscription(producerId);
+    return !!(sub && sub.status === 'active' && (!sub.renewalDate || new Date(sub.renewalDate) > new Date()));
+}
+
+/**
+ * Starts (or renews) a producer's annual subscription. annualFee is
+ * passed in explicitly rather than hardcoded here — real pricing isn't
+ * finalized, so the caller (an admin tool or a future pricing page)
+ * supplies whatever the current published rate is.
+ */
+export async function subscribeToAnnualPlan(producerId, annualFee) {
+    const existing = await getSubscription(producerId);
+    const now = new Date();
+    const renewalDate = new Date(now);
+    renewalDate.setFullYear(renewalDate.getFullYear() + 1);
+
+    const record = {
+        producerId,
+        status: 'active',
+        annualFee,
+        startDate: now,
+        renewalDate
+    };
+
+    if (existing) {
+        return wixData.update(SUBSCRIPTIONS, { ...existing, ...record });
+    }
+    return wixData.insert(SUBSCRIPTIONS, record);
+}
+
+export async function cancelSubscription(producerId) {
+    const existing = await getSubscription(producerId);
+    if (!existing) return null;
+    return wixData.update(SUBSCRIPTIONS, { ...existing, status: 'expired' });
+}
+
+/* ------------------------------------------------------------------ */
+/* Cash-event execution charge — how Draw Pro gets paid on cash events  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Called once a CASH-method event's draw executes (from
+ * matching-engine.jsw's executeDraw, only when event.paymentMethod ===
+ * 'cash'). Calculates what the producer owes for running the draw —
+ * $0 if covered by an active subscription or under the free threshold,
+ * otherwise billableTeamCount x PER_TEAM_EXECUTION_RATE. This function
+ * only calculates and logs the charge; actually collecting it from the
+ * producer needs its own billing flow, not yet built (see data-model.md).
+ *
+ * NOT YET WIRED UP: matching-engine.jsw's executeDraw does not currently
+ * call this function — confirmed by checking that file directly, it has
+ * no reference to ExecutionCharge or payments.jsw at all. That's a real
+ * gap, flagging rather than silently fixing it here since it means
+ * touching matching-engine.jsw, outside this merge's scope.
+ *
+ * Only teams the matching ALGORITHM paired count toward the billable
+ * total — pre-formed teams (Steer Me matches, or any two people who
+ * chose each other) required no computational work, so they're free
+ * regardless of subscription status. This is deliberate: it gives
+ * producers a direct financial reason to want more of their field
+ * pre-formed via Steer Me, not just a values-based nudge.
+ */
+export async function calculateAndRecordExecutionCharge(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    if (event.paymentMethod !== 'cash') {
+        return null; // online events never generate an execution charge
+    }
+
+    const teamCount = await wixData.query(TEAMS).eq('eventId', eventId).count();
+    const matchedTeamCount = await wixData.query(TEAMS).eq('eventId', eventId).eq('preFormed', false).count();
+    const covered = await hasActiveSubscription(event.producerId);
+
+    const billableTeamCount = Math.max(0, matchedTeamCount - FREE_TEAM_THRESHOLD);
+    const amountDue = covered ? 0 : round2(billableTeamCount * PER_TEAM_EXECUTION_RATE);
+
+    const record = {
+        eventId,
+        producerId: event.producerId,
+        teamCount,
+        matchedTeamCount,
+        freeThreshold: FREE_TEAM_THRESHOLD,
+        billableTeamCount,
+        perTeamRate: covered ? null : PER_TEAM_EXECUTION_RATE,
+        coveredBySubscription: covered,
+        amountDue,
+        status: amountDue === 0 ? 'no_charge' : 'pending',
+        timestamp: new Date()
+    };
+
+    const saved = await wixData.insert(EXECUTION_CHARGES, record);
+
+    if (amountDue > 0) {
+        await wixData.insert(AUDIT_LOG, {
+            eventId,
+            actionType: 'payment_recorded',
+            performedByUserId: event.producerId,
+            timestamp: new Date(),
+            detail: `Execution charge of $${amountDue.toFixed(2)} logged for ${matchedTeamCount} algorithm-matched teams ` +
+                     `(${teamCount - matchedTeamCount} pre-formed teams excluded; ${billableTeamCount} billable above the ` +
+                     `${FREE_TEAM_THRESHOLD}-team free threshold). Not yet collected — no producer billing method on file.`
+        });
+    }
+
+    return saved;
+}
+
+/* ------------------------------------------------------------------ */
+/* Lightweight team entry — partner invite by email                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Sends a "you've been entered — claim your info" email to a partner
+ * whose full details weren't collected at entry time, only their
+ * email. Growth mechanic: surfaces RopingTools to someone who may not
+ * have an account, tied to a real, specific reason to click through.
+ *
+ * Uses Wix Triggered Emails (see file header) — call
+ * contacts.appendOrCreateContact() to resolve/create a Contact for the
+ * partner's raw email, then email that contact ID, since emailContact()
+ * needs a contact ID, not a raw address, and a partner invited this way
+ * won't already be a Wix Contact in the common case.
+ */
+export async function sendPartnerInvite(entrantId) {
+    if (!PARTNER_INVITE_EMAIL_ID) {
+        throw new Error('Partner invite email template is not configured yet — see backend/payments.jsw setup note.');
+    }
+
+    const entrant = await wixData.get(ENTRANTS, entrantId);
+    if (!entrant.partnerEmailOnly) {
+        throw new Error('This entrant does not have a pending partner invite.');
+    }
+
+    const event = await wixData.get(EVENTS, entrant.eventId);
+
+    const { contactId } = await contacts.appendOrCreateContact({
+        emails: [{ email: entrant.partnerEmailOnly }]
+    });
+
+    await triggeredEmails.emailContact(PARTNER_INVITE_EMAIL_ID, contactId, {
+        variables: {
+            inviterName: `${entrant.firstName} ${entrant.lastName}`,
+            eventTitle: event.title
+        }
+    });
+
+    return wixData.update(ENTRANTS, { ...entrant, partnerInviteStatus: 'sent' });
+}
+
+/**
+ * Called when the invited partner follows the claim link and fills in
+ * their own info — creates their entrant record and links it back,
+ * same as a normal pre-formed team entry from that point forward.
+ */
+export async function claimPartnerInvite(originalEntrantId, partnerDetails) {
+    const original = await wixData.get(ENTRANTS, originalEntrantId);
+    if (!original.partnerEmailOnly) {
+        throw new Error('No pending partner invite for this entry.');
+    }
+
+    const partnerRole = original.role === 'header' ? 'heeler' : 'header';
+    const partnerRecord = {
+        eventId: original.eventId,
+        firstName: partnerDetails.firstName,
+        lastName: partnerDetails.lastName,
+        classificationNumber: partnerDetails.classificationNumber,
+        globalMembershipId: partnerDetails.globalMembershipId || null,
+        email: original.partnerEmailOnly,
+        phone: partnerDetails.phone || null,
+        role: partnerRole,
+        entryType: 'preformed_team',
+        teamPartnerEntrantId: original._id,
+        partnerEmailOnly: null,
+        partnerInviteStatus: null,
+        isGuestEntry: !!partnerDetails.isGuestEntry,
+        guestContactHash: null,
+        source: 'self_entry',
+        scanVerified: false,
+        requestedEntryCount: original.requestedEntryCount,
+        feeOwed: original.feeOwed,
+        isFeeResponsible: false, // original entrant already owns the team fee
+        paymentStatus: original.paymentStatus,
+        paymentReferenceNumber: original.paymentReferenceNumber,
+        entryTimestamp: new Date()
+    };
+
+    const savedPartner = await wixData.insert(ENTRANTS, partnerRecord);
+
+    await wixData.update(ENTRANTS, {
+        ...original,
+        teamPartnerEntrantId: savedPartner._id,
+        partnerEmailOnly: null,
+        partnerInviteStatus: 'claimed'
+    });
+
+    return savedPartner;
+}
+
+// buildEntryUrl kept for parity with qr-and-alerts.jsw's entry-link
+// pattern, used if a claim-link builder is needed from outside this
+// module (e.g. a producer resending an invite manually).
+export function buildClaimUrl(eventId, entrantId) {
+    return `${ENTRY_BASE_URL}?event=${eventId}&claim=${entrantId}`;
 }

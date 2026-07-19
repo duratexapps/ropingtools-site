@@ -11,23 +11,27 @@
  * submitEntry() signature and didn't set feeOwed/requestedEntryCount/
  * paymentStatus/partnerEmailOnly at all, which would have broken the
  * entry form immediately. Fixed here.
+ *
+ * MERGED UPDATE: this file previously duplicated fee math and defined
+ * its own local sendPartnerInvite() using Wix Triggered Emails directly —
+ * written before payments.jsw's fuller version (built across several
+ * turns with Claude Chat, including the claimPartnerInvite() "claim your
+ * info" flow this file's old comment incorrectly called unbuilt) was
+ * available for comparison. Now calls payments.jsw's
+ * calculateProducerFee() and sendPartnerInvite() instead of reimplementing
+ * either here, so there's one source of truth for both.
  */
 
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { sendEntryOpenAlerts } from 'backend/qr-and-alerts.jsw';
-import { contacts, triggeredEmails } from 'wix-crm-backend';
+import { calculateProducerFee, sendPartnerInvite } from 'backend/payments.jsw';
 
 const EVENTS = 'DrawProEvents';
 const ENTRANTS = 'DrawProEntrants';
 const AUDIT_LOG = 'DrawProAuditLog';
 
 const MANDATORY_ENTRY_FIELDS = ['firstName', 'lastName', 'classificationNumber', 'email'];
-
-// TODO: same setup step as backend/notifications.jsw — create this
-// Triggered Email template (variables: inviterName, eventTitle) before
-// lightweight (email-only) team invites will actually send.
-const PARTNER_INVITE_EMAIL_ID = null;
 
 /* ------------------------------------------------------------------ */
 /* Event creation                                                      */
@@ -158,7 +162,7 @@ export async function submitEntry(eventId, entrantInput, partnerInput, partnerEm
         await enforceGuestCapIfApplicable(partnerInput);
 
         const teamRate = event.pricePerPreformedTeamEntry || event.pricePerEntry;
-        const feeOwed = round2(teamRate * requestedEntryCount);
+        const feeOwed = calculateProducerFee(teamRate, requestedEntryCount);
         const initialPaymentStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
 
         const entrantRecord = buildEntrantRecord(eventId, entrantInput, 'preformed_team', {
@@ -180,12 +184,11 @@ export async function submitEntry(eventId, entrantInput, partnerInput, partnerEm
 
     if (partnerEmailOnly) {
         // Lightweight pre-formed team: only the submitting entrant gets a
-        // real record right now. teamPartnerEntrantId stays null until/
-        // unless the partner claims the invite — that "claim" flow isn't
-        // built yet (not in any file handed off for this build); flagging
-        // as a real gap rather than a solved problem.
+        // real record right now. teamPartnerEntrantId stays null unless/
+        // until the partner claims the invite — see payments.jsw's
+        // claimPartnerInvite() for that flow.
         const teamRate = event.pricePerPreformedTeamEntry || event.pricePerEntry;
-        const feeOwed = round2(teamRate * requestedEntryCount);
+        const feeOwed = calculateProducerFee(teamRate, requestedEntryCount);
         const initialPaymentStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
 
         const record = buildEntrantRecord(eventId, entrantInput, 'preformed_team', {
@@ -194,7 +197,7 @@ export async function submitEntry(eventId, entrantInput, partnerInput, partnerEm
         });
 
         const saved = await wixData.insert(ENTRANTS, record);
-        await sendPartnerInvite(event, saved, partnerEmailOnly).catch((err) =>
+        await sendPartnerInvite(saved._id).catch((err) =>
             console.error(`Partner invite email failed for entrant ${saved._id}: ${err.message}`)
         );
         await maybeAutoCloseOnTeamCount(event);
@@ -202,7 +205,7 @@ export async function submitEntry(eventId, entrantInput, partnerInput, partnerEm
     }
 
     // Solo entry
-    const feeOwed = round2(event.pricePerEntry * requestedEntryCount);
+    const feeOwed = calculateProducerFee(event.pricePerEntry, requestedEntryCount);
     const initialPaymentStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
 
     const record = buildEntrantRecord(eventId, entrantInput, 'solo', {
@@ -211,21 +214,6 @@ export async function submitEntry(eventId, entrantInput, partnerInput, partnerEm
     const saved = await wixData.insert(ENTRANTS, record);
     await maybeAutoCloseOnTeamCount(event);
     return { entrant: saved };
-}
-
-async function sendPartnerInvite(event, entrant, partnerEmail) {
-    if (!PARTNER_INVITE_EMAIL_ID) {
-        console.warn('Partner invite email template not configured — see event-setup.jsw setup note. Invite not sent.');
-        return;
-    }
-    const { contactId } = await contacts.appendOrCreateContact({ emails: [{ email: partnerEmail }] });
-    await triggeredEmails.emailContact(PARTNER_INVITE_EMAIL_ID, contactId, {
-        variables: {
-            inviterName: `${entrant.firstName} ${entrant.lastName}`,
-            eventTitle: event.title
-        }
-    });
-    await wixData.update(ENTRANTS, { ...entrant, partnerInviteStatus: 'sent' });
 }
 
 function buildEntrantRecord(eventId, input, entryType, extra) {
@@ -354,8 +342,4 @@ function hashContact(email, phone) {
         hash |= 0;
     }
     return String(hash);
-}
-
-function round2(n) {
-    return Math.round(n * 100) / 100;
 }
