@@ -29,6 +29,7 @@
 
 import { ok, badRequest, serverError } from 'wix-http-functions';
 import { joinDrawProWaitlist } from 'backend/drawPro.jsw';
+import { currentMember } from 'wix-members-backend';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -36,6 +37,55 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
   'Content-Type': 'application/json'
 };
+
+/* ------------------------------------------------------------------ */
+/* TEMPORARY DIAGNOSTIC — /_functions/whoAmI                           */
+/* Reports whether an HTTP Function can identify the calling member.  */
+/* Remove once the course-backend member-identity question is settled. */
+/* Unlike the other endpoints, this reflects the request's actual      */
+/* Origin header (rather than '*') and allows credentials, since a     */
+/* credentialed fetch() is required to test whether session cookies    */
+/* reach an HTTP Function at all — browsers refuse to send credentials */
+/* to a wildcard-origin CORS response.                                 */
+/* ------------------------------------------------------------------ */
+
+function corsHeadersForRequest(request) {
+  const origin = (request.headers && request.headers.origin) || '*';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
+    'Content-Type': 'application/json'
+  };
+}
+
+export async function options_whoAmI(request) {
+  return ok({ headers: corsHeadersForRequest(request) });
+}
+
+export async function get_whoAmI(request) {
+  const headers = corsHeadersForRequest(request);
+  try {
+    const member = await currentMember.getMember();
+    return ok({
+      headers,
+      body: {
+        identified: true,
+        memberId: member ? member._id : null,
+        loginEmail: member && member.loginEmail ? member.loginEmail : null
+      }
+    });
+  } catch (err) {
+    return ok({
+      headers,
+      body: {
+        identified: false,
+        error: err && err.message ? err.message : String(err)
+      }
+    });
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* /_functions/joinDrawProWaitlist                                     */
