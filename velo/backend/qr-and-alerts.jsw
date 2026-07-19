@@ -1,0 +1,164 @@
+/**
+ * qr-and-alerts.jsw
+ * Velo backend web module — two related features:
+ *
+ * 1. QR code generation: a producer gets a scannable code pointing
+ *    straight at their event's entry page, for printing on fliers.
+ * 2. Entry alerts: if someone scans the code (or visits the entry
+ *    link) before the event has opened, they can leave an email to
+ *    be notified the moment it opens — a lead-gen channel with real
+ *    intent behind it (they scanned a flier for THIS event).
+ *
+ * QR generation uses a hosted QR image API (no auth, no dependency
+ * risk in Velo's runtime) rather than a bundled rendering library.
+ *
+ * UPDATED: switched sendAlertEmail() off SendGrid onto Wix's native
+ * Triggered Emails, matching backend/notifications.jsw and
+ * event-setup.jsw's partner-invite email — the version of this file
+ * handed off alongside the newer files still used SendGrid, which was a
+ * leftover inconsistency from before that decision was made (see
+ * docs/ARCHITECTURE.md). Needs the same one-time setup: create the
+ * Triggered Email template in the Wix dashboard, set
+ * ENTRY_OPEN_ALERT_EMAIL_ID below.
+ */
+
+import wixData from 'wix-data';
+import { contacts, triggeredEmails } from 'wix-crm-backend';
+
+const EVENTS = 'DrawProEvents';
+const ENTRY_ALERTS = 'DrawProEntryAlerts';
+
+const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro/enter';
+const QR_IMAGE_API = 'https://api.qrserver.com/v1/create-qr-code/';
+const QR_SIZE = '400x400';
+
+// TODO: same setup step as backend/notifications.jsw and
+// event-setup.jsw's PARTNER_INVITE_EMAIL_ID — create this Triggered
+// Email template (variables: eventTitle, entryUrl) before entry-open
+// alerts will actually send.
+const ENTRY_OPEN_ALERT_EMAIL_ID = null;
+
+/* ------------------------------------------------------------------ */
+/* QR code generation                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Builds the entry URL for an event and generates a QR code pointing
+ * at it. Cached on the event record — call this once (e.g. a "Generate
+ * QR Code" button) rather than regenerating on every page load, since
+ * the URL never changes for a given event.
+ */
+export async function generateEventQrCode(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    const entryUrl = buildEntryUrl(eventId);
+    const qrImageUrl = `${QR_IMAGE_API}?size=${QR_SIZE}&data=${encodeURIComponent(entryUrl)}`;
+
+    await wixData.update(EVENTS, {
+        ...event,
+        qrCodeUrl: qrImageUrl,
+        qrCodeGeneratedDate: new Date()
+    });
+
+    return { entryUrl, qrImageUrl };
+}
+
+function buildEntryUrl(eventId) {
+    return `${ENTRY_BASE_URL}?event=${eventId}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Entry alerts — "notify me when entries open"                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Called from the entry page when a visitor lands on an event that
+ * hasn't opened yet (status = 'draft', or 'open' with a future
+ * entryOpenDateTime). Records the email against the event; dedupes
+ * so the same address doesn't get logged twice for one event.
+ */
+export async function subscribeToEntryAlert(eventId, email) {
+    if (!isValidEmail(email)) {
+        throw new Error('Enter a valid email address.');
+    }
+
+    const existing = await wixData.query(ENTRY_ALERTS)
+        .eq('eventId', eventId)
+        .eq('email', email.trim().toLowerCase())
+        .find();
+
+    if (existing.items.length > 0) {
+        return existing.items[0]; // already subscribed, no duplicate row
+    }
+
+    return wixData.insert(ENTRY_ALERTS, {
+        eventId,
+        email: email.trim().toLowerCase(),
+        createdDate: new Date(),
+        notified: false,
+        notifiedTimestamp: null,
+        convertedToAccount: null
+    });
+}
+
+/**
+ * Fires when an event's status flips to 'open' — call this from
+ * event-setup.jsw's openEvent() function. Emails everyone who signed
+ * up for an alert on this event, marks each as notified.
+ */
+export async function sendEntryOpenAlerts(eventId) {
+    if (!ENTRY_OPEN_ALERT_EMAIL_ID) {
+        console.warn('Entry-open alert email template not configured — see qr-and-alerts.jsw setup note. Skipping.');
+        return { sent: 0 };
+    }
+
+    const event = await wixData.get(EVENTS, eventId);
+    const pending = await wixData.query(ENTRY_ALERTS)
+        .eq('eventId', eventId)
+        .eq('notified', false)
+        .find();
+
+    if (pending.items.length === 0) return { sent: 0 };
+
+    let sentCount = 0;
+    for (const alert of pending.items) {
+        try {
+            await sendAlertEmail(event, alert.email);
+            await wixData.update(ENTRY_ALERTS, {
+                ...alert,
+                notified: true,
+                notifiedTimestamp: new Date()
+            });
+            sentCount++;
+        } catch (err) {
+            // Leave notified = false so it can be retried; don't let one
+            // failure block the rest of the batch.
+            console.error(`Failed to send entry-open alert to ${alert.email}: ${err.message}`);
+        }
+    }
+
+    return { sent: sentCount, total: pending.items.length };
+}
+
+async function sendAlertEmail(event, toEmail) {
+    const entryUrl = buildEntryUrl(event._id);
+    const { contactId } = await contacts.appendOrCreateContact({ emails: [{ email: toEmail }] });
+    await triggeredEmails.emailContact(ENTRY_OPEN_ALERT_EMAIL_ID, contactId, {
+        variables: {
+            eventTitle: event.title,
+            entryUrl
+        }
+    });
+}
+
+function isValidEmail(email) {
+    return typeof email === 'string' && /^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(email.trim());
+}
+
+/**
+ * Convenience for a producer dashboard: how many people are waiting
+ * on this event, independent of whether it's opened yet. Useful as an
+ * early demand signal before entries even start.
+ */
+export async function getAlertSubscriberCount(eventId) {
+    return wixData.query(ENTRY_ALERTS).eq('eventId', eventId).count();
+}

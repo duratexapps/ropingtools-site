@@ -1,0 +1,61 @@
+/**
+ * onboarding.jsw
+ * Velo backend web module — tracks whether a logged-in member has
+ * completed or dismissed the first-time guided tour on each surface
+ * (producer / entrant), so it doesn't reappear once handled.
+ *
+ * Guests aren't tracked here — see entrant-entry-form.js, which uses
+ * browser-local storage for non-logged-in visitors instead.
+ */
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const ONBOARDING = 'DrawProOnboardingStatus';
+
+/**
+ * Returns whether the current member has already handled (completed OR
+ * dismissed) the tour for a given surface. Returns false for a signed-
+ * out visitor rather than throwing — the caller decides what to do.
+ */
+export async function hasSeenTour(surface) {
+    const member = await currentMember.getMember().catch(() => null);
+    if (!member) return false;
+
+    const record = await getRecord(member._id, surface);
+    return !!(record && (record.completed || record.dismissed));
+}
+
+export async function markTourCompleted(surface) {
+    return upsertStatus(surface, { completed: true, dismissed: false });
+}
+
+export async function markTourDismissed(surface) {
+    return upsertStatus(surface, { completed: false, dismissed: true });
+}
+
+/**
+ * Explicit "Replay Tutorial" support — clears both flags so the tour
+ * shows again on next load, without deleting the historical record.
+ */
+export async function resetTour(surface) {
+    return upsertStatus(surface, { completed: false, dismissed: false });
+}
+
+async function upsertStatus(surface, fields) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+
+    const existing = await getRecord(member._id, surface);
+    const record = { userId: member._id, surface, ...fields, lastUpdated: new Date() };
+
+    if (existing) {
+        return wixData.update(ONBOARDING, { ...existing, ...record });
+    }
+    return wixData.insert(ONBOARDING, record);
+}
+
+async function getRecord(userId, surface) {
+    const result = await wixData.query(ONBOARDING).eq('userId', userId).eq('surface', surface).find();
+    return result.items.length > 0 ? result.items[0] : null;
+}

@@ -1,0 +1,530 @@
+/**
+ * matching-engine.jsw
+ * Velo backend web module — the actual draw for a team roping event.
+ *
+ * Pipeline: verify → draw → notify (notify lives in notifications.jsw,
+ * triggered separately after producer sign-off).
+ *
+ * Algorithm shape (as specced):
+ *  1. Pull out pre-formed teams — they get team numbers, skip matching.
+ *  2. Pool remaining solo headers and solo heelers separately.
+ *  3. Randomly pair: pick a random unmatched header, then randomly pick
+ *     from the subset of unmatched heelers whose classification satisfies
+ *     header# + heeler# <= cap. No preference order — pure random among
+ *     valid options.
+ *  4. Anyone left unmatched goes to manual override.
+ *  5. Sequence all teams (pre-formed + drawn) so no entrant runs twice
+ *     within a 10-team gap. If impossible for a given field, flag it and
+ *     notify the producer rather than guessing.
+ *  6. Cap rule is absolute — even manual override cannot exceed it.
+ *     Any attempted violation is logged, never executed.
+ */
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const EVENTS = 'DrawProEvents';
+const ENTRANTS = 'DrawProEntrants';
+const TEAMS = 'DrawProTeams';
+const DRAW_SHEETS = 'DrawProDrawSheets';
+const AUDIT_LOG = 'DrawProAuditLog';
+
+const MIN_SPACING = 10; // minimum teams between a repeat entrant's runs
+
+/* ------------------------------------------------------------------ */
+/* Finalize — lock entries, prep draw sheet for producer review        */
+/* ------------------------------------------------------------------ */
+
+export async function finalizeDrawSheet(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    if (event.status !== 'closed') {
+        throw new Error(`Event must be closed before finalizing. Current status: ${event.status}`);
+    }
+
+    await wixData.update(EVENTS, { ...event, status: 'finalized' });
+
+    const existing = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
+    const sheetRecord = {
+        eventId,
+        status: 'pending_signoff',
+        finalizedTimestamp: new Date()
+    };
+
+    if (existing.items.length > 0) {
+        return wixData.update(DRAW_SHEETS, { ...existing.items[0], ...sheetRecord });
+    }
+    return wixData.insert(DRAW_SHEETS, sheetRecord);
+}
+
+/* ------------------------------------------------------------------ */
+/* Producer sign-off — required before the draw executes               */
+/* ------------------------------------------------------------------ */
+
+export async function signOffDrawSheet(eventId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer to sign off.');
+
+    const sheet = await getDrawSheet(eventId);
+    if (sheet.status !== 'pending_signoff') {
+        throw new Error(`Draw sheet is not awaiting sign-off. Current status: ${sheet.status}`);
+    }
+
+    await wixData.update(DRAW_SHEETS, {
+        ...sheet,
+        status: 'signed_off',
+        producerSignoffUserId: member._id,
+        producerSignoffTimestamp: new Date()
+    });
+
+    // Sign-off immediately triggers the draw itself.
+    return executeDraw(eventId);
+}
+
+/* ------------------------------------------------------------------ */
+/* The draw                                                             */
+/* ------------------------------------------------------------------ */
+
+async function executeDraw(eventId) {
+    const event = await wixData.get(EVENTS, eventId);
+    const entrantsResult = await wixData.query(ENTRANTS).eq('eventId', eventId).limit(1000).find();
+    const entrants = entrantsResult.items;
+
+    const preFormedTeams = extractPreFormedTeams(entrants);
+    const { unmatchedHeaders, unmatchedHeelers } = poolSoloEntrants(entrants, preFormedTeams);
+
+    const { drawnTeams, unmatched } = randomlyPairByCap(unmatchedHeaders, unmatchedHeelers, event.capNumber);
+
+    const allTeams = [...preFormedTeams, ...drawnTeams];
+    const sequenced = sequenceWithSpacing(allTeams, MIN_SPACING);
+
+    // Persist teams
+    const savedTeams = [];
+    for (const team of sequenced.teams) {
+        const saved = await wixData.insert(TEAMS, {
+            eventId,
+            teamNumber: team.teamNumber,
+            headerEntrantId: team.header._id,
+            heelerEntrantId: team.heeler._id,
+            preFormed: team.preFormed,
+            manualOverride: false,
+            overrideAcknowledgedBy: null,
+            overrideTimestamp: null,
+            spacingFlagged: team.spacingFlagged || false,
+            spacingConflictDetail: team.spacingConflictDetail || null,
+            spacingAcknowledged: false,
+            spacingAcknowledgedBy: null,
+            spacingAcknowledgedTimestamp: null
+        });
+        savedTeams.push(saved);
+    }
+
+    // Update draw sheet with results
+    const sheet = await getDrawSheet(eventId);
+    await wixData.update(DRAW_SHEETS, {
+        ...sheet,
+        status: 'drawn',
+        drawnTimestamp: new Date(),
+        unmatchedEntrantIds: unmatched.map(e => e._id)
+    });
+
+    await wixData.update(EVENTS, { ...event, status: 'drawn' });
+
+    if (sequenced.unresolvedSpacingConflicts.length > 0) {
+        await logSpacingConflicts(eventId, sequenced.unresolvedSpacingConflicts);
+    }
+
+    return {
+        teams: savedTeams,
+        unmatchedEntrants: unmatched,
+        spacingConflicts: sequenced.unresolvedSpacingConflicts
+    };
+}
+
+/**
+ * Pre-formed teams are entrants who declared a partner at entry time.
+ * Pulled first, no matching logic applied.
+ */
+function extractPreFormedTeams(entrants) {
+    const teams = [];
+    const seen = new Set();
+
+    for (const entrant of entrants) {
+        if (entrant.entryType !== 'preformed_team') continue;
+        if (seen.has(entrant._id)) continue;
+
+        const partner = entrants.find(e => e._id === entrant.teamPartnerEntrantId);
+        if (!partner) continue; // orphaned record — shouldn't happen if entry validation held
+
+        const header = entrant.role === 'header' ? entrant : partner;
+        const heeler = entrant.role === 'heeler' ? entrant : partner;
+
+        teams.push({ header, heeler, preFormed: true });
+        seen.add(entrant._id);
+        seen.add(partner._id);
+    }
+
+    return teams;
+}
+
+/**
+ * Everyone not part of a pre-formed team, split by role.
+ */
+function poolSoloEntrants(entrants, preFormedTeams) {
+    const preFormedIds = new Set();
+    for (const team of preFormedTeams) {
+        preFormedIds.add(team.header._id);
+        preFormedIds.add(team.heeler._id);
+    }
+
+    const solo = entrants.filter(e => e.entryType === 'solo' && !preFormedIds.has(e._id));
+    return {
+        unmatchedHeaders: solo.filter(e => e.role === 'header'),
+        unmatchedHeelers: solo.filter(e => e.role === 'heeler')
+    };
+}
+
+/**
+ * Random pairing among valid (sum <= cap) combinations. No preference
+ * order — pure random per spec. Anyone who can't be matched at all
+ * (no valid partner left in the remaining pool) is returned unmatched
+ * for manual override.
+ */
+function randomlyPairByCap(headers, heelers, cap) {
+    const remainingHeaders = shuffle([...headers]);
+    let remainingHeelers = shuffle([...heelers]);
+    const drawnTeams = [];
+    const unmatched = [];
+
+    for (const header of remainingHeaders) {
+        const validHeelerIndexes = remainingHeelers
+            .map((heeler, idx) => ({ heeler, idx }))
+            .filter(({ heeler }) => header.classificationNumber + heeler.classificationNumber <= cap);
+
+        if (validHeelerIndexes.length === 0) {
+            unmatched.push(header);
+            continue;
+        }
+
+        const pick = validHeelerIndexes[Math.floor(Math.random() * validHeelerIndexes.length)];
+        drawnTeams.push({ header, heeler: pick.heeler, preFormed: false });
+        remainingHeelers = remainingHeelers.filter((_, idx) => idx !== pick.idx);
+    }
+
+    // Any heelers left with nobody to pair with are unmatched too.
+    unmatched.push(...remainingHeelers);
+
+    return { drawnTeams, unmatched };
+}
+
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+/**
+ * Assigns run-order team numbers such that no entrant appears in two
+ * team numbers within MIN_SPACING of each other. Greedy placement:
+ * shuffle the team list, then walk through assigning each team to the
+ * earliest available slot that doesn't violate spacing for either of
+ * its two entrants. If no such slot exists for a team by the time all
+ * slots are placed, flag it rather than forcing a violation.
+ */
+function sequenceWithSpacing(teams, minSpacing) {
+    const shuffled = shuffle([...teams]);
+    const totalSlots = shuffled.length;
+    const slots = new Array(totalSlots).fill(null);
+    const lastSlotForEntrant = new Map(); // entrantId -> last assigned slot index
+    const unresolvedSpacingConflicts = [];
+
+    for (const team of shuffled) {
+        const headerId = team.header._id;
+        const heelerId = team.heeler._id;
+
+        let placed = false;
+        for (let slot = 0; slot < totalSlots; slot++) {
+            if (slots[slot] !== null) continue;
+            if (violatesSpacing(headerId, slot, lastSlotForEntrant, minSpacing)) continue;
+            if (violatesSpacing(heelerId, slot, lastSlotForEntrant, minSpacing)) continue;
+
+            slots[slot] = team;
+            lastSlotForEntrant.set(headerId, slot);
+            lastSlotForEntrant.set(heelerId, slot);
+            placed = true;
+            break;
+        }
+
+        if (!placed) {
+            // No slot satisfies spacing for this team — place in first open
+            // slot anyway and flag it for producer attention, per spec
+            // ("flag it & notify the producer") rather than silently
+            // minimizing or guessing.
+            const firstOpen = slots.findIndex(s => s === null);
+            team.spacingFlagged = true;
+            team.spacingConflictDetail = buildConflictDetail(team, lastSlotForEntrant, minSpacing);
+            slots[firstOpen] = team;
+            lastSlotForEntrant.set(headerId, firstOpen);
+            lastSlotForEntrant.set(heelerId, firstOpen);
+            unresolvedSpacingConflicts.push(team);
+        }
+    }
+
+    const numberedTeams = slots.map((team, idx) => ({ ...team, teamNumber: idx + 1 }));
+    return { teams: numberedTeams, unresolvedSpacingConflicts };
+}
+
+function violatesSpacing(entrantId, candidateSlot, lastSlotForEntrant, minSpacing) {
+    if (!lastSlotForEntrant.has(entrantId)) return false;
+    const lastSlot = lastSlotForEntrant.get(entrantId);
+    return Math.abs(candidateSlot - lastSlot) < minSpacing;
+}
+
+function buildConflictDetail(team, lastSlotForEntrant, minSpacing) {
+    const notes = [];
+    for (const [role, entrant] of [['header', team.header], ['heeler', team.heeler]]) {
+        if (lastSlotForEntrant.has(entrant._id)) {
+            notes.push(`${entrant.firstName} ${entrant.lastName} (${role}) has another run closer than ${minSpacing} teams away.`);
+        }
+    }
+    return notes.join(' ');
+}
+
+async function logSpacingConflicts(eventId, conflictTeams) {
+    for (const team of conflictTeams) {
+        await wixData.insert(AUDIT_LOG, {
+            eventId,
+            actionType: 'spacing_conflict_flagged',
+            performedByUserId: null,
+            timestamp: new Date(),
+            detail: `Team (header: ${team.header.firstName} ${team.header.lastName}, ` +
+                     `heeler: ${team.heeler.firstName} ${team.heeler.lastName}) could not satisfy ` +
+                     `${MIN_SPACING}-team minimum spacing. ${team.spacingConflictDetail || ''}`
+        });
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Manual override — cap rule is absolute, never bendable              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Producer manually pairs two unmatched entrants (or reassigns an
+ * existing pairing). Requires prior acknowledgment of the override
+ * prompt on the client side; this function still re-validates the cap
+ * server-side regardless of what the client claims was acknowledged.
+ */
+export async function manualPairEntrants(eventId, headerEntrantId, heelerEntrantId, acknowledged) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    if (!acknowledged) {
+        throw new Error('Producer must acknowledge the manual-override prompt before this action is allowed.');
+    }
+
+    const header = await wixData.get(ENTRANTS, headerEntrantId);
+    const heeler = await wixData.get(ENTRANTS, heelerEntrantId);
+    const event = await wixData.get(EVENTS, eventId);
+
+    const sum = header.classificationNumber + heeler.classificationNumber;
+    if (sum > event.capNumber) {
+        // Cap rule applies across the board, no exceptions. Log the
+        // attempt and reject it — do NOT create the team.
+        await wixData.insert(AUDIT_LOG, {
+            eventId,
+            actionType: 'cap_violation_attempt',
+            performedByUserId: member._id,
+            timestamp: new Date(),
+            detail: `Attempted manual pairing of ${header.firstName} ${header.lastName} ` +
+                     `(#${header.classificationNumber}) with ${heeler.firstName} ${heeler.lastName} ` +
+                     `(#${heeler.classificationNumber}) — sum ${sum} exceeds cap ${event.capNumber}. Rejected.`
+        });
+        throw new Error(`Rejected: combined classification (${sum}) exceeds the event cap (${event.capNumber}).`);
+    }
+
+    const nextTeamNumber = await getNextAvailableTeamNumber(eventId);
+    const team = await wixData.insert(TEAMS, {
+        eventId,
+        teamNumber: nextTeamNumber,
+        headerEntrantId,
+        heelerEntrantId,
+        preFormed: false,
+        manualOverride: true,
+        overrideAcknowledgedBy: member._id,
+        overrideTimestamp: new Date(),
+        spacingFlagged: false,
+        spacingConflictDetail: null
+    });
+
+    await wixData.insert(AUDIT_LOG, {
+        eventId,
+        actionType: 'manual_pairing',
+        performedByUserId: member._id,
+        timestamp: new Date(),
+        detail: `Manually paired ${header.firstName} ${header.lastName} with ` +
+                 `${heeler.firstName} ${heeler.lastName} as team #${nextTeamNumber}.`
+    });
+
+    return team;
+}
+
+async function getNextAvailableTeamNumber(eventId) {
+    const result = await wixData.query(TEAMS).eq('eventId', eventId).descending('teamNumber').limit(1).find();
+    return result.items.length > 0 ? result.items[0].teamNumber + 1 : 1;
+}
+
+async function getDrawSheet(eventId) {
+    const result = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
+    if (result.items.length === 0) {
+        throw new Error('No draw sheet found for this event. Call finalizeDrawSheet first.');
+    }
+    return result.items[0];
+}
+
+/* ------------------------------------------------------------------ */
+/* Resolving flagged spacing conflicts                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Swaps the run-order position of two teams. This is the producer's main
+ * tool for resolving a flagged spacing conflict — moving a team away
+ * from wherever it's colliding with that entrant's other run(s).
+ *
+ * A swap can ripple beyond the two teams involved (an entrant might have
+ * a THIRD run elsewhere in the field), so rather than only re-checking
+ * the two swapped teams, this recomputes spacing for the entire event
+ * and refreshes every team's flag accordingly.
+ */
+export async function swapTeamPositions(eventId, teamIdA, teamIdB) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+
+    const teamA = await wixData.get(TEAMS, teamIdA);
+    const teamB = await wixData.get(TEAMS, teamIdB);
+
+    if (teamA.eventId !== eventId || teamB.eventId !== eventId) {
+        throw new Error('Both teams must belong to the event being edited.');
+    }
+
+    const numberA = teamA.teamNumber;
+    const numberB = teamB.teamNumber;
+
+    await wixData.update(TEAMS, { ...teamA, teamNumber: numberB });
+    await wixData.update(TEAMS, { ...teamB, teamNumber: numberA });
+
+    await wixData.insert(AUDIT_LOG, {
+        eventId,
+        actionType: 'manual_pairing',
+        performedByUserId: member._id,
+        timestamp: new Date(),
+        detail: `Swapped team #${numberA} and team #${numberB} in the run order.`
+    });
+
+    return recomputeSpacingFlags(eventId);
+}
+
+/**
+ * Recomputes spacingFlagged / spacingConflictDetail for every team in an
+ * event from scratch. Called after any manual reorder, since moving one
+ * team can affect spacing for entrants elsewhere in the field (an
+ * entrant with three total runs, not just the two just swapped).
+ *
+ * Clears a prior acknowledgment whenever the underlying conflict has
+ * changed — an acknowledgment covers a specific flagged situation, not
+ * "whatever this team's flag says in the future."
+ */
+async function recomputeSpacingFlags(eventId) {
+    const teamsResult = await wixData.query(TEAMS).eq('eventId', eventId).ascending('teamNumber').limit(1000).find();
+    const teams = teamsResult.items;
+
+    // Build entrantId -> sorted list of slot numbers (teamNumber) they appear in.
+    const slotsByEntrant = new Map();
+    for (const team of teams) {
+        for (const entrantId of [team.headerEntrantId, team.heelerEntrantId]) {
+            if (!slotsByEntrant.has(entrantId)) slotsByEntrant.set(entrantId, []);
+            slotsByEntrant.get(entrantId).push(team.teamNumber);
+        }
+    }
+    for (const slots of slotsByEntrant.values()) slots.sort((a, b) => a - b);
+
+    const updatedTeams = [];
+    for (const team of teams) {
+        const conflictNotes = [];
+        for (const [role, entrantId] of [['header', team.headerEntrantId], ['heeler', team.heelerEntrantId]]) {
+            const slots = slotsByEntrant.get(entrantId);
+            const hasTooCloseNeighbor = slots.some(s => s !== team.teamNumber && Math.abs(s - team.teamNumber) < MIN_SPACING);
+            if (hasTooCloseNeighbor) {
+                const entrant = await wixData.get(ENTRANTS, entrantId);
+                conflictNotes.push(`${entrant.firstName} ${entrant.lastName} (${role}) has another run closer than ${MIN_SPACING} teams away.`);
+            }
+        }
+
+        const nowFlagged = conflictNotes.length > 0;
+        const detailChanged = team.spacingConflictDetail !== (conflictNotes.join(' ') || null);
+
+        const updated = {
+            ...team,
+            spacingFlagged: nowFlagged,
+            spacingConflictDetail: nowFlagged ? conflictNotes.join(' ') : null,
+            // Clear a stale acknowledgment: either the conflict is gone, or
+            // it changed shape and needs a fresh look.
+            spacingAcknowledged: nowFlagged && !detailChanged ? team.spacingAcknowledged : false,
+            spacingAcknowledgedBy: nowFlagged && !detailChanged ? team.spacingAcknowledgedBy : null,
+            spacingAcknowledgedTimestamp: nowFlagged && !detailChanged ? team.spacingAcknowledgedTimestamp : null
+        };
+
+        await wixData.update(TEAMS, updated);
+        updatedTeams.push(updated);
+    }
+
+    return updatedTeams;
+}
+
+/**
+ * Producer explicitly accepts that a flagged spacing conflict has no
+ * available fix (field's too small relative to how many times someone
+ * entered) and clears it from their active attention queue — without
+ * erasing the fact that it happened. Requires an existing, unresolved
+ * flag; acknowledging a team that isn't currently flagged is rejected.
+ */
+export async function acknowledgeSpacingConflict(eventId, teamId, note) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+
+    const team = await wixData.get(TEAMS, teamId);
+    if (team.eventId !== eventId) throw new Error('Team does not belong to this event.');
+    if (!team.spacingFlagged) throw new Error('This team does not currently have a flagged spacing conflict.');
+    if (team.spacingAcknowledged) throw new Error('This conflict has already been acknowledged.');
+
+    const updated = await wixData.update(TEAMS, {
+        ...team,
+        spacingAcknowledged: true,
+        spacingAcknowledgedBy: member._id,
+        spacingAcknowledgedTimestamp: new Date()
+    });
+
+    await wixData.insert(AUDIT_LOG, {
+        eventId,
+        actionType: 'spacing_conflict_flagged',
+        performedByUserId: member._id,
+        timestamp: new Date(),
+        detail: `Acknowledged unresolved spacing conflict for team #${team.teamNumber} ` +
+                 `(${team.spacingConflictDetail || 'no detail on record'}). No fix available. ` +
+                 `${note ? 'Producer note: ' + note : ''}`
+    });
+
+    return updated;
+}
+
+/**
+ * Convenience for the producer dashboard: teams that still need
+ * attention — flagged but not yet acknowledged.
+ */
+export async function getUnresolvedSpacingConflicts(eventId) {
+    const result = await wixData.query(TEAMS)
+        .eq('eventId', eventId)
+        .eq('spacingFlagged', true)
+        .eq('spacingAcknowledged', false)
+        .find();
+    return result.items;
+}
