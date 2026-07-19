@@ -22,6 +22,7 @@
 
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { calculateAndRecordExecutionCharge } from 'backend/payments.jsw';
 
 const EVENTS = 'DrawProEvents';
 const ENTRANTS = 'DrawProEntrants';
@@ -132,6 +133,16 @@ async function executeDraw(eventId) {
     if (sequenced.unresolvedSpacingConflicts.length > 0) {
         await logSpacingConflicts(eventId, sequenced.unresolvedSpacingConflicts);
     }
+
+    // Cash-event execution billing (payments.jsw's calculateAndRecordExecutionCharge):
+    // teams are now persisted, so the algorithm-matched count this needs is
+    // available. No-ops for online-payment events. Fire-and-forget with a
+    // logged failure, same pattern as event-setup.jsw's sendEntryOpenAlerts —
+    // a billing-calc problem shouldn't roll back a draw that already succeeded
+    // and whose results producers/entrants are about to see.
+    calculateAndRecordExecutionCharge(eventId).catch(err =>
+        console.error(`Execution charge calculation failed for event ${eventId}: ${err.message}`)
+    );
 
     return {
         teams: savedTeams,
