@@ -4,6 +4,18 @@
 // coming-soon page, anyone can join without a Wix Members Area account.
 // See public/drawpro/index.html for the frontend and
 // data-collections/SCHEMA.md for the DrawProWaitlist collection shape.
+//
+// PERMISSIONS NOTE: wix-auth's elevate() did not work in this HTTP
+// Function context after several tested variants (elevating individual
+// wixData calls, elevating the whole function, applying it directly in
+// http-functions.js instead of this imported module) — all failed with
+// the same WDE0027 "does not have permissions" error. Rather than keep
+// fighting that, the DrawProWaitlist collection's permissions were opened
+// directly: "Add" (insert) is allowed for Everyone, while View/Update/
+// Delete stay Admin-only. That's why this function no longer does a
+// dedup-by-email lookup first (that needs read access, which is
+// deliberately still locked down to protect the email list from being
+// harvested) — an occasional duplicate row is a fine trade-off for that.
 
 import wixData from 'wix-data';
 
@@ -19,19 +31,12 @@ export async function joinDrawProWaitlist(params) {
     throw new Error('That email address doesn\'t look valid.');
   }
 
-  const existing = await wixData.query(DRAW_PRO_WAITLIST_COLLECTION)
-    .eq('email', email)
-    .limit(1)
-    .find();
-
-  if (existing.items.length > 0) {
-    return { alreadyJoined: true };
-  }
-
   await wixData.insert(DRAW_PRO_WAITLIST_COLLECTION, {
     email: email,
     timestamp: new Date()
   });
 
+  // Always false now — no read access to check for a prior signup. The
+  // frontend copy already reads fine either way ("You're on the list!").
   return { alreadyJoined: false };
 }

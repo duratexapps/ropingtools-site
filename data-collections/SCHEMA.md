@@ -145,15 +145,71 @@ of building the submission form.
 
 ## `DrawProWaitlist`
 "Get Notified" signups from the Draw Pro coming-soon page
-(`public/drawpro/index.html`). Same permission pattern as `Feedback` —
-Admin-only, written via `velo/backend/drawPro.jsw`'s `joinDrawProWaitlist()`,
-which allows anonymous callers (no Members Area account required to join a
-waitlist).
+(`public/drawpro/index.html`). Written via `velo/backend/drawPro.jsw`'s
+`joinDrawProWaitlist()`. **Permissions differ from every other collection
+here**: `insert` is open to **Everyone** (anonymous visitors need to be able
+to join without an account), while `view`/`update`/`delete` stay Admin-only.
+No dedup-by-email check — that would need read access, deliberately not
+opened (see "elevate() doesn't work" note below). An occasional duplicate
+row is an acceptable trade-off for not exposing the email list to reads.
 
 | Field | Type | Notes |
 |---|---|---|
-| `email` | Text | Lowercased/trimmed before storage; `drawPro.jsw` checks for an existing row before inserting to avoid duplicates. |
+| `email` | Text | Lowercased/trimmed before storage. |
 | `timestamp` | Date/Time | |
+
+---
+
+## Important operational notes (learned the hard way, 2026-07-18/19)
+
+### Collection ID vs. display name — always verify both, separately
+Creating a collection via **Import from CSV** and then renaming it from
+Wix's default `Import1`, `Import2`, etc. **only changes the display name**
+— the underlying **Collection ID** (what `wixData.query('CollectionName')`
+actually matches against) stays `ImportN` forever. Wix explicitly blocks
+changing it after creation ("You cannot modify the collection ID after the
+collection has been created"). Every collection in this project that was
+built via CSV import hit this — all 7 needed deleting and recreating.
+
+**Building a collection via "Start from scratch" does not have this
+problem** — the name you give it at creation time becomes the real
+Collection ID. That's the safer path for future collections built through
+the Editor UI. Always double check by opening the collection's Settings
+tab and confirming the **Collection ID** field (not just the title show in
+the breadcrumb) matches what the code expects, *before* writing any real
+data into it.
+
+### `wix-auth`'s `elevate()` did not work for Wix HTTP Functions in testing
+All of this project's collections are permissioned **Admin-only** by
+design (see intro above) — the intent was that trusted backend `.jsw`
+code would `elevate()` past that restriction after doing its own
+validation, rather than opening broader collection-level access. In
+practice, calling `elevate()` — on individual `wixData` calls, on a whole
+wrapped function, and applied directly inside `backend/http-functions.js`
+itself — consistently failed with `WDE0027: does not have permissions`
+when invoked through an HTTP Function. All three variants were tested
+live against `DrawProWaitlist`; none worked.
+
+**Workaround used for `DrawProWaitlist`**: opened the specific collection
+permission needed (`insert` → Everyone) directly, rather than relying on
+`elevate()`. This is a narrower, still-reasonably-safe fix for a
+single anonymous-write collection, but **it hasn't been tested whether
+member-authenticated actions (course backend, credit deduction, etc.)
+have the same `elevate()` problem when called via Velo Page Code +
+`import` rather than an HTTP Function** — that's a distinct, unverified
+code path. See `docs/ARCHITECTURE.md`'s notes on this for the follow-up
+plan before assuming the same fix applies there.
+
+### Creating/managing collections via the REST API instead of the Editor UI
+Given the CSV-import ID problem above, all 7 of the mis-IDed collections
+were fixed by deleting them and recreating via Wix's REST API directly
+(`POST https://www.wixapis.com/wix-data/v2/collections`, with a
+`wix-site-id` header and a Wix API Key scoped to just "Wix Data" — Settings
+→ API & Extensions in the Wix dashboard). This lets you specify the exact
+Collection ID at creation time, sidestepping the Editor's CSV-import flow
+entirely. Worth using this path for any future collections (Steer Me's,
+Draw Pro's real build) instead of CSV import, to avoid repeating this
+whole saga.
 
 ---
 

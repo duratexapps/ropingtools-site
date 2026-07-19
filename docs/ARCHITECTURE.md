@@ -230,3 +230,43 @@ same as the `PARENT_ORIGIN` lockdown.
   pieces, should default to HTTP Functions (or native `$w` elements, like
   Draw Pro's real build) from the start rather than the `$w.onMessage()`
   bridge — no reason to re-discover this same bug a third time.
+
+## Update: Draw Pro's HTTP Function fully verified live, plus a second platform gap found (`elevate()`)
+
+The HTTP Function fix above was carried through to a real, confirmed
+working end-to-end test: `POST /_functions/joinDrawProWaitlist` → inserts
+into `DrawProWaitlist` → verified via a direct data query. Along the way,
+a second Wix platform behavior didn't match its own documentation:
+**`wix-auth`'s `elevate()` did not work inside an HTTP Function**, tested
+three ways (elevating individual `wixData` calls, elevating the whole
+exported function, applying `elevate()` directly in `http-functions.js`
+rather than an imported module) — all failed identically with `WDE0027:
+does not have permissions`. Full details and the workaround (opening the
+specific collection permission needed, rather than relying on `elevate()`)
+are in `data-collections/SCHEMA.md`'s "Important operational notes"
+section — that's now the canonical place for this, since it's really a
+data-layer/permissions issue more than a bridge-architecture one.
+
+**This sharpens the open question above about the Coaching course**: even
+once its `$w.onMessage()` bridge gets fixed or replaced, its backend
+functions (`aiCoach.jsw`, `progress.jsw`, etc.) all assume they can write
+to Admin-locked collections from trusted backend code — the same
+assumption that just failed for Draw Pro. Two unverified things need
+checking before touching the course: (1) whether Page-Code-invoked
+`.jsw` calls (the course's actual pattern, once the bridge itself works)
+have the same `elevate()` failure HTTP Functions just showed, and (2) if
+so, what the right fix looks like for *member-scoped* writes (a student's
+own quiz result, their own credit balance) — "open the collection to
+Everyone" isn't an acceptable answer there the way it was for Draw Pro's
+anonymous waitlist, since these collections need to stay genuinely
+member-private, not just publicly-writable.
+
+**Also relevant for Steer Me and Draw Pro's real build**: all of this
+project's Data Collections were re-verified to need their **Collection
+ID** (not just display name) matching the code exactly — building via
+CSV import silently leaves the ID as `Import1`, `Import2`, etc. even
+after renaming. Every collection in this project built that way had to be
+deleted and recreated. `SCHEMA.md` now documents using the Wix Data REST
+API directly (with a scoped API Key) to create collections with the
+correct ID from the start, which is the path future collections should
+use instead of CSV import.

@@ -10,9 +10,14 @@
 // showed $w('#drawProEmbed') consistently returns an empty array in Preview
 // on the "Custom Embeds"/"Embed a Widget" element — the classic HTML
 // Component messaging API Wix's own docs describe doesn't appear to apply
-// to whatever component type this Editor version actually creates. Rather
-// than keep fighting that, this sidesteps $w/onMessage entirely for actions
-// that don't need member auth.
+// to whatever component type this Editor version actually creates.
+//
+// PERMISSIONS NOTE: wix-auth's elevate() does not appear to work in this
+// HTTP Function context (tested multiple ways, all failed — see
+// backend/drawPro.jsw's comment for the full story). Collections called
+// from here need their own permissions opened for the specific operation
+// needed (e.g. "Add" for Everyone), rather than relying on elevate() to
+// bypass an Admin-only lock from backend code.
 //
 // CORS: headers are set explicitly and permissively (Access-Control-Allow-
 // Origin: *) since it's genuinely unclear whether the HTML embed iframe is
