@@ -49,7 +49,7 @@ import { currentMember } from 'wix-members-frontend';
 import { local } from 'wix-storage-frontend';
 import { submitEntry } from 'backend/event-setup.jsw';
 import { subscribeToEntryAlert } from 'backend/qr-and-alerts.jsw';
-import { processOnlinePayment, calculateEntrantCharge } from 'backend/payments.jsw';
+import { createPayPalOrder, capturePayPalOrder, calculateEntrantCharge } from 'backend/payments.jsw';
 import { hasSeenTour, markTourCompleted, markTourDismissed } from 'backend/onboarding.jsw';
 import { runTour } from 'public/onboarding-engine.js';
 import wixData from 'wix-data';
@@ -342,16 +342,51 @@ async function showPaymentStep(entrant) {
     setStatus("You're entered — pay now to confirm your spot.");
 }
 
+/**
+ * PayPal's checkout is a two-step, client-driven flow, not a single
+ * backend call like the Stripe version this replaced:
+ *   1. createPayPalOrder() (backend) — computes the charge, creates the
+ *      order with the producer/platform split already specified, returns
+ *      an orderId.
+ *   2. PayPal's own JS SDK renders approval buttons using that orderId —
+ *      NOT BUILT HERE. This page needs a `<script>`-loaded PayPal SDK
+ *      (via an HTML embed element or Wix's custom code panel) with
+ *      `createOrder: () => orderId` and an `onApprove` callback that
+ *      calls step 3 below. See PayPal's "Advanced Checkout" docs for the
+ *      button/hosted-fields integration.
+ *   3. capturePayPalOrder() (backend) — called from that onApprove
+ *      callback once the buyer has approved; actually captures the funds.
+ *
+ * handlePayNow() below only does step 1 and stops — it hands back the
+ * orderId a real PayPal-buttons integration would need. Wiring the SDK
+ * itself, and calling handlePaymentApproved() from its onApprove
+ * callback, is real frontend work not done as part of this page-code
+ * pass. See docs/ARCHITECTURE.md's PayPal section for the full status.
+ */
 async function handlePayNow(entrantId) {
     $w('#btnPayNow').disable();
-    setStatus('Processing payment…');
+    setStatus('Preparing payment…');
 
     try {
-        // paymentMethodToken would come from the payment provider's own
-        // client-side element (e.g. a Stripe Elements card field) —
-        // placeholder here since that UI isn't part of this page's scope.
-        const paymentMethodToken = 'placeholder_token_from_payment_element';
-        const result = await processOnlinePayment(eventId, entrantId, paymentMethodToken);
+        const { orderId } = await createPayPalOrder(eventId, entrantId);
+
+        // TODO: render PayPal's approval buttons here using orderId,
+        // instead of proceeding straight to capture. Left as a direct
+        // call for now so the backend contract is exercised end-to-end
+        // once real credentials exist, but this skips the buyer's actual
+        // approval step — not correct for production until the SDK
+        // buttons are wired in per the comment above.
+        await handlePaymentApproved(entrantId, orderId);
+    } catch (err) {
+        setStatus(err.message, true);
+        $w('#btnPayNow').enable();
+    }
+}
+
+async function handlePaymentApproved(entrantId, orderId) {
+    setStatus('Confirming payment…');
+    try {
+        const result = await capturePayPalOrder(eventId, entrantId, orderId);
 
         $w('#textPaymentConfirmation').text = `Paid $${result.amountCharged.toFixed(2)}. Confirmation: ${result.referenceNumber}`;
         $w('#textPaymentConfirmation').expand();

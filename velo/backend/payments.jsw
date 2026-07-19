@@ -22,6 +22,38 @@
  * not a competing design). Partner-invite emails below use Wix's
  * native Triggered Emails (wix-crm-backend) instead of SendGrid.
  *
+ * ONLINE PROCESSOR: PayPal for Platforms, not Stripe — a deliberate
+ * business decision, not a technical default. Reasoning: the near-term
+ * target audience is small/mom-and-pop producers, who are far more
+ * likely to already have (or know how to get) a PayPal account than a
+ * Stripe account, which is largely invisible developer infrastructure
+ * outside tech circles. Larger, already-automated producers (who may
+ * prefer Stripe or their own existing tooling) are an explicitly later
+ * target, once this is proven out with the smaller/lower-friction
+ * audience first. See docs/ARCHITECTURE.md for the fuller discussion.
+ *
+ * PayPal for Platforms is a sales-application program, not instant
+ * self-serve — RopingTools' application is in progress as of this
+ * version. Everything below is structurally complete against PayPal's
+ * documented Orders API v2 (purchase_units/payee/payment_instruction.
+ * platform_fees) and Partner Referrals API v2, but NOT FUNCTIONAL until
+ * that application is approved and real credentials exist in Secrets
+ * Manager (drawpro-paypal-client-id, drawpro-paypal-client-secret,
+ * drawpro-paypal-partner-merchant-id) — same "built but not live yet"
+ * pattern already used elsewhere in this codebase (Triggered Email
+ * template IDs, Stripe's now-replaced placeholder).
+ *
+ * Unlike Stripe's single-call payment_intents flow, PayPal's checkout is
+ * inherently two-step and client-driven: create an order, the buyer
+ * approves it (PayPal's JS SDK buttons or a redirect — not something
+ * this backend module controls), then the platform captures it. That's
+ * why processOnlinePayment() (one call) is now createPayPalOrder() +
+ * capturePayPalOrder() (two calls) — not a stylistic change, a real
+ * difference in how the two processors work. entrant-entry-form.js's
+ * handlePayNow() has been updated to match; it still needs PayPal's JS
+ * SDK buttons actually rendered on the page, which is real frontend work
+ * not done here.
+ *
  * PLATFORM_FEE_PERCENT/FLAT below are the CONFIRMED rate (4% + $1.50
  * flat) — not a placeholder as of this version. Processor rate,
  * per-team execution rate, free-team threshold, and subscription price
@@ -47,7 +79,10 @@ const AUDIT_LOG = 'DrawProAuditLog';
 const PLATFORM_FEE_PERCENT = 0.04;
 const PLATFORM_FEE_FLAT = 1.50;
 
-// Placeholder — actual processor's real rate belongs here once chosen.
+// Placeholder — PayPal's real published rate belongs here once
+// RopingTools' actual negotiated/standard rate is confirmed (PayPal for
+// Platforms rates are negotiated per-partner, not a fixed public number
+// the way Stripe's is — see the conversation that led to this choice).
 const PROCESSOR_FEE_PERCENT = 0.029;
 const PROCESSOR_FEE_FLAT = 0.30;
 
@@ -56,8 +91,18 @@ const PROCESSOR_FEE_FLAT = 0.30;
 const FREE_TEAM_THRESHOLD = 50; // teams per event before any charge applies
 const PER_TEAM_EXECUTION_RATE = 0.50;
 
-const PAYMENT_PROVIDER_SECRET_NAME = 'drawpro-payment-api-key';
-const PAYMENT_CHARGE_ENDPOINT = 'https://api.stripe.com/v1/payment_intents'; // placeholder
+// SWITCH to https://api-m.sandbox.paypal.com while testing against a
+// PayPal sandbox account, before the real application is approved.
+const PAYPAL_API_BASE = 'https://api-m.paypal.com';
+const PAYPAL_CLIENT_ID_SECRET_NAME = 'drawpro-paypal-client-id';
+const PAYPAL_CLIENT_SECRET_SECRET_NAME = 'drawpro-paypal-client-secret';
+// RopingTools' own PayPal partner/merchant ID, assigned once the PayPal
+// for Platforms application is approved — used to look up a producer's
+// onboarding status by tracking_id (see checkPayoutOnboardingStatus()).
+const PAYPAL_PARTNER_MERCHANT_ID_SECRET_NAME = 'drawpro-paypal-partner-merchant-id';
+// Where a producer lands back on Draw Pro after completing PayPal's own
+// onboarding flow — the page there should call checkPayoutOnboardingStatus().
+const PARTNER_REFERRAL_RETURN_URL = 'https://www.ropingtools.com/drawpro/payout-onboarding-complete';
 
 // TODO: same one-time setup as backend/notifications.jsw and
 // backend/qr-and-alerts.jsw — create this Triggered Email template
@@ -130,40 +175,131 @@ export async function getPayoutProfile(producerId) {
 }
 
 /**
- * Producer supplies whatever AR info the chosen payment provider needs
- * (bank account, tax ID, etc. — collected via the provider's own hosted
- * onboarding flow in practice, not raw fields here). This function just
- * records the resulting connected-account reference and status.
+ * Starts PayPal seller onboarding for the signed-in producer (Partner
+ * Referrals API v2). Returns an actionUrl the producer must be sent to
+ * (redirect or new tab) to complete PayPal's own signup/permission-grant
+ * flow — this step genuinely can't happen inside Draw Pro's own pages,
+ * since it's the producer authenticating directly with PayPal, the same
+ * as any "Sign in with X"-style OAuth flow.
+ *
+ * tracking_id is the producer's own Wix member ID — used afterward to
+ * look up their resulting PayPal merchant ID, since Partner Referrals
+ * doesn't hand that back synchronously (see checkPayoutOnboardingStatus()).
  */
-export async function createOrUpdatePayoutProfile(payoutAccountId, payoutContactEmail) {
+export async function startProducerPayoutOnboarding() {
     const member = await currentMember.getMember();
     if (!member) throw new Error('Must be signed in as a producer.');
+
+    const accessToken = await getPayPalAccessToken();
+
+    const response = await fetch(`${PAYPAL_API_BASE}/v2/customer/partner-referrals`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            tracking_id: member._id,
+            partner_config_override: {
+                return_url: PARTNER_REFERRAL_RETURN_URL
+            },
+            operations: [{
+                operation: 'API_INTEGRATION',
+                api_integration_preference: {
+                    rest_api_integration: {
+                        integration_method: 'PAYPAL',
+                        integration_type: 'THIRD_PARTY',
+                        third_party_details: {
+                            features: ['PAYMENT', 'REFUND']
+                        }
+                    }
+                }
+            }],
+            products: ['PPCP'],
+            legal_consents: [{ type: 'SHARE_DATA_CONSENT', granted: true }]
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`PayPal partner-referral request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const actionUrlLink = (data.links || []).find(l => l.rel === 'action_url');
+    if (!actionUrlLink) {
+        throw new Error('PayPal did not return an onboarding action_url.');
+    }
 
     const existing = await getPayoutProfile(member._id);
     const record = {
         producerId: member._id,
-        payoutProvider: 'stripe', // placeholder
-        payoutAccountId,
-        onboardingStatus: payoutAccountId ? 'pending' : 'not_started',
-        payoutContactEmail
+        payoutProvider: 'paypal',
+        payoutAccountId: null, // filled in once onboarding completes, see below
+        onboardingStatus: 'pending',
+        payoutContactEmail: member.loginEmail || null
     };
-
     if (existing) {
-        return wixData.update(PAYOUT_PROFILES, { ...existing, ...record });
+        await wixData.update(PAYOUT_PROFILES, { ...existing, ...record });
+    } else {
+        await wixData.insert(PAYOUT_PROFILES, record);
     }
-    return wixData.insert(PAYOUT_PROFILES, record);
+
+    return { actionUrl: actionUrlLink.href };
 }
 
 /**
- * Called once the payment provider confirms onboarding is fully done
- * (e.g. a Stripe Connect "account.updated" webhook showing charges/payouts
- * enabled). Only after this can the producer pick paymentMethod: 'online'
- * on an event.
+ * Fallback path for confirming onboarding completion: call this from the
+ * page a producer lands back on after PayPal's own flow (see
+ * PARTNER_REFERRAL_RETURN_URL above). Looks up their merchant status by
+ * the tracking_id (their Wix member ID) via PayPal's merchant-integrations
+ * endpoint and marks the profile complete once PayPal confirms payments
+ * are receivable.
+ *
+ * The more real-time way to catch this is PayPal's own
+ * MERCHANT.ONBOARDING.COMPLETED webhook — NOT YET BUILT. When it is, it
+ * belongs in backend/http-functions.js (same pattern as
+ * post_joinDrawProWaitlist) and should call completePayoutOnboarding()
+ * below directly rather than duplicating this lookup logic.
  */
-export async function markPayoutOnboardingComplete(producerId) {
+export async function checkPayoutOnboardingStatus(producerId) {
+    const accessToken = await getPayPalAccessToken();
+    const partnerId = await getSecret(PAYPAL_PARTNER_MERCHANT_ID_SECRET_NAME);
+    if (!partnerId) {
+        throw new Error('PayPal partner merchant ID is not configured yet — see backend/payments.jsw setup note.');
+    }
+
+    const response = await fetch(
+        `${PAYPAL_API_BASE}/v1/customer/partners/${partnerId}/merchant-integrations?tracking_id=${encodeURIComponent(producerId)}`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    );
+
+    if (!response.ok) {
+        throw new Error(`PayPal merchant-integration lookup failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.payments_receivable === true && data.merchant_id) {
+        return completePayoutOnboarding(producerId, data.merchant_id);
+    }
+
+    return getPayoutProfile(producerId); // still pending — nothing to update yet
+}
+
+/**
+ * Marks a producer's payout profile complete with their real PayPal
+ * merchant ID. Called from checkPayoutOnboardingStatus() above, or from
+ * the MERCHANT.ONBOARDING.COMPLETED webhook once that's built. Only
+ * after this can the producer pick paymentMethod: 'online' on an event —
+ * createPayPalOrder() below checks onboardingStatus === 'complete'.
+ */
+export async function completePayoutOnboarding(producerId, merchantId) {
     const profile = await getPayoutProfile(producerId);
     if (!profile) throw new Error('No payout profile found for this producer.');
-    return wixData.update(PAYOUT_PROFILES, { ...profile, onboardingStatus: 'complete' });
+    return wixData.update(PAYOUT_PROFILES, {
+        ...profile,
+        payoutAccountId: merchantId,
+        onboardingStatus: 'complete'
+    });
 }
 
 /* ------------------------------------------------------------------ */
@@ -277,14 +413,51 @@ export async function getUnpaidCashEntrants(eventId) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Entrant-initiated. Charges the entrant the FULL itemized total
- * (producer's fee + Draw Pro's cut + processor's cut), and records
- * that the producer's payout is the full, undiminished producer fee —
- * Draw Pro's and the processor's cuts come from what the entrant paid
- * on top, not from the producer's share. Returns a reference number
- * for the entrant's confirmation screen.
+ * Gets a PayPal OAuth2 access token via the client-credentials grant.
+ * Buffer is assumed available in Velo's backend Node runtime for the
+ * base64 Basic-auth header (common in other Velo/Stripe integration
+ * snippets) — NOT yet live-tested against Velo specifically; if this
+ * errors in practice, swap in a manual base64 helper, same as how the
+ * postMessage bridge and elevate() platform gaps were discovered
+ * elsewhere in this codebase (see docs/ARCHITECTURE.md) — verify live
+ * rather than assume.
  */
-export async function processOnlinePayment(eventId, entrantId, paymentMethodToken) {
+async function getPayPalAccessToken() {
+    const clientId = await getSecret(PAYPAL_CLIENT_ID_SECRET_NAME);
+    const clientSecret = await getSecret(PAYPAL_CLIENT_SECRET_SECRET_NAME);
+    if (!clientId || !clientSecret) {
+        throw new Error('PayPal is not configured yet — no Client ID/Secret in Secrets Manager. See backend/payments.jsw setup note.');
+    }
+
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const response = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Basic ${basicAuth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+    });
+
+    if (!response.ok) {
+        throw new Error(`PayPal auth failed: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.access_token;
+}
+
+/**
+ * Step 1 of PayPal's two-step checkout: create the order with the split
+ * already specified (purchase_units.payee = the producer's own PayPal
+ * merchant account, purchase_units.payment_instruction.platform_fees =
+ * Draw Pro's + the processor's cut). Returns the orderId the frontend
+ * needs to render PayPal's approval buttons/redirect — nothing is
+ * charged yet. disbursementMode defaults to INSTANT (funds settle to
+ * the producer immediately on capture); DELAYED is the alternative if a
+ * risk/dispute holding period is ever wanted instead — not decided here,
+ * flagging as a real option rather than assuming INSTANT is final.
+ */
+export async function createPayPalOrder(eventId, entrantId) {
     const event = await wixData.get(EVENTS, eventId);
     const entrant = await wixData.get(ENTRANTS, entrantId);
 
@@ -296,7 +469,7 @@ export async function processOnlinePayment(eventId, entrantId, paymentMethodToke
     }
 
     const producerProfile = await getPayoutProfile(event.producerId);
-    if (!producerProfile || producerProfile.onboardingStatus !== 'complete') {
+    if (!producerProfile || producerProfile.onboardingStatus !== 'complete' || !producerProfile.payoutAccountId) {
         throw new Error('This producer has not finished payout setup — online payment is unavailable for this event.');
     }
 
@@ -306,14 +479,99 @@ export async function processOnlinePayment(eventId, entrantId, paymentMethodToke
 
     const { producerAmount, drawProFee, processingFee, totalChargedToEntrant } =
         calculateEntrantCharge(rate, entrant.requestedEntryCount, 'online');
+    const platformRetained = round2(drawProFee + processingFee);
 
-    // The entrant is charged the full total; the connected account
-    // (producer) receives only their share — the provider call below
-    // should be configured to route producerAmount to the producer and
-    // keep (drawProFee + processingFee) on the platform side. Exact
-    // mechanics depend on the provider chosen (e.g. Stripe Connect's
-    // application_fee_amount pattern) — placeholder shape here.
-    const providerResult = await chargeViaProvider(totalChargedToEntrant, producerAmount, paymentMethodToken, producerProfile.payoutAccountId);
+    const accessToken = await getPayPalAccessToken();
+
+    const response = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            intent: 'CAPTURE',
+            purchase_units: [{
+                reference_id: entrantId,
+                amount: {
+                    currency_code: 'USD',
+                    value: totalChargedToEntrant.toFixed(2)
+                },
+                payee: {
+                    merchant_id: producerProfile.payoutAccountId
+                },
+                payment_instruction: {
+                    disbursement_mode: 'INSTANT',
+                    platform_fees: [{
+                        amount: {
+                            currency_code: 'USD',
+                            value: platformRetained.toFixed(2)
+                        }
+                    }]
+                }
+            }]
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`PayPal order creation failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Stash the computed charge breakdown against the entrant now, so
+    // capturePayPalOrder() doesn't have to recompute it (and risk it
+    // drifting if pricing changes between order creation and capture —
+    // this way capture always uses exactly what the entrant approved).
+    await wixData.update(ENTRANTS, {
+        ...entrant,
+        pendingPayPalOrderId: data.id,
+        pendingCharge: { producerAmount, drawProFee, processingFee, totalChargedToEntrant }
+    });
+
+    return { orderId: data.id, totalChargedToEntrant };
+}
+
+/**
+ * Step 2: called once the buyer has approved the order client-side
+ * (PayPal's JS SDK onApprove callback — not built here, see
+ * entrant-entry-form.js). Captures the funds; PayPal handles the actual
+ * split (producer's connected account + Draw Pro's platform fee) as
+ * part of this same call, per how platform_fees works in the Orders API.
+ */
+export async function capturePayPalOrder(eventId, entrantId, orderId) {
+    const entrant = await wixData.get(ENTRANTS, entrantId);
+
+    if (entrant.paymentStatus === 'paid') {
+        throw new Error('This entry has already been paid.');
+    }
+    if (entrant.pendingPayPalOrderId !== orderId) {
+        throw new Error('This order does not match the pending order for this entrant.');
+    }
+
+    const { producerAmount, drawProFee, processingFee, totalChargedToEntrant } = entrant.pendingCharge;
+    const accessToken = await getPayPalAccessToken();
+
+    const response = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}/capture`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`PayPal capture failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const capture = data.purchase_units && data.purchase_units[0] &&
+        data.purchase_units[0].payments && data.purchase_units[0].payments.captures &&
+        data.purchase_units[0].payments.captures[0];
+
+    if (!capture || capture.status !== 'COMPLETED') {
+        throw new Error('PayPal did not confirm the capture completed.');
+    }
 
     const referenceNumber = generateReferenceNumber();
 
@@ -321,7 +579,9 @@ export async function processOnlinePayment(eventId, entrantId, paymentMethodToke
         ...entrant,
         feeOwed: producerAmount,
         paymentStatus: 'paid',
-        paymentReferenceNumber: referenceNumber
+        paymentReferenceNumber: referenceNumber,
+        pendingPayPalOrderId: null,
+        pendingCharge: null
     });
 
     await wixData.insert(PAYMENTS, {
@@ -334,40 +594,12 @@ export async function processOnlinePayment(eventId, entrantId, paymentMethodToke
         netToProducer: producerAmount,
         method: 'online',
         referenceNumber,
-        providerTransactionId: providerResult.transactionId,
+        providerTransactionId: capture.id,
         status: 'completed',
         timestamp: new Date()
     });
 
     return { referenceNumber, amountCharged: totalChargedToEntrant, producerAmount, drawProFee, processingFee };
-}
-
-async function chargeViaProvider(totalChargedToEntrant, producerAmount, paymentMethodToken, connectedAccountId) {
-    const apiKey = await getSecret(PAYMENT_PROVIDER_SECRET_NAME);
-    const platformRetained = round2(totalChargedToEntrant - producerAmount);
-
-    const response = await fetch(PAYMENT_CHARGE_ENDPOINT, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-            amount: String(Math.round(totalChargedToEntrant * 100)), // cents, full amount charged to entrant
-            currency: 'usd',
-            payment_method: paymentMethodToken,
-            'transfer_data[destination]': connectedAccountId,
-            application_fee_amount: String(Math.round(platformRetained * 100)), // Draw Pro + processor's share stays on platform side
-            confirm: 'true'
-        }).toString()
-    });
-
-    if (!response.ok) {
-        throw new Error(`Payment provider responded ${response.status}`);
-    }
-
-    const data = await response.json();
-    return { transactionId: data.id };
 }
 
 function generateReferenceNumber() {

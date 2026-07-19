@@ -270,3 +270,58 @@ deleted and recreated. `SCHEMA.md` now documents using the Wix Data REST
 API directly (with a scoped API Key) to create collections with the
 correct ID from the start, which is the path future collections should
 use instead of CSV import.
+
+## Update: online payment processor switched from Stripe to PayPal for Platforms
+
+Business decision, not a technical one — the near-term target audience
+for Draw Pro is small/mom-and-pop producers, who are far more likely to
+already have (or know how to set up) a PayPal account than a Stripe
+account, which is largely invisible infrastructure outside developer/
+tech-forward business circles. Larger, already-automated producers (who
+may prefer Stripe or their own existing tooling) are an explicit later
+target, once the payment flow is proven out against the lower-friction
+audience first.
+
+Confirmed via live documentation research (not assumed) that this
+requirement is universal, not Stripe-specific: Visa/Mastercard's Payment
+Facilitator rules require identity verification of any third party a
+platform automatically routes split funds to, regardless of processor —
+PayPal for Platforms requires the identical producer onboarding/KYC step
+Stripe Connect does, it isn't a way around that requirement, just a
+different vendor administering it. See the conversation record for the
+fuller reasoning chain (mom-and-pop-audience trust vs. brand-name
+familiarity, cost structure without a fixed per-account monthly fee).
+
+**Schema addition** (not in the original `docs/source/drawpro-build/files/data-model.md`,
+which is a raw reference copy of what Claude Chat delivered and isn't
+edited after the fact): `DrawProEntrants` needs two new fields —
+`pendingPayPalOrderId` (text, nullable) and `pendingCharge` (object,
+nullable, `{ producerAmount, drawProFee, processingFee,
+totalChargedToEntrant }`). These exist because PayPal's checkout is a
+two-step, client-driven flow (create order → buyer approves → capture),
+unlike Stripe's single-call `payment_intents` — `createPayPalOrder()`
+stashes the computed charge breakdown against the entrant at order-
+creation time so `capturePayPalOrder()` uses exactly what the buyer
+approved rather than recomputing (and risking drift if pricing changes
+between the two calls). Add these two fields to the `DrawProEntrants`
+collection when it's created in Wix.
+
+**Still needed before this is functional** (structurally complete,
+matching this codebase's established "build it now, mark it not-live-
+yet" pattern for Stripe/Strike/Triggered Email templates):
+- PayPal for Platforms application approval (sales-contact process, in
+  progress as of this update — not instant self-serve)
+- Real credentials in Secrets Manager: `drawpro-paypal-client-id`,
+  `drawpro-paypal-client-secret`, `drawpro-paypal-partner-merchant-id`
+- `entrant-entry-form.js`'s actual PayPal JS SDK buttons — the backend
+  contract (`createPayPalOrder`/`capturePayPalOrder`) is ready, but
+  nothing renders PayPal's approval UI on the page yet
+- The `MERCHANT.ONBOARDING.COMPLETED` webhook (would live in
+  `backend/http-functions.js`, same pattern as `post_joinDrawProWaitlist`)
+  — `checkPayoutOnboardingStatus()` is a working polling fallback in the
+  meantime, called from the producer's onboarding-return page
+- `Buffer.from(...).toString('base64')` (used for PayPal's OAuth Basic
+  auth header) is assumed available in Velo's backend runtime but not
+  yet live-tested specifically — verify before relying on it, same
+  "don't assume, verify live" lesson as the `postMessage` bridge and
+  `elevate()` findings above
