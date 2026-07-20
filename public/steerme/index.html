@@ -132,11 +132,22 @@
   <div class="waitlist-note" id="waitlist-note"></div>
 
   <div class="steerme-links">
-    <a href="/" target="_top">Back to RopingTools</a>
+    <a href="/" target="_top" onclick="return topNavigate(event, '/')">Back to RopingTools</a>
   </div>
 </div>
 
 <script>
+// CONFIRMED LIVE (2026-07-19): target="_top" alone does not reliably
+// escape Wix's Custom Embed iframe - see public/landing/index.html's
+// matching comment for the full diagnosis (sandbox attribute and
+// ad-blocker interference both tested and ruled out; window.top.location.href
+// confirmed working via direct console test where target="_top" wasn't).
+function topNavigate(event, path) {
+  event.preventDefault();
+  window.top.location.href = 'https://www.ropingtools.com' + path;
+  return false;
+}
+
 // Same pattern as public/drawpro/index.html's waitlist - a Wix HTTP
 // Function called directly via fetch(), not the $w onMessage bridge (see
 // docs/ARCHITECTURE.md for why that bridge doesn't work in this Editor).

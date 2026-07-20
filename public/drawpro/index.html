@@ -139,12 +139,28 @@
   <div class="waitlist-note" id="waitlist-note"></div>
 
   <div class="drawpro-links">
-    <a href="/steerme" target="_top">Try Steer Me Now &#8594;</a>
-    <a href="/" target="_top">Back to RopingTools</a>
+    <a href="/steerme" target="_top" onclick="return topNavigate(event, '/steerme')">Try Steer Me Now &#8594;</a>
+    <a href="/" target="_top" onclick="return topNavigate(event, '/')">Back to RopingTools</a>
   </div>
 </div>
 
 <script>
+// CONFIRMED LIVE (2026-07-19): target="_top" alone does not reliably
+// escape Wix's Custom Embed iframe - see public/landing/index.html's
+// matching comment for the full diagnosis (sandbox attribute and
+// ad-blocker interference both tested and ruled out; window.top.location.href
+// confirmed working via direct console test where target="_top" wasn't).
+// This is very likely the actual root cause of the "black blank page
+// saying Forbidden" bug reported earlier in this project on this exact
+// page's "Back to RopingTools" link - that was diagnosed at the time as
+// a missing target="_top" attribute, but the attribute was present even
+// then; this was probably the real cause all along.
+function topNavigate(event, path) {
+  event.preventDefault();
+  window.top.location.href = 'https://www.ropingtools.com' + path;
+  return false;
+}
+
 // =========== BACKEND CALL (Wix HTTP Function) ===========
 // Was originally a $w('#drawProEmbed').onMessage()/postMessage bridge to
 // Velo Page Code (see docs/ARCHITECTURE.md's history on this). Live testing

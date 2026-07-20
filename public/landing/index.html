@@ -191,14 +191,14 @@
       <div class="tool-tag">For Ropers</div>
       <h3>Get Coached. Actually.</h3>
       <p>A complete, integrated roping course - swing mechanics to mental game - built around one coherent system instead of a stack of contradictory tips from ten different clinics. Upload your own video and get real, specific feedback on your loop, your delivery, and your position. Try the first chapter free.</p>
-      <a class="tool-cta" href="/coaching" target="_top">Start Learning <span>&#8594;</span></a>
+      <a class="tool-cta" href="/coaching" target="_top" onclick="return topNavigate(event, '/coaching')">Start Learning <span>&#8594;</span></a>
     </div>
 
     <div class="tool-card">
       <div class="tool-tag">For Ropers &amp; Producers</div>
       <h3>Skip the Draw. Keep the Check.</h3>
       <p>Find and lock in your own partner ahead of time - no draw-in fee, no luck of the draw. Producers get entries who show up ready to pay, not owing it out of their winnings. And coming soon: tap straight through to the venue to lock down your RV spot and stalls before you ever hit the road.</p>
-      <a class="tool-cta" href="/steerme" target="_top">Find Your Partner <span>&#8594;</span></a>
+      <a class="tool-cta" href="/steerme" target="_top" onclick="return topNavigate(event, '/steerme')">Find Your Partner <span>&#8594;</span></a>
     </div>
 
     <div class="tool-card card-external">
@@ -212,9 +212,9 @@
       <div class="badge-coming-soon">Coming Soon</div>
       <h3>Draw Pro</h3>
       <p>The one-stop way to run your draw and notify every entrant - without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely. It's not live yet - but Steer Me already eliminates the need for a draw on a huge share of your entries today. Start there while Draw Pro finishes the rest.</p>
-      <a class="tool-cta tool-cta-primary" href="/steerme" target="_top">Try Steer Me Now <span>&#8594;</span></a>
+      <a class="tool-cta tool-cta-primary" href="/steerme" target="_top" onclick="return topNavigate(event, '/steerme')">Try Steer Me Now <span>&#8594;</span></a>
       <br>
-      <a class="tool-cta-secondary" href="/drawpro" target="_top">Get Notified When Draw Pro Launches</a>
+      <a class="tool-cta-secondary" href="/drawpro" target="_top" onclick="return topNavigate(event, '/drawpro')">Get Notified When Draw Pro Launches</a>
     </div>
 
   </div>
@@ -254,6 +254,25 @@
 // the bridge, to write to the DrawProWaitlist collection) lives on the
 // /drawpro page itself, not here - this page only links out to it.
 document.getElementById('landing-year').textContent = new Date().getFullYear();
+
+// CONFIRMED LIVE (2026-07-19): target="_top" alone does not reliably
+// break out of Wix's Custom Embed iframe wrapper - clicking "Start
+// Learning" landed on the iframe's own filesusr.com asset-CDN origin
+// with a blank "Forbidden" page instead of navigating to the real
+// www.ropingtools.com/coaching. Tested and ruled out first: iframe
+// sandbox attribute (confirmed null - not a sandbox restriction) and
+// ad-blocker interference (same result with Brave Shields off).
+// Confirmed fix, tested directly in DevTools console from inside the
+// iframe's own context: window.top.location.href DOES work even though
+// target="_top" alone doesn't - so every internal nav link here is
+// backed by this instead. target="_top" is left on each <a> anyway as
+// a harmless fallback (works fine for a plain right-click "open in new
+// tab", costs nothing to leave in place).
+function topNavigate(event, path) {
+  event.preventDefault();
+  window.top.location.href = 'https://www.ropingtools.com' + path;
+  return false;
+}
 </script>
 
 </body>

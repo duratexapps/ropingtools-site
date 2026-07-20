@@ -362,3 +362,56 @@ create via REST (`REFERENCE` fields need exact target-collection
 binding at creation time, which is awkward-to-impossible for
 self-references like `DrawProEntrants.teamPartnerEntrantId` before the
 collection exists).
+
+## Update: `target="_top"` alone does not reliably escape Wix's Custom Embed iframe — confirmed live, fixed everywhere
+
+Live symptom: clicking "Start Learning" on the published homepage produced
+a blank black page reading "Forbidden," with the browser's URL bar showing
+`www-ropingtools-com.filesusr.com/coaching` — the sandboxed embed iframe's
+own Wix asset-CDN origin, not the real `www.ropingtools.com/coaching`.
+This is the same category of thing as the `$w.onMessage()` bridge failure
+above (Wix's Custom Embeds element not behaving like the classic,
+documented HTML iFrame element), but a different specific symptom.
+
+**Ruled out first, with direct evidence, not assumed:**
+- Stale/pre-fix content in the live paste — checked via DevTools
+  Inspect Element; `target="_top"` was confirmed present on the live
+  rendered link.
+- Iframe sandbox restriction — checked via
+  `document.querySelector('iframe...').getAttribute('sandbox')` in the
+  DevTools console; returned `null`, meaning no sandbox attribute at
+  all, which itself rules out sandbox-based restriction (sandboxing
+  only applies when the attribute is present).
+- Ad-blocker/browser-shield interference — the console showed several
+  `net::ERR_BLOCKED_BY_CLIENT` errors for `frog.wix.com` (Brave Shields
+  blocking what's likely a first-party Wix script), a plausible
+  alternate cause. Tested by disabling Brave Shields for the site
+  entirely and retrying — same failure. Ruled out.
+
+**Confirmed fix**, tested directly: switching the DevTools console's
+execution context to the embed iframe itself (not "top") and running
+`window.top.location.href = 'https://www.ropingtools.com/coaching'`
+worked — the page actually navigated to the real course page. So
+JavaScript-driven top-navigation works from inside this Custom Embed
+even though the native `target="_top"` anchor attribute alone doesn't
+reliably trigger the same behavior.
+
+**Fix applied**: every internal navigation link across
+`public/landing/index.html`, `public/drawpro/index.html`, and
+`public/steerme/index.html` now has an `onclick="return topNavigate(event,
+'/path')"` handler backing it, where `topNavigate()` calls
+`event.preventDefault()` then sets `window.top.location.href` to the full
+absolute URL. `target="_top"` is left on each `<a>` anyway as a harmless,
+free fallback (still correct for a plain right-click "open in new tab").
+
+**Likely retroactive explanation for an earlier bug in this project**:
+the original "black blank page saying Forbidden" report (Draw Pro's "Back
+to RopingTools" link, early in this project) was diagnosed at the time as
+a missing `target="_top"` attribute. Given this confirmed finding, that
+diagnosis may have been incomplete — the attribute being present doesn't
+appear to be sufficient on its own. Not re-litigating that earlier fix,
+just noting the likely real mechanism for future reference.
+
+**Not yet checked**: whether `course-embed.html` has any internal
+navigation links with the same pattern — searched and found none as of
+this update, but worth re-checking if any get added later.
