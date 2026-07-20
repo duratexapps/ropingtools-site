@@ -325,3 +325,40 @@ yet" pattern for Stripe/Strike/Triggered Email templates):
   yet live-tested specifically — verify before relying on it, same
   "don't assume, verify live" lesson as the `postMessage` bridge and
   `elevate()` findings above
+
+## Update: Draw Pro's 12 real-product Data Collections created — and a Site ID mismatch caught the same way the Collection ID issue was
+
+All 12 collections from `data-model.md` (`DrawProEvents` through
+`DrawProOnboardingStatus`, plus the two PayPal fields on
+`DrawProEntrants` noted above) were created via the Wix Data REST API,
+same scoped-API-Key method used to fix the original CSV-import
+Collection ID problem. Verified via a fresh, independent `GET
+/wix-data/v2/collections` list query afterward (not just trusting the
+creation calls' 200 responses) — confirmed 13 `DrawPro*` collections
+exist on the site (the 12 new ones plus the pre-existing
+`DrawProWaitlist`).
+
+**Worth recording:** the first attempt used a Site ID read off a Wix
+dashboard URL from a screenshot, and failed outright with `WDE0110:
+Wix CMS app is not installed for site` — a real, substantive error (the
+API key itself authenticated fine), not a permissions problem. The
+actual, correct Site ID (confirmed via Wix's own AI agent) was
+different from the URL-derived one. Root cause wasn't confirmed beyond
+that, but the practical lesson is clear: **don't infer a Site ID from a
+URL glimpsed in a screenshot — get it directly from Settings → General
+Info, or ask Wix's own tooling, before spending a REST call on it.**
+Same category of mistake as the Collection-ID-vs-display-name issue
+this project already hit once — trust the platform's own source of
+truth for an identifier, not an inference from surrounding UI.
+
+Reference fields throughout all 12 collections were created as plain
+`TEXT` (storing the `_id` string), not Wix Data's native `REFERENCE`
+field type — deliberate, not a shortcut: every `.jsw` file in this
+project already queries these relationships with plain
+`wixData.query(X).eq('fieldName', idString)` calls, never Wix's
+relational reference-traversal syntax, so a `TEXT` field is the correct
+match for how the code actually works, not just the easier one to
+create via REST (`REFERENCE` fields need exact target-collection
+binding at creation time, which is awkward-to-impossible for
+self-references like `DrawProEntrants.teamPartnerEntrantId` before the
+collection exists).
