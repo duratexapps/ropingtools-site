@@ -26,13 +26,22 @@ will throw "X could not be found" at runtime, not fail silently.
    used in `qr-and-alerts.jsw` and `payments.jsw`) — just don't rely on
    the page having its own dynamic-item routing, since this is a plain
    query-param pattern, not a Wix dynamic-item page.
-3. **Connect the page code**: in the Editor, click the page in the Pages
-   panel → the `{}` code icon (or right-click → "View Code") opens that
-   page's code panel. Paste the corresponding file's contents from
-   `velo/pages/drawpro-real/` in the repo. (This is different from
-   backend `.jsw` files, which sync via git automatically — page code has
-   to be pasted into the specific page it belongs to, same reason the
-   HTML-embed content does.)
+3. **Connect the page code — NOT by pasting into the browser.** Confirmed
+   live while building Page 1: the Page Code panel is read-only for this
+   Git-Integrated site (Wix's own message: "Edit code in your local IDE.
+   When you save, it's automatically updated here") — and a *new* page's
+   code file does not sync down to the local repo automatically the way
+   backend `.jsw` files and already-existing pages do. Full diagnosis in
+   `docs/ARCHITECTURE.md`. The actual process:
+   1. Create the page, Save, **Publish** (not just Save — Publish matters).
+   2. In the Editor's Page Code sidebar, find the exact filename Wix
+      generated for this page — format `<Page Display Name>.<5-char
+      ID>.js`, e.g. `Draw Pro Entry.gq31q.js`. Tell me this exact name.
+   3. I create that exact file in `src/pages/` in the `roping-tools` repo
+      with the real code from `velo/pages/drawpro-real/` in this repo,
+      then commit and push.
+   4. It should then appear correctly in the Editor's read-only view —
+      confirm before moving on to placing elements.
 4. **Element IDs** are set via the Properties panel after selecting an
    element on the canvas — usually a small `#` field near the top, or
    under "ID" in an advanced/settings tab depending on element type.
