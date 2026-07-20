@@ -470,3 +470,56 @@ page equally until resolved**: whether the `SteerMeWaitlist` Wix Data
 Collection has actually been created yet (instructions given earlier in
 this project's history — "Start from scratch," not CSV import — but never
 confirmed done).
+
+## Update: a new page's code file has to originate in the git repo, not be created in the Wix Editor and synced down
+
+Real, hard-won finding, worth recording precisely so it doesn't get
+rediscovered the slow way again on Pages 2 and 3.
+
+**The symptom**: after creating a new page ("Draw Pro Entry") in the Wix
+Editor, its Page Code panel showed "Cannot edit in read-only editor" —
+expected and correct for a Git-Integrated site (confirmed by Wix's own
+tooltip: "Edit code in your local IDE. When you save, it's automatically
+updated here"). The actual problem: the corresponding local file never
+appeared in `src/pages/` in the `roping-tools` repo, no matter how many
+times `wix dev` was restarted, how many times the page was saved and
+published, or how many fresh Local Editor reconnections were tried.
+
+**Wrong assumption that cost real time**: that a newly-created page's
+code file syncs *down* from Wix to the local git repo automatically, the
+same direction backend `.jsw` files and previously-existing page files
+seem to behave. Confirmed wrong via Wix's own in-Editor Help AI, asked
+directly: *"Wix does not support creating new .js [code] files directly
+via the editor for Git-managed projects... To ensure syncing, create
+[the] files... directly in your GitHub repository... the new page code
+file still won't sync because it must originate from the Git repo, not
+the Wix editor."* The direction is the opposite of what both of us
+assumed.
+
+**The actual fix**: get the new page's exact generated filename from the
+Page Code sidebar in the Editor (format: `<Page Display Name>.<5-char
+ID>.js`, e.g. `Draw Pro Entry.gq31q.js` — the ID is Wix-generated and
+unrelated to the URL slug or the page's display name otherwise) and
+create that exact file directly in `src/pages/` in the local repo, with
+real content, then commit and push. It syncs through correctly once it
+exists on the git side first.
+
+**Reusable process for Pages 2 and 3** (Producer Event Setup, Producer
+Draw Sheet Review): create the page in the Editor → Save → Publish → get
+the exact filename from the Page Code sidebar → create that file locally
+with the real page-code content from `velo/pages/drawpro-real/` in the
+`ropingtools-site` repo → commit and push to `roping-tools`. Should not
+require any of the multi-attempt troubleshooting this first page needed.
+
+**Also encountered along the way, not the actual root cause but worth
+knowing about**: `wix.config.json`'s pinned `"uiVersion"` field does not
+auto-refresh on its own and there's no CLI flag to force it — clearing it
+entirely to force a refresh was tried and made things briefly worse
+(`wix dev` failed outright with "Missing master page" until the field was
+restored from backup). Not recommended as a troubleshooting step for a
+different problem — it wasn't the actual fix here and introduced a new
+failure mode. Also re-confirmed the known `masterPage.js`-gets-marked-
+deleted-by-wix-dev artifact recurs on essentially every `wix dev` run,
+not just occasionally — restore it via `git checkout --` before every
+commit while `wix dev` has been running, treat this as routine, not
+exceptional.
