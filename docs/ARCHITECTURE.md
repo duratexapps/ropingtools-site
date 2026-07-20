@@ -415,3 +415,58 @@ just noting the likely real mechanism for future reference.
 **Not yet checked**: whether `course-embed.html` has any internal
 navigation links with the same pattern — searched and found none as of
 this update, but worth re-checking if any get added later.
+
+## Update: Steer Me web's production backend decision — Next.js + Supabase-direct, not the Wix Data mirror
+
+Decided explicitly rather than left ambiguous: **Steer Me web's real
+production backend is Next.js (the `steerme-web` repo) calling the native
+app's actual Supabase project directly.** The Wix Data Collections backend
+built earlier (`velo/backend/steerme/*.jsw` in this repo) is superseded,
+not deleted — see `velo/backend/steerme/README.md` for the full status
+note living alongside that code.
+
+**Standard applied**: "whichever option streamlines the backend between
+the web and the app is the correct option." The Wix Data version never
+met that bar even when it was fully working — it mirrors the native app's
+schema into a separate database, with zero actual data-sharing, which its
+own delivery notes flagged as explicitly out of scope. Only a shared
+Supabase connection actually satisfies "streamlines the backend between
+web and app."
+
+**Accepted, known tradeoff**: this means Steer Me does not share a login
+with Coaching/Draw Pro's Wix Members Area — three separate account
+systems across the suite as of this decision (Wix Members for
+Coaching/Draw Pro, Supabase Auth for Steer Me/the native app). Not solved
+here, not blocked by this decision either — revisit only if a unified
+account across all of RopingTools becomes a real priority later.
+
+## Update: plan for retiring the old Wix `/steerme` coming-soon page
+
+Two "Steer Me coming soon" pages exist right now and that's temporary,
+not a final state: the Wix-hosted one (`public/steerme/index.html`,
+linked from the landing page today) and the new Next.js one (`steerme-web`
+repo, meant for `steerme.ropingtools.com`).
+
+**Confirmed sequencing**: once `steerme.ropingtools.com` is actually live
+(Vercel deployment + the DNS CNAME in Wix, both still pending as of this
+update) and the landing page's Steer Me links have been updated to point
+there instead of `/steerme`, and that's been tested and confirmed working
+— **only then** does the old Wix `/steerme` page get removed. Not before.
+Removing it first, or removing it based on "should be working" rather than
+confirmed-working, would risk a dead link on the live homepage with
+nothing to catch it.
+
+**Not yet done, waiting on the subdomain going live first**:
+- Update `public/landing/index.html`'s two Steer Me links
+  (`topNavigate(event, '/steerme')` calls) to point at
+  `https://steerme.ropingtools.com` instead
+- Confirm the new destination actually loads correctly from the live
+  homepage (not just directly visiting the subdomain)
+- Only then: delete the `/steerme` page in the Wix Editor and remove
+  `public/steerme/index.html` from this repo
+
+**Still unconfirmed, blocks the waitlist form on *both* versions of this
+page equally until resolved**: whether the `SteerMeWaitlist` Wix Data
+Collection has actually been created yet (instructions given earlier in
+this project's history — "Start from scratch," not CSV import — but never
+confirmed done).
