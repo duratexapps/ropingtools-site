@@ -5,28 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Draw Pro - Coming Soon | RopingTools</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
 
+  /* Palette matches steer-me.html / the root landing page exactly, per
+     ropingtools-design-tokens.md - this file previously used the
+     coaching-course's own palette by mistake, same issue fixed on the
+     root landing page. */
   :root {
-    --brown: #171C24;
-    --tan: #AEB9C4;
-    --tan-light: #E9EDF1;
-    --cream: #F4F5F7;
-    --gold: #EA580C;
-    --gold-light: #FB923C;
-    --rust: #DC2626;
-    --sage: #059669;
-    --text: #14181C;
-    --text-mid: #475569;
-    --text-light: #6B7280;
-    --border: #E2E5EA;
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --green: #4B5A3C;
+    --brass-light: #C9A54F;
+    --oxblood: #5C2430;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Source Sans 3', sans-serif;
-    background: var(--brown);
-    color: var(--tan-light);
+    font-family: 'Work Sans', sans-serif;
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -10%, rgba(169,129,46,0.35), transparent 60%);
+    color: var(--cream);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -40,9 +44,9 @@
   .badge-coming-soon {
     display: inline-block;
     background: var(--tan-light);
-    color: var(--text-light);
+    color: var(--leather);
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 0.3rem 0.75rem;
@@ -51,6 +55,7 @@
   }
   h1 {
     font-family: 'Playfair Display', serif;
+    font-weight: 900;
     font-size: clamp(2rem, 5vw, 2.8rem);
     margin-bottom: 1.25rem;
   }
@@ -60,7 +65,7 @@
     line-height: 1.7;
     margin-bottom: 2rem;
   }
-  .drawpro-body strong { color: #fff; }
+  .drawpro-body strong { color: var(--cream); }
 
   .waitlist-form {
     display: flex;
@@ -71,34 +76,42 @@
   .waitlist-form input[type="email"] {
     flex: 1;
     padding: 0.75rem 0.9rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    border: 1px solid var(--rope);
+    border-radius: 5px;
     font-size: 0.95rem;
     font-family: inherit;
+    background: var(--tan-light);
+    color: var(--ink);
   }
   .waitlist-form button {
-    background: var(--gold);
-    color: #fff;
+    background: var(--rust);
+    color: var(--cream);
     border: none;
-    border-radius: 6px;
+    border-radius: 5px;
     padding: 0.75rem 1.25rem;
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
   }
-  .waitlist-form button:hover:not(:disabled) { background: #C2410C; }
+  .waitlist-form button:hover:not(:disabled) { background: #8a6a25; }
   .waitlist-form button:disabled { opacity: 0.6; cursor: default; }
 
+  /* Lightened tints of --green/--oxblood, not the raw tokens - both are
+     dark enough (#4B5A3C, #5C2430) to be nearly unreadable against this
+     page's dark --leather background. A deliberate legibility deviation
+     from the token doc's raw hex values, not a missed swap - the raw
+     tokens work fine on the tan-light/cream backgrounds they're
+     documented against, just not here. */
   .waitlist-note { font-size: 0.85rem; min-height: 1.3em; margin-bottom: 2rem; }
-  .waitlist-note.success { color: var(--sage); font-weight: 600; }
-  .waitlist-note.error { color: var(--rust); font-weight: 600; }
+  .waitlist-note.success { color: #8fae7a; font-weight: 700; }
+  .waitlist-note.error { color: #d98a94; font-weight: 700; }
 
   .drawpro-links { font-size: 0.9rem; }
   .drawpro-links a {
-    color: var(--gold-light);
+    color: var(--brass-light);
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 700;
     margin: 0 0.6rem;
   }
   .drawpro-links a:hover { text-decoration: underline; }

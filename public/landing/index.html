@@ -5,55 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RopingTools - Everything Roping Needs to Run Smarter</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=JetBrains+Mono:wght@600;700&family=Work+Sans:wght@400;500;600;700&display=swap');
 
+  /* Palette matches steer-me.html exactly, per ropingtools-design-tokens.md
+     ("Draw Pro should match this exactly, not run a parallel identity" -
+     applies equally to this root landing page, which was previously built
+     against the coaching-course's own palette by mistake). */
   :root {
-    --brown: #171C24;
-    --brown-mid: #262E3A;
-    --tan: #AEB9C4;
-    --tan-light: #E9EDF1;
-    --cream: #F4F5F7;
-    --gold: #EA580C;
-    --gold-light: #FB923C;
-    --rust: #DC2626;
-    --sage: #059669;
-    --sky: #0369A1;
-    --text: #14181C;
-    --text-mid: #475569;
-    --text-light: #6B7280;
-    --border: #E2E5EA;
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --green: #4B5A3C;
+    --brass-light: #C9A54F;
+    --oxblood: #5C2430;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
-    font-family: 'Source Sans 3', sans-serif;
+    font-family: 'Work Sans', sans-serif;
     background: var(--cream);
-    color: var(--text);
+    color: var(--ink);
     font-size: 16px;
     line-height: 1.7;
   }
-  h1, h2, h3 { font-family: 'Playfair Display', serif; }
+  h1, h2, h3 { font-family: 'Playfair Display', serif; font-weight: 900; }
   a { color: inherit; }
 
   /* --- HERO ------------------------------------------- */
   .hero {
-    background: var(--brown);
-    color: var(--tan-light);
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -10%, rgba(169,129,46,0.35), transparent 60%);
+    color: var(--cream);
     padding: 5rem 2rem 4.5rem;
     text-align: center;
   }
   .hero-eyebrow {
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--gold-light);
+    color: var(--brass-light);
     margin-bottom: 1rem;
   }
   .hero h1 {
     font-size: clamp(2.1rem, 5vw, 3.4rem);
-    font-weight: 700;
+    font-weight: 900;
     line-height: 1.15;
     max-width: 16ch;
     margin: 0 auto 1.5rem;
@@ -78,51 +80,51 @@
     gap: 1.5rem;
   }
   .tool-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    background: var(--tan-light);
+    border: 1px solid var(--rope);
+    border-radius: 8px;
     padding: 2rem 1.75rem;
     display: flex;
     flex-direction: column;
     transition: box-shadow 0.2s, transform 0.2s;
   }
-  .tool-card:hover { box-shadow: 0 12px 28px rgba(23,28,36,0.10); transform: translateY(-2px); }
+  .tool-card:hover { box-shadow: 0 12px 28px rgba(30,20,15,0.18); transform: translateY(-2px); }
   .tool-tag {
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--sky);
+    color: var(--rust);
     margin-bottom: 0.75rem;
   }
-  .tool-card.card-external .tool-tag { color: var(--sage); }
-  .tool-card.card-soon .tool-tag { color: var(--text-light); }
-  .tool-card h3 { font-size: 1.4rem; color: var(--brown); margin-bottom: 0.75rem; }
-  .tool-card p { color: var(--text-mid); font-size: 0.95rem; flex-grow: 1; margin-bottom: 1.5rem; }
+  .tool-card.card-external .tool-tag { color: var(--green); }
+  .tool-card.card-soon .tool-tag { color: var(--rope); }
+  .tool-card h3 { font-size: 1.4rem; color: var(--leather); margin-bottom: 0.75rem; }
+  .tool-card p { color: var(--ink); font-size: 0.95rem; flex-grow: 1; margin-bottom: 1.5rem; }
   .tool-cta {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.95rem;
-    color: var(--gold);
+    color: var(--rust);
     text-decoration: none;
     padding: 0.75rem 0;
   }
-  .tool-card.card-external .tool-cta { color: var(--sage); }
-  .tool-card.card-soon .tool-cta-primary { color: var(--gold); margin-bottom: 0.5rem; }
+  .tool-card.card-external .tool-cta { color: var(--green); }
+  .tool-card.card-soon .tool-cta-primary { color: var(--rust); margin-bottom: 0.5rem; }
   .tool-card.card-soon .tool-cta-secondary {
     font-size: 0.85rem;
-    color: var(--text-light);
+    color: var(--rope);
     text-decoration: underline;
   }
   .external-icon { font-size: 0.8em; }
   .badge-coming-soon {
     display: inline-block;
-    background: var(--tan-light);
-    color: var(--text-light);
+    background: var(--leather);
+    color: var(--cream);
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     padding: 0.25rem 0.6rem;
@@ -133,15 +135,16 @@
 
   /* --- AUDIENCE BREAKDOWN ------------------------------- */
   .audience-section {
-    background: var(--brown);
-    color: var(--tan-light);
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -10%, rgba(169,129,46,0.35), transparent 60%);
+    color: var(--cream);
     padding: 4rem 1.5rem;
   }
   .audience-inner { max-width: 1000px; margin: 0 auto; }
   .audience-section h2 {
     text-align: center;
     font-size: 1.9rem;
-    color: #fff;
+    color: var(--cream);
     margin-bottom: 2.5rem;
   }
   .audience-grid {
@@ -150,12 +153,12 @@
     gap: 2rem;
   }
   .audience-item h4 {
-    font-family: 'Source Sans 3', sans-serif;
-    font-weight: 600;
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 700;
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--gold-light);
+    color: var(--brass-light);
     margin-bottom: 0.6rem;
   }
   .audience-item p { color: var(--tan); font-size: 0.95rem; line-height: 1.6; }
@@ -165,7 +168,7 @@
     text-align: center;
     padding: 2rem 1.5rem;
     font-size: 0.8rem;
-    color: var(--text-light);
+    color: var(--rope);
   }
 
   @media (max-width: 640px) {
