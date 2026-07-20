@@ -29,6 +29,7 @@
 
 import { ok, badRequest, serverError } from 'wix-http-functions';
 import { joinDrawProWaitlist } from 'backend/drawPro.jsw';
+import { joinSteerMeWaitlist } from 'backend/steerMeWaitlist.jsw';
 import { currentMember } from 'wix-members-backend';
 
 const CORS_HEADERS = {
@@ -109,6 +110,33 @@ export async function post_joinDrawProWaitlist(request) {
     // Validation errors (bad email, etc.) come from joinDrawProWaitlist as
     // thrown Errors with a user-facing message — surface those as 400s
     // rather than masking them as generic 500s.
+    const message = err && err.message ? err.message : 'Something went wrong.';
+    const isValidationError = /doesn't look valid|required|invalid/i.test(message);
+    const responder = isValidationError ? badRequest : serverError;
+    return responder({
+      headers: CORS_HEADERS,
+      body: { error: message }
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* /_functions/joinSteerMeWaitlist                                     */
+/* ------------------------------------------------------------------ */
+
+export async function options_joinSteerMeWaitlist(request) {
+  return ok({ headers: CORS_HEADERS });
+}
+
+export async function post_joinSteerMeWaitlist(request) {
+  try {
+    const payload = await request.body.json();
+    const result = await joinSteerMeWaitlist(payload);
+    return ok({
+      headers: CORS_HEADERS,
+      body: result
+    });
+  } catch (err) {
     const message = err && err.message ? err.message : 'Something went wrong.';
     const isValidationError = /doesn't look valid|required|invalid/i.test(message);
     const responder = isValidationError ? badRequest : serverError;

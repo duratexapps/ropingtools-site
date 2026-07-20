@@ -1,0 +1,38 @@
+// backend/steerMeWaitlist.jsw
+//
+// Steer Me web "Get Notified" waitlist for the app-launch announcement
+// page (public/steerme/index.html) — no auth required, public coming-soon
+// page. Deliberately separate from backend/steerme/ (the real product
+// backend Claude Chat delivered, mirroring the native app's actual data
+// model) — this is a marketing/announcement concern only, same category
+// as DrawProWaitlist is to Draw Pro's real product collections, not part
+// of the production schema.
+//
+// Same pattern as backend/drawPro.jsw's joinDrawProWaitlist(), including
+// the same elevate()-doesn't-work-in-HTTP-Functions workaround: the
+// SteerMeWaitlist collection's permissions should be opened directly
+// ("Add" allowed for Everyone, View/Update/Delete Admin-only) rather than
+// relying on elevate(). No dedup-by-email check for the same reason
+// (would need read access, deliberately not opened).
+
+import wixData from 'wix-data';
+
+const STEER_ME_WAITLIST_COLLECTION = 'SteerMeWaitlist';
+
+/**
+ * @param {{ email: string }} params
+ * @returns {Promise<{ alreadyJoined: boolean }>}
+ */
+export async function joinSteerMeWaitlist(params) {
+  const email = (params.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('That email address doesn\'t look valid.');
+  }
+
+  await wixData.insert(STEER_ME_WAITLIST_COLLECTION, {
+    email: email,
+    timestamp: new Date()
+  });
+
+  return { alreadyJoined: false };
+}

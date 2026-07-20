@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steer Me - Coming Soon | RopingTools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --green: #4B5A3C;
+    --brass-light: #C9A54F;
+    --oxblood: #5C2430;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -10%, rgba(169,129,46,0.35), transparent 60%);
+    color: var(--cream);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+  }
+  .steerme-card {
+    max-width: 560px;
+    text-align: center;
+  }
+  .badge-coming-soon {
+    display: inline-block;
+    background: var(--tan-light);
+    color: var(--leather);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 1.25rem;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    margin-bottom: 1.25rem;
+  }
+  .steerme-body {
+    color: var(--tan);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 2rem;
+  }
+  .steerme-body strong { color: var(--cream); }
+
+  .waitlist-form {
+    display: flex;
+    gap: 0.6rem;
+    max-width: 420px;
+    margin: 0 auto 0.75rem;
+  }
+  .waitlist-form input[type="email"] {
+    flex: 1;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--rope);
+    border-radius: 5px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: var(--tan-light);
+    color: var(--ink);
+  }
+  .waitlist-form button {
+    background: var(--rust);
+    color: var(--cream);
+    border: none;
+    border-radius: 5px;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .waitlist-form button:hover:not(:disabled) { background: #8a6a25; }
+  .waitlist-form button:disabled { opacity: 0.6; cursor: default; }
+
+  /* Lightened tints, not the raw --green/--oxblood tokens - same
+     legibility reasoning as public/drawpro/index.html: those tokens are
+     too dark to read against this page's --leather background. */
+  .waitlist-note { font-size: 0.85rem; min-height: 1.3em; margin-bottom: 2rem; }
+  .waitlist-note.success { color: #8fae7a; font-weight: 700; }
+  .waitlist-note.error { color: #d98a94; font-weight: 700; }
+
+  .steerme-links { font-size: 0.9rem; }
+  .steerme-links a {
+    color: var(--brass-light);
+    text-decoration: none;
+    font-weight: 700;
+    margin: 0 0.6rem;
+  }
+  .steerme-links a:hover { text-decoration: underline; }
+
+  @media (max-width: 480px) {
+    .waitlist-form { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="steerme-card">
+  <div class="badge-coming-soon">Coming Soon</div>
+  <h1>Steer Me</h1>
+  <p class="steerme-body">
+    Steer Me will let you find and lock in your own partner ahead of time - no draw-in fee, no luck of the draw. Producers get entries who show up ready to pay, not owing it out of their winnings.
+    <br><br>
+    It's not live yet - <strong>the app and this web version are both still in development</strong>. Leave your email and we'll let you know the moment either one launches.
+  </p>
+
+  <form class="waitlist-form" id="waitlist-form" onsubmit="return false;">
+    <input type="email" id="waitlist-email" placeholder="you@example.com" required autocomplete="email">
+    <button type="button" id="waitlist-btn" onclick="joinWaitlist()">Get Notified</button>
+  </form>
+  <div class="waitlist-note" id="waitlist-note"></div>
+
+  <div class="steerme-links">
+    <a href="/" target="_top">Back to RopingTools</a>
+  </div>
+</div>
+
+<script>
+// Same pattern as public/drawpro/index.html's waitlist - a Wix HTTP
+// Function called directly via fetch(), not the $w onMessage bridge (see
+// docs/ARCHITECTURE.md for why that bridge doesn't work in this Editor).
+const WAITLIST_ENDPOINT = 'https://www.ropingtools.com/_functions/joinSteerMeWaitlist';
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function joinWaitlist() {
+  const input = document.getElementById('waitlist-email');
+  const btn = document.getElementById('waitlist-btn');
+  const note = document.getElementById('waitlist-note');
+  const email = input.value.trim();
+
+  note.className = 'waitlist-note';
+  note.textContent = '';
+
+  if (!isValidEmail(email)) {
+    note.className = 'waitlist-note error';
+    note.textContent = 'Enter a valid email address.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  fetch(WAITLIST_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  })
+    .then((response) => {
+      return response.json().then((data) => {
+        if (!response.ok) throw new Error((data && data.error) || 'Something went wrong.');
+        return data;
+      });
+    })
+    .then((result) => {
+      btn.textContent = 'Get Notified';
+      btn.disabled = false;
+      note.className = 'waitlist-note success';
+      note.textContent = (result && result.alreadyJoined)
+        ? "You're already on the list - we'll email you when Steer Me launches."
+        : "You're on the list! We'll email you when Steer Me launches.";
+      input.value = '';
+    })
+    .catch((err) => {
+      btn.textContent = 'Get Notified';
+      btn.disabled = false;
+      note.className = 'waitlist-note error';
+      note.textContent = 'Something went wrong: ' + (err && err.message ? err.message : 'try again in a moment.');
+    });
+}
+</script>
+
+</body>
+</html>
