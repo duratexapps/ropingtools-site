@@ -1,0 +1,147 @@
+// backend/reports.jsw
+//
+// Ports two native-app Postgres triggers as explicit code, per
+// "Where this has to differ," #4. Both are safety-critical and deliberately
+// verbose/explicit rather than clever, so a future reviewer can check each
+// step against the native migration comment it's reproducing.
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { currentMember } from 'wix-members-backend';
+
+const SOLICITING_MINOR_OFFENSE = 'Soliciting a minor';
+const CONFIRMED_REPORTS_TO_SCRUB = 3;
+
+/**
+ * Submits a report against a user. On insert, if the offense is exactly
+ * "Soliciting a minor", the target is suspended immediately — independent
+ * of confirmation count, matching the native app's evidence-preservation
+ * reasoning. This is intentionally an EXACT STRING MATCH on offense, same
+ * as the native app; if the offense dropdown options ever change wording,
+ * this constant must be updated in lockstep.
+ */
+export async function submitUserReport(targetUserId, offense, description, contentRef) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+
+    const elevatedSubmit = elevate(_insertUserReportAndCheckImmediate);
+    return await elevatedSubmit(member._id, targetUserId, offense, description, contentRef);
+}
+
+async function _insertUserReportAndCheckImmediate(reporterId, targetUserId, offense, description, contentRef) {
+    const report = await wixData.insert('SteerMeUserReports', {
+        targetUserId,
+        reporterId,
+        offense,
+        description,
+        contentRef: contentRef || null,
+        status: 'open'
+    });
+
+    if (offense === SOLICITING_MINOR_OFFENSE) {
+        await wixData.update('SteerMeAthleteProfiles', {
+            _id: await _profileIdForMember(targetUserId),
+            suspended: true,
+            suspendedReason: 'Pending review: reported for soliciting a minor.'
+        });
+    }
+
+    return report;
+}
+
+async function _profileIdForMember(memberId) {
+    const { items } = await wixData.query('SteerMeAthleteProfiles')
+        .eq('memberId', memberId)
+        .find();
+    if (!items[0]) throw new Error('Profile not found for reported member.');
+    return items[0]._id;
+}
+
+/**
+ * Marks a user report "confirmed" (manual moderator action — see the data
+ * model doc's note that moderation is a human flipping a field in the
+ * Content Manager, not an admin app). On the target's 3rd confirmed report,
+ * scrubs their profile.
+ *
+ * IMPORTANT: this function assumes it is only ever called by a moderator
+ * with Content Manager access, since Wix Data has no equivalent to a
+ * Postgres AFTER UPDATE trigger firing automatically when a moderator edits
+ * a row by hand in the Content Manager UI. If reports are confirmed
+ * directly in the Content Manager (rather than through this function),
+ * the 3-strike scrub will NOT fire automatically. This needs an explicit
+ * decision: either all status changes must go through this function (never
+ * hand-edited in the Content Manager), or a scheduled job needs to sweep
+ * for newly-confirmed reports periodically. Flagging rather than assuming.
+ */
+export async function confirmUserReport(reportId) {
+    const elevatedConfirm = elevate(_confirmAndCheckScrub);
+    return await elevatedConfirm(reportId);
+}
+
+async function _confirmAndCheckScrub(reportId) {
+    const report = await wixData.get('SteerMeUserReports', reportId);
+    if (!report) throw new Error('Report not found.');
+
+    await wixData.update('SteerMeUserReports', { ...report, status: 'confirmed' });
+
+    const { items: confirmedReports } = await wixData.query('SteerMeUserReports')
+        .eq('targetUserId', report.targetUserId)
+        .eq('status', 'confirmed')
+        .find();
+
+    if (confirmedReports.length >= CONFIRMED_REPORTS_TO_SCRUB) {
+        await _scrubProfile(report.targetUserId);
+    }
+
+    return { confirmedCount: confirmedReports.length, scrubbed: confirmedReports.length >= CONFIRMED_REPORTS_TO_SCRUB };
+}
+
+async function _scrubProfile(targetUserId) {
+    const { items } = await wixData.query('SteerMeAthleteProfiles')
+        .eq('memberId', targetUserId)
+        .find();
+    const profile = items[0];
+    if (!profile) return;
+
+    // Keep homeArea/position — harmless, and other members' accepted-request
+    // history may still reference this profile, per the data model doc.
+    await wixData.update('SteerMeAthleteProfiles', {
+        ...profile,
+        fullName: 'Deleted user',
+        contact: null,
+        guardianContact: null,
+        guardianName: null,
+        globalMembershipId: null,
+        globalClassification: null,
+        verificationScreenshotUrl: null,
+        avatarUrl: null,
+        scrubbed: true,
+        suspended: true
+    });
+}
+
+/**
+ * Event accuracy/fraud reports — separate collection and separate review
+ * queue from personal-conduct reports, per the data model doc. Defaults to
+ * "high" priority, matching the Producer Guidelines' call for faster
+ * turnaround on financially-relevant listing complaints than on general
+ * conduct reports.
+ */
+export async function submitEventReport(eventId, offense, description) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+
+    const elevatedSubmit = elevate(_insertEventReport);
+    return await elevatedSubmit(member._id, eventId, offense, description);
+}
+
+async function _insertEventReport(reporterId, eventId, offense, description) {
+    return await wixData.insert('SteerMeEventReports', {
+        eventId,
+        reporterId,
+        offense,
+        description,
+        status: 'open',
+        priority: 'high'
+    });
+}

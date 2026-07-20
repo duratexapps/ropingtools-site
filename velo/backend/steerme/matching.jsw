@@ -1,0 +1,94 @@
+// backend/matching.jsw
+//
+// canPair() is a literal port of the native app's real src/lib/matching.ts,
+// not a reinterpretation - confirmed against that file directly (read from
+// STEER ME/LAUNCH APP/steer-me-app/src/lib/matching.ts). The earlier
+// placeholder version's "best guess" at Switch-position compatibility
+// ((hasHeader && hasHeeler) || eitherSwitch) turned out to be functionally
+// identical to the real rule in every case - still replaced with a direct
+// port rather than left as a confirmed-lucky guess, since matching.ts is
+// the actual source of truth going forward (e.g. if it's ever extended
+// with a new position value, this file should change because matching.ts
+// changed, not because someone re-derives the logic here again).
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+
+// Matches matching.ts exactly.
+export const OPEN_CAP = 19;
+export const MAX_HEADER_NUMBER = 9;
+export const MAX_HEELER_NUMBER = 10;
+
+/**
+ * Direct port of matching.ts's canPair(a, b) - position-only compatibility,
+ * no data lookup. Kept separate from the async, profile-fetching version
+ * below so calling code that already has both positions in hand (e.g. a
+ * page that already loaded both profiles) doesn't pay for two extra
+ * queries just to check position compatibility.
+ * @param {'Header'|'Heeler'|'Switch'} a
+ * @param {'Header'|'Heeler'|'Switch'} b
+ * @returns {boolean}
+ */
+export function positionsCanPair(a, b) {
+    if (a === 'Switch' || b === 'Switch') return true;
+    return a !== b;
+}
+
+/**
+ * @param {number} division - use OPEN_CAP for "Open"
+ * @param {number} myNumber
+ * @returns {number} - direct port of matching.ts's maxAllowedFor()
+ */
+export function maxAllowedFor(division, myNumber) {
+    return Math.round((division - myNumber) * 10) / 10;
+}
+
+/**
+ * Full eligibility check used by request creation: fetches both athletes'
+ * profiles, then applies the classification-cap math and the ported
+ * positionsCanPair() rule above.
+ * @param {string} athleteAId
+ * @param {string} athleteBId
+ * @param {number} division - the event/need-post division cap (use
+ *   OPEN_CAP for "Open")
+ * @returns {Promise<boolean>}
+ */
+export async function canPair(athleteAId, athleteBId, division) {
+    const elevatedCheck = elevate(_checkPairing);
+    return await elevatedCheck(athleteAId, athleteBId, division);
+}
+
+async function _checkPairing(athleteAId, athleteBId, division) {
+    const [a, b] = await Promise.all([
+        _getProfile(athleteAId),
+        _getProfile(athleteBId)
+    ]);
+    if (!a || !b) return false;
+
+    // IMPORTANT: matching.ts's real canPair(a, b) only ever takes positions
+    // - it does NOT do classification-number math at all. The combined
+    // check below is this backend's own adaptation (needed because
+    // requests.jsw wants one eligibility call for "can these two people
+    // pair for this division"), not a literal port. It's built directly
+    // from matching.ts's own comment on OPEN_CAP though: "a #19 team is
+    // already the maximum possible combination under the numbering system
+    // ... makes the existing eligibility math naturally resolve to
+    // 'everyone qualifies' without any special-cased logic" - so no
+    // separate OPEN_CAP bypass branch is needed here, matching that stated
+    // intent, but flagging plainly that this combination logic itself was
+    // written for this backend, not copied from the source file.
+    const combined = a.globalClassification + b.globalClassification;
+    if (combined > division) {
+        return false;
+    }
+
+    // This part IS a literal port - see positionsCanPair() above.
+    return positionsCanPair(a.position, b.position);
+}
+
+async function _getProfile(memberId) {
+    const { items } = await wixData.query('SteerMeAthleteProfiles')
+        .eq('memberId', memberId)
+        .find();
+    return items[0] || null;
+}

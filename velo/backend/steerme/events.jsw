@@ -1,0 +1,108 @@
+// backend/events.jsw
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { currentMember } from 'wix-members-backend';
+import { assertNotSuspended } from 'backend/steerme/permissions.jsw';
+
+// Matches OPEN_CAP in the native app's matching.ts — the sentinel used for
+// an "Open" division rather than inventing a separate flag. NOTE: this value
+// is asserted here from the data model doc's own instruction to reuse it
+// exactly, but hasn't been visually confirmed against matching.ts itself.
+export const OPEN_CAP = 19;
+
+/**
+ * Parses the JSON-stringified divisions array stored on SteerMeEvents /
+ * effectively used for SteerMeNeedPosts too where relevant.
+ * @param {string} divisionsJson
+ * @returns {number[]}
+ */
+export function parseDivisions(divisionsJson) {
+    if (!divisionsJson) return [];
+    try {
+        const parsed = JSON.parse(divisionsJson);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/**
+ * @param {number[]} divisions
+ * @returns {string}
+ */
+export function stringifyDivisions(divisions) {
+    return JSON.stringify(divisions || []);
+}
+
+/**
+ * Creates an event. Reimplements the native app's auto_publish_event()
+ * trigger as explicit code (Wix Data has no trigger equivalent, per
+ * "Where this has to differ," #4): if the producer is already verified,
+ * status goes straight to "published"; otherwise "pending_review".
+ */
+export async function createEvent(input) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    await assertNotSuspended(member._id);
+
+    const elevatedCreate = elevate(_createEventWithAutoPublish);
+    return await elevatedCreate(member._id, input);
+}
+
+async function _createEventWithAutoPublish(producerId, input) {
+    const { items } = await wixData.query('SteerMeProducerProfiles')
+        .eq('memberId', producerId)
+        .find();
+    const producerProfile = items[0];
+    if (!producerProfile) {
+        throw new Error('No producer profile found for this member.');
+    }
+
+    const status = producerProfile.verificationStatus === 'verified'
+        ? 'published'
+        : 'pending_review';
+
+    return await wixData.insert('SteerMeEvents', {
+        producerId,
+        name: input.name,
+        eventDate: input.eventDate,
+        location: input.location,
+        entryFee: input.entryFee || null,
+        description: input.description || null,
+        divisions: stringifyDivisions(input.divisions),
+        status,
+        flierUrl: input.flierUrl || null
+    });
+}
+
+/**
+ * Public event listing read. Only returns published events, and joins in
+ * just the public producer subset (orgName + verificationStatus) — never
+ * the raw SteerMeProducerProfiles row, matching the data model doc's
+ * instruction for the public_producer_profiles equivalent.
+ */
+export async function getPublishedEvents() {
+    const elevatedQuery = elevate(_queryPublishedWithProducerSubset);
+    return await elevatedQuery();
+}
+
+async function _queryPublishedWithProducerSubset() {
+    const { items: events } = await wixData.query('SteerMeEvents')
+        .eq('status', 'published')
+        .ascending('eventDate')
+        .find();
+
+    const producerIds = [...new Set(events.map(e => e.producerId))];
+    const { items: producers } = await wixData.query('SteerMeProducerProfiles')
+        .hasSome('_id', producerIds)
+        .find();
+    const producerById = Object.fromEntries(producers.map(p => [p._id, p]));
+
+    return events.map(e => ({
+        ...e,
+        divisions: parseDivisions(e.divisions),
+        producerOrgName: producerById[e.producerId]?.orgName || 'Unknown producer',
+        producerVerificationStatus: producerById[e.producerId]?.verificationStatus || 'pending'
+    }));
+}

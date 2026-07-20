@@ -1,0 +1,54 @@
+// backend/social.jsw — blocks and favorites. Both are simple, low-risk
+// writes (a user managing their own relationship to another user), so
+// these are thinner than the other modules — no eligibility logic to port.
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { currentMember } from 'wix-members-backend';
+
+export async function blockUser(blockedId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    const elevatedInsert = elevate(_insertBlockIfNotExists);
+    return await elevatedInsert(member._id, blockedId);
+}
+
+async function _insertBlockIfNotExists(blockerId, blockedId) {
+    const { items } = await wixData.query('SteerMeBlocks')
+        .eq('blockerId', blockerId).eq('blockedId', blockedId).find();
+    if (items.length > 0) return items[0];
+    return await wixData.insert('SteerMeBlocks', { blockerId, blockedId });
+}
+
+export async function unblockUser(blockedId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    const elevatedRemove = elevate(_removeBlock);
+    return await elevatedRemove(member._id, blockedId);
+}
+
+async function _removeBlock(blockerId, blockedId) {
+    const { items } = await wixData.query('SteerMeBlocks')
+        .eq('blockerId', blockerId).eq('blockedId', blockedId).find();
+    await Promise.all(items.map(i => wixData.remove('SteerMeBlocks', i._id)));
+    return { removed: items.length };
+}
+
+export async function toggleFavorite(favoriteId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    const elevatedToggle = elevate(_toggle);
+    return await elevatedToggle(member._id, favoriteId);
+}
+
+async function _toggle(userId, favoriteId) {
+    const { items } = await wixData.query('SteerMeFavorites')
+        .eq('userId', userId).eq('favoriteId', favoriteId).find();
+
+    if (items.length > 0) {
+        await wixData.remove('SteerMeFavorites', items[0]._id);
+        return { favorited: false };
+    }
+    await wixData.insert('SteerMeFavorites', { userId, favoriteId });
+    return { favorited: true };
+}

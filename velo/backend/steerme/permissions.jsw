@@ -1,0 +1,92 @@
+// backend/permissions.jsw
+//
+// Core gate functions used by every other backend module. These exist
+// because Wix Data Collections have no RLS equivalent — every access rule
+// the native app enforces via a Postgres policy has to be an explicit check
+// here instead, per STEER_ME_WEB_DATA_MODEL.md ("Where this has to differ," #3).
+//
+// Convention followed throughout this backend: collections are Admin-locked
+// in the Content Manager. These functions are the *only* sanctioned way data
+// crosses the client/server boundary for anything sensitive. Each elevate()
+// call is scoped to the smallest function that needs it — not a blanket
+// elevation of the whole module — so a bug in one function can't silently
+// grant broader access than intended.
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+
+/**
+ * Mirrors the native app's has_active_subscription(uid).
+ * @param {string} memberId
+ * @returns {Promise<boolean>}
+ */
+export async function hasActiveSubscription(memberId) {
+    const elevatedQuery = elevate(_queryActiveSubscription);
+    const result = await elevatedQuery(memberId);
+    return result;
+}
+
+async function _queryActiveSubscription(memberId) {
+    const { items } = await wixData.query('SteerMeSubscriptions')
+        .eq('memberId', memberId)
+        .eq('entitlementActive', true)
+        .find();
+
+    if (items.length === 0) return false;
+
+    const sub = items[0];
+    // entitlementActive alone isn't enough if expiresAt has passed and
+    // whatever renewal webhook updates entitlementActive hasn't run yet —
+    // treat expiresAt as the source of truth when present.
+    if (sub.expiresAt && new Date(sub.expiresAt) < new Date()) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Mirrors the native app's is_blocked_pair() — checks both directions.
+ * Every place that surfaces another member (Browse, need post feed,
+ * request notifications) must call this before including a row.
+ * @param {string} memberIdA
+ * @param {string} memberIdB
+ * @returns {Promise<boolean>}
+ */
+export async function isBlockedPair(memberIdA, memberIdB) {
+    const elevatedQuery = elevate(_queryBlockedEitherDirection);
+    return await elevatedQuery(memberIdA, memberIdB);
+}
+
+async function _queryBlockedEitherDirection(memberIdA, memberIdB) {
+    const { items } = await wixData.query('SteerMeBlocks')
+        .eq('blockerId', memberIdA).eq('blockedId', memberIdB)
+        .or(
+            wixData.query('SteerMeBlocks').eq('blockerId', memberIdB).eq('blockedId', memberIdA)
+        )
+        .find();
+    return items.length > 0;
+}
+
+/**
+ * Throws if the given member is suspended. Call this at the top of any
+ * write operation (create request, post need, create event, submit rating)
+ * the same way the native app's RLS policies check `NOT suspended`.
+ * @param {string} memberId
+ */
+export async function assertNotSuspended(memberId) {
+    const elevatedQuery = elevate(_queryProfile);
+    const profile = await elevatedQuery(memberId);
+    if (!profile) {
+        throw new Error('Profile not found.');
+    }
+    if (profile.suspended) {
+        throw new Error('This account has been suspended.');
+    }
+}
+
+async function _queryProfile(memberId) {
+    const { items } = await wixData.query('SteerMeAthleteProfiles')
+        .eq('memberId', memberId)
+        .find();
+    return items[0] || null;
+}

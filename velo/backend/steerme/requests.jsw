@@ -1,0 +1,194 @@
+// backend/requests.jsw
+//
+// Partner request lifecycle: create, respond, and reveal contact info.
+// getRequestContact() is called out in STEER_ME_WEB_DATA_MODEL.md as
+// "the single most important piece of trust & safety logic to port
+// faithfully" — it is built to fail closed (throw) on every path except
+// the one explicit success case, deliberately, rather than fail open.
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { currentMember } from 'wix-members-backend';
+import { hasActiveSubscription, isBlockedPair, assertNotSuspended } from 'backend/steerme/permissions.jsw';
+// canPair() now checks real eligibility (classification cap + a literal
+// port of matching.ts's position-compatibility rule) - see
+// backend/matching.jsw for the full history; it started as a flagged
+// placeholder and was corrected once the real matching.ts was available.
+import { canPair } from 'backend/steerme/matching.jsw';
+
+/**
+ * Creates a partner request. Mirrors the native app's insert path plus
+ * its set_request_initial_status() trigger and the unique-index dedup
+ * check (both are DB-enforced natively; both are explicit here per
+ * "Where this has to differ," #3 and #4).
+ *
+ * @param {object} input
+ * @param {string} input.recipientId
+ * @param {string} [input.eventId]
+ * @param {string} [input.needPostId]
+ * @param {number} [input.division]
+ * @param {boolean} [input.isGoatRoping]
+ */
+export async function createPartnerRequest(input) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    const requesterId = member._id;
+
+    if (requesterId === input.recipientId) {
+        throw new Error('Cannot send a request to yourself.');
+    }
+
+    await assertNotSuspended(requesterId);
+    await assertNotSuspended(input.recipientId);
+
+    const subscribed = await hasActiveSubscription(requesterId);
+    if (!subscribed) {
+        throw new Error('An active subscription is required to send partner requests.');
+    }
+
+    const blocked = await isBlockedPair(requesterId, input.recipientId);
+    if (blocked) {
+        throw new Error('Unable to send this request.');
+    }
+
+    // canPair() is the trust-critical eligibility check: classification cap
+    // (this backend's own adaptation) plus a literal port of matching.ts's
+    // position-compatibility rule (Header/Heeler/Switch) - see
+    // backend/matching.jsw for exactly which part is ported vs. adapted.
+    const eligible = await canPair(requesterId, input.recipientId, input.division);
+    if (!eligible) {
+        throw new Error('These two athletes are not an eligible pairing for this division.');
+    }
+
+    const elevatedCreate = elevate(_dedupCheckAndInsert);
+    return await elevatedCreate(requesterId, input);
+}
+
+async function _dedupCheckAndInsert(requesterId, input) {
+    // Dedup: native app enforces via a unique index coalescing nulls to a
+    // sentinel. Reproduced here as an explicit check-before-insert, per
+    // "Where this has to differ," #4.
+    let dedupQuery = wixData.query('SteerMePartnerRequests')
+        .eq('requesterId', requesterId)
+        .eq('recipientId', input.recipientId)
+        .eq('eventId', input.eventId || null);
+
+    dedupQuery = input.isGoatRoping
+        ? dedupQuery.eq('isGoatRoping', true)
+        : dedupQuery.eq('division', input.division);
+
+    const { items: existing } = await dedupQuery.find();
+    if (existing.length > 0) {
+        throw new Error('A request already exists between these two athletes for this division/event.');
+    }
+
+    // Initial status must be computed server-side from the recipient's
+    // isMinor flag — mirrors set_request_initial_status(), never trust a
+    // client-supplied status.
+    const { items: recipientRows } = await wixData.query('SteerMeAthleteProfiles')
+        .eq('memberId', input.recipientId)
+        .find();
+    const recipient = recipientRows[0];
+    if (!recipient) throw new Error('Recipient profile not found.');
+
+    const initialStatus = recipient.isMinor ? 'pending_guardian' : 'pending';
+
+    return await wixData.insert('SteerMePartnerRequests', {
+        eventId: input.eventId || null,
+        needPostId: input.needPostId || null,
+        division: input.isGoatRoping ? null : input.division,
+        isGoatRoping: !!input.isGoatRoping,
+        requesterId,
+        recipientId: input.recipientId,
+        status: initialStatus,
+        respondedAt: null
+    });
+}
+
+/**
+ * Accept or decline a request. Only the recipient (or, for a
+ * pending_guardian request, presumably a guardian-managed flow — the
+ * native app's exact guardian-response mechanism isn't specified in the
+ * data model doc, so this assumes the recipient's own signed-in session
+ * handles it; flag if that's wrong).
+ */
+export async function respondToPartnerRequest(requestId, accept) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+
+    const elevatedRespond = elevate(_respond);
+    return await elevatedRespond(requestId, member._id, accept);
+}
+
+async function _respond(requestId, respondingMemberId, accept) {
+    const request = await wixData.get('SteerMePartnerRequests', requestId);
+    if (!request) throw new Error('Request not found.');
+    if (request.recipientId !== respondingMemberId) {
+        throw new Error('Only the recipient can respond to this request.');
+    }
+    if (request.status !== 'pending' && request.status !== 'pending_guardian') {
+        throw new Error('This request has already been responded to.');
+    }
+
+    return await wixData.update('SteerMePartnerRequests', {
+        ...request,
+        status: accept ? 'accepted' : 'declined',
+        respondedAt: new Date()
+    });
+}
+
+/**
+ * THE trust-critical function. Mirrors the native app's get_request_contact()
+ * RPC exactly: only returns contact/guardianContact/verificationScreenshotUrl
+ * for the two parties of an ACCEPTED request. Throws on every other path.
+ *
+ * Deliberately fails closed — if anything about the request or the calling
+ * member's relationship to it is ambiguous, this throws rather than guesses.
+ *
+ * @param {string} requestId
+ */
+export async function getRequestContact(requestId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+
+    const elevatedReveal = elevate(_revealContact);
+    return await elevatedReveal(requestId, member._id);
+}
+
+async function _revealContact(requestId, callingMemberId) {
+    const request = await wixData.get('SteerMePartnerRequests', requestId);
+    if (!request) throw new Error('Request not found.');
+
+    if (request.status !== 'accepted') {
+        throw new Error('Contact info is only available for accepted requests.');
+    }
+
+    const isParty = callingMemberId === request.requesterId || callingMemberId === request.recipientId;
+    if (!isParty) {
+        throw new Error('Not authorized to view this request.');
+    }
+
+    const otherPartyId = callingMemberId === request.requesterId
+        ? request.recipientId
+        : request.requesterId;
+
+    const { items } = await wixData.query('SteerMeAthleteProfiles')
+        .eq('memberId', otherPartyId)
+        .find();
+    const profile = items[0];
+    if (!profile) throw new Error('Profile not found.');
+
+    if (profile.scrubbed) {
+        throw new Error('This account is no longer active.');
+    }
+
+    // Minor's own contact is never exposed — guardian contact stands in for it,
+    // matching the native app's rule (see SteerMeAthleteProfiles field notes).
+    return {
+        fullName: profile.fullName,
+        contact: profile.isMinor ? null : profile.contact,
+        guardianName: profile.isMinor ? profile.guardianName : null,
+        guardianContact: profile.isMinor ? profile.guardianContact : null,
+        verificationScreenshotUrl: profile.verificationScreenshotUrl
+    };
+}

@@ -1,0 +1,115 @@
+// backend/ratings.jsw
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { currentMember } from 'wix-members-backend';
+import { assertNotSuspended } from 'backend/steerme/permissions.jsw';
+
+// Matches Producer Guidelines §3's rating-display threshold and the data
+// model doc's instruction to hide the average below this count.
+const MIN_RATINGS_TO_SHOW = 3;
+
+// Native app: BEFORE INSERT trigger checks event date has passed, within a
+// 30-day window, and the athlete marked attending before the event date.
+const RATING_WINDOW_DAYS = 30;
+
+/**
+ * Submits an event rating. Reimplements the native app's three eligibility
+ * rules as explicit checks, per "Where this has to differ," #4:
+ *   1. Event date has passed
+ *   2. Within a 30-day window of the event date
+ *   3. The athlete marked attending before the event date
+ */
+export async function submitEventRating(eventId, stars, review) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    await assertNotSuspended(member._id);
+
+    if (!(stars >= 1 && stars <= 5)) {
+        throw new Error('Stars must be between 1 and 5.');
+    }
+
+    const elevatedSubmit = elevate(_checkEligibilityAndInsert);
+    return await elevatedSubmit(eventId, member._id, stars, review);
+}
+
+async function _checkEligibilityAndInsert(eventId, athleteId, stars, review) {
+    const event = await wixData.get('SteerMeEvents', eventId);
+    if (!event) throw new Error('Event not found.');
+
+    const eventDate = new Date(event.eventDate);
+    const now = new Date();
+
+    // Rule 1: event date has passed
+    if (eventDate > now) {
+        throw new Error('This event has not happened yet.');
+    }
+
+    // Rule 2: within the rating window
+    const daysSinceEvent = (now - eventDate) / (1000 * 60 * 60 * 24);
+    if (daysSinceEvent > RATING_WINDOW_DAYS) {
+        throw new Error('The rating window for this event has closed.');
+    }
+
+    // Rule 3: athlete marked attending before the event date.
+    // Attendance rows have no timestamp field in the current data model
+    // (SteerMeEventAttendance only has eventId/division/athleteId) — this
+    // checks *that* they're attending at all, but can't verify *when* the
+    // attendance mark was made relative to the event date the way the
+    // native app's trigger apparently can. Flagging this as an open gap
+    // rather than silently skipping the "before the event date" half of
+    // rule 3.
+    const { items: attendance } = await wixData.query('SteerMeEventAttendance')
+        .eq('eventId', eventId)
+        .eq('athleteId', athleteId)
+        .find();
+    if (attendance.length === 0) {
+        throw new Error('You must have marked attending this event to rate it.');
+    }
+
+    // One rating per athlete per event — not explicitly stated in the doc,
+    // but implied by "submit a rating" as a singular action. Upsert-style:
+    // update if one already exists rather than allowing duplicates.
+    const { items: existingRatings } = await wixData.query('SteerMeEventRatings')
+        .eq('eventId', eventId)
+        .eq('athleteId', athleteId)
+        .find();
+
+    if (existingRatings.length > 0) {
+        return await wixData.update('SteerMeEventRatings', {
+            ...existingRatings[0],
+            stars,
+            review: review || null
+        });
+    }
+
+    return await wixData.insert('SteerMeEventRatings', {
+        eventId,
+        athleteId,
+        stars,
+        review: review || null
+    });
+}
+
+/**
+ * Mirrors the native app's event_rating_summary view: average stars, only
+ * surfaced once ratingCount >= 3 (matching Producer Guidelines §3).
+ */
+export async function getEventRatingSummary(eventId) {
+    const elevatedQuery = elevate(_queryAndSummarize);
+    return await elevatedQuery(eventId);
+}
+
+async function _queryAndSummarize(eventId) {
+    const { items } = await wixData.query('SteerMeEventRatings')
+        .eq('eventId', eventId)
+        .find();
+
+    const ratingCount = items.length;
+    if (ratingCount < MIN_RATINGS_TO_SHOW) {
+        return { ratingCount, averageStars: null, visible: false };
+    }
+
+    const averageStars = items.reduce((sum, r) => sum + r.stars, 0) / ratingCount;
+    return { ratingCount, averageStars: Math.round(averageStars * 10) / 10, visible: true };
+}

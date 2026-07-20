@@ -1,0 +1,126 @@
+// backend/needPosts.jsw
+
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { currentMember } from 'wix-members-backend';
+import { assertNotSuspended, hasActiveSubscription, isBlockedPair } from 'backend/steerme/permissions.jsw';
+
+/**
+ * Creates a need post. isGoatRoping posts skip division entirely; all
+ * others require one, matching the same constraint applied to
+ * SteerMePartnerRequests.
+ */
+export async function createNeedPost(input) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    await assertNotSuspended(member._id);
+
+    const subscribed = await hasActiveSubscription(member._id);
+    if (!subscribed) {
+        throw new Error('An active subscription is required to post a need.');
+    }
+
+    if (!input.isGoatRoping && (input.division === undefined || input.division === null)) {
+        throw new Error('A division is required unless this is a goat roping post.');
+    }
+
+    const elevatedInsert = elevate(_insertNeedPost);
+    return await elevatedInsert(member._id, input);
+}
+
+async function _insertNeedPost(athleteId, input) {
+    const post = await wixData.insert('SteerMeNeedPosts', {
+        athleteId,
+        isGoatRoping: !!input.isGoatRoping,
+        division: input.isGoatRoping ? null : input.division,
+        eventDate: input.eventDate,
+        eventName: input.eventName,
+        producerName: input.producerName,
+        location: input.location,
+        flierUrl: input.flierUrl || null,
+        facebookLink: input.facebookLink || null,
+        eventId: input.eventId || null,
+        visibility: input.visibility || 'everyone'
+    });
+
+    if (input.visibility === 'selected' && Array.isArray(input.visibleToIds)) {
+        await Promise.all(input.visibleToIds.map(athleteIdToShow =>
+            wixData.insert('SteerMeNeedPostVisibleTo', {
+                needPostId: post._id,
+                athleteId: athleteIdToShow
+            })
+        ));
+    }
+
+    return post;
+}
+
+/**
+ * Reads the need-post feed for the current viewer, enforcing:
+ *  - blocked pairs never see each other's posts (either direction)
+ *  - visibility === "favorites" only shown to athletes who have the poster favorited
+ *  - visibility === "selected" only shown to athletes explicitly listed in SteerMeNeedPostVisibleTo
+ */
+export async function getNeedPostFeed() {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+
+    const elevatedQuery = elevate(_queryFeedForViewer);
+    return await elevatedQuery(member._id);
+}
+
+async function _queryFeedForViewer(viewerId) {
+    const { items: allPosts } = await wixData.query('SteerMeNeedPosts')
+        .descending('_createdDate')
+        .find();
+
+    const results = [];
+    for (const post of allPosts) {
+        if (post.athleteId === viewerId) {
+            results.push(post); // always see your own posts
+            continue;
+        }
+
+        const blocked = await _isBlockedEitherDirection(viewerId, post.athleteId);
+        if (blocked) continue;
+
+        if (post.visibility === 'everyone') {
+            results.push(post);
+        } else if (post.visibility === 'favorites') {
+            const isFavorited = await _viewerFavoritesPoster(viewerId, post.athleteId);
+            if (isFavorited) results.push(post);
+        } else if (post.visibility === 'selected') {
+            const isListed = await _viewerIsInVisibleTo(post._id, viewerId);
+            if (isListed) results.push(post);
+        }
+    }
+    return results;
+}
+
+async function _isBlockedEitherDirection(a, b) {
+    const { items } = await wixData.query('SteerMeBlocks')
+        .eq('blockerId', a).eq('blockedId', b)
+        .or(wixData.query('SteerMeBlocks').eq('blockerId', b).eq('blockedId', a))
+        .find();
+    return items.length > 0;
+}
+
+async function _viewerFavoritesPoster(viewerId, posterId) {
+    // "favorites" visibility means: shown to people the POSTER has favorited
+    // (i.e. the poster chose to share with their favorites), not people who
+    // favorited the poster. This direction isn't explicit in the data model
+    // doc — flagging the assumption.
+    const { items } = await wixData.query('SteerMeFavorites')
+        .eq('userId', posterId)
+        .eq('favoriteId', viewerId)
+        .find();
+    return items.length > 0;
+}
+
+async function _viewerIsInVisibleTo(needPostId, viewerId) {
+    const { items } = await wixData.query('SteerMeNeedPostVisibleTo')
+        .eq('needPostId', needPostId)
+        .eq('athleteId', viewerId)
+        .find();
+    return items.length > 0;
+}
