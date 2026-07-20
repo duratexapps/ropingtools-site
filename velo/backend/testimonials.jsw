@@ -1,0 +1,76 @@
+// backend/testimonials.jsw
+//
+// Testimonial submission + the approved-only public read used by the
+// course page's carousel. See SCHEMA.md's Testimonials section: this
+// collection needs a manual-approval step before anything public-facing
+// reads from it — submitTestimonial() always writes status: 'pending',
+// never anything else, and getApprovedTestimonials() only ever queries
+// status = 'approved'. Approving/rejecting a submission happens by hand
+// in the Content Manager (same moderation pattern already used
+// elsewhere in this project), not through a function here.
+//
+// Requires login to submit (unlike Feedback, which explicitly allows
+// anonymous submission) - a testimonial is attributed to a real member
+// by design, consistent with SCHEMA.md listing submittedByMemberId as a
+// non-nullable field.
+
+import { currentMember } from 'wix-members-backend';
+import { elevate } from 'wix-auth';
+import wixData from 'wix-data';
+
+const TESTIMONIALS_COLLECTION = 'Testimonials';
+
+/**
+ * @param {{ quote: string, authorRole: string }} params
+ */
+export async function submitTestimonial(params) {
+  const member = await currentMember.getMember();
+  if (!member) throw new Error('Must be signed in to submit a testimonial.');
+
+  if (!params.quote || !params.quote.trim()) {
+    throw new Error('Testimonial text is required.');
+  }
+
+  const authorName = (member.contactDetails && member.contactDetails.firstName)
+    ? `${member.contactDetails.firstName} ${member.contactDetails.lastName || ''}`.trim()
+    : (member.loginEmail || 'RopingTools member');
+
+  return wixData.insert(TESTIMONIALS_COLLECTION, {
+    quote: params.quote.trim(),
+    authorName,
+    authorRole: params.authorRole || '',
+    submittedByMemberId: member._id,
+    status: 'pending',
+    timestamp: new Date()
+  });
+}
+
+/**
+ * Public read for the course page's testimonial carousel — approved
+ * only, never pending/rejected. Uses elevate() since Testimonials stays
+ * Admin-locked like every other collection in this project, and this
+ * data isn't sensitive (a testimonial is written to be seen publicly by
+ * definition) — but same open question as everywhere else elevate() is
+ * used from Page Code rather than an HTTP Function: unverified whether
+ * it actually works here (see docs/ARCHITECTURE.md, task #20). If it
+ * turns out not to, the fallback is the same one already used for
+ * DrawProWaitlist: open this collection's read permission narrowly
+ * (Everyone) rather than relying on elevate() — acceptable here since,
+ * again, approved testimonials are meant to be public. Pending/rejected
+ * rows would then technically be fetchable by a direct API call even
+ * though no UI surfaces them; a real but low-stakes gap worth knowing
+ * about rather than discovering later, same discipline as elsewhere in
+ * this project.
+ */
+export async function getApprovedTestimonials() {
+  const elevatedQuery = elevate(_queryApproved);
+  return await elevatedQuery();
+}
+
+async function _queryApproved() {
+  const result = await wixData.query(TESTIMONIALS_COLLECTION)
+    .eq('status', 'approved')
+    .descending('timestamp')
+    .find();
+  return result.items;
+}

@@ -30,12 +30,28 @@ see HANDOFF_BRIEF.md §4). `aiCoach.jsw`'s `deductCredits()` assumes a row
 already exists and throws if it doesn't — checkout code must create it with
 an initial balance before a member can be sent to the course page.
 
-**Full transaction history isn't in this collection** — if you need an
-auditable ledger (not just current balance + last change), add a separate
-`CreditTransactions` collection (`memberId`, `type`, `amount`, `reason`,
-`balanceAfter`, `timestamp`) and insert into both on every change. Not
-built yet; flagging as a likely near-term addition once real payments
-exist.
+**Full transaction history isn't in this collection** — for that, see
+`CreditTransactions` below, now built and wired into `deductCredits()`.
+
+---
+
+## `CreditTransactions`
+Full auditable ledger — every credit deduction, not just the most recent
+one. Built alongside `CreditLedger`, since the latter only ever holds
+current balance + last change. `aiCoach.jsw`'s `deductCredits()` writes to
+both: `CreditLedger` first (source of truth for balance checks), then this
+collection (best-effort — a logging failure here doesn't undo a deduction
+that already succeeded, same reasoning as `logVideoAnalysis()` not being
+allowed to roll back a completed analysis).
+
+| Field | Type | Notes |
+|---|---|---|
+| `memberId` | Text | |
+| `type` | Text | `"debit"` currently — no credit-grant path writes here yet, since that's part of the still-unbuilt checkout flow |
+| `amount` | Number | |
+| `reason` | Text | e.g. `"Full Rep analysis, chapter 1-1"` |
+| `balanceAfter` | Number | |
+| `timestamp` | Date/Time | |
 
 ---
 
@@ -127,10 +143,13 @@ See `velo/backend/legalAcknowledgments.jsw`.
 ---
 
 ## `Testimonials`
-Not built yet — no submission form exists. Per HANDOFF_BRIEF.md's
-"Testimonials" section, this needs a manual-approval step before anything
-public-facing reads from it. Documented here so the shape is decided ahead
-of building the submission form.
+Backend built (`backend/testimonials.jsw`): `submitTestimonial()` requires
+login and always writes `status: 'pending'`; `getApprovedTestimonials()` is
+the only public read, filtered to `status = 'approved'`. Per
+HANDOFF_BRIEF.md's "Testimonials" section, approval itself stays a manual
+Content Manager action — no function flips status to `'approved'` or
+`'rejected'`, by design. No page/carousel UI built yet — that's a frontend
+task, not a backend one, still open.
 
 | Field | Type | Notes |
 |---|---|---|

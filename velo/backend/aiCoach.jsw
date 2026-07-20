@@ -23,6 +23,7 @@ const ANTHROPIC_API_KEY_SECRET_NAME = 'ANTHROPIC_API_KEY'; // set in Secrets Man
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6'; // keep in sync with the model used in the original prototype
 
 const CREDIT_LEDGER_COLLECTION = 'CreditLedger';
+const CREDIT_TRANSACTIONS_COLLECTION = 'CreditTransactions';
 const VIDEO_ANALYSIS_LOG_COLLECTION = 'VideoAnalysisLog';
 
 // Server-side source of truth for credit cost per tier — never trust a
@@ -156,14 +157,37 @@ async function deductCredits(memberId, amount, params) {
     throw new Error('Not enough credits — balance changed since this request started. Refresh and try again.');
   }
 
+  const reason = params.tierName + ' analysis, chapter ' + params.chapterId;
+
   record.balance = newBalance;
   record.lastTransaction = {
     type: 'debit',
     amount: amount,
-    reason: params.tierName + ' analysis, chapter ' + params.chapterId,
+    reason: reason,
     timestamp: new Date().toISOString()
   };
   await wixData.update(CREDIT_LEDGER_COLLECTION, record);
+
+  // CreditTransactions: full auditable history, separate from
+  // CreditLedger's "current balance + last change only" shape - flagged
+  // in SCHEMA.md as a likely near-term addition, now built. Written
+  // after the ledger update succeeds so a transaction-log failure can't
+  // block the actual credit deduction; logged but not re-thrown if it
+  // fails, same reasoning as logVideoAnalysis() below not being allowed
+  // to undo a deduction that already happened.
+  try {
+    await wixData.insert(CREDIT_TRANSACTIONS_COLLECTION, {
+      memberId: memberId,
+      type: 'debit',
+      amount: amount,
+      reason: reason,
+      balanceAfter: newBalance,
+      timestamp: new Date()
+    });
+  } catch (err) {
+    console.error('Failed to write CreditTransactions row: ' + (err && err.message ? err.message : err));
+  }
+
   return newBalance;
 }
 
