@@ -15,6 +15,14 @@ will throw "X could not be found" at runtime, not fail silently.
 
 ## Before building any page
 
+**One-time setup per page — do this once when a page is first created,
+never again for that same page.** If a page already exists and its code
+is already connected (Page 1, "Draw Pro Entry," went through this
+already and is confirmed working), do not delete and recreate it to
+"redo" this section — that would just lose whatever element placement
+progress already exists for no reason. This section only applies the
+first time, to Pages 2 and 3 when they're actually created.
+
 1. **Create the page** in the Wix Editor (Pages panel → Add Page → Blank
    Page). Name it something recognizable in the page list (e.g. "Draw Pro —
    Entrant Entry"), separate from what shows in the URL.

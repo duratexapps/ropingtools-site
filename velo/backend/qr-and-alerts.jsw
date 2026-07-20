@@ -28,7 +28,7 @@ import { contacts, triggeredEmails } from 'wix-crm-backend';
 const EVENTS = 'DrawProEvents';
 const ENTRY_ALERTS = 'DrawProEntryAlerts';
 
-const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro/enter';
+const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro-enter';
 const QR_IMAGE_API = 'https://api.qrserver.com/v1/create-qr-code/';
 const QR_SIZE = '400x400';
 

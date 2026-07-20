@@ -111,7 +111,7 @@ const PARTNER_REFERRAL_RETURN_URL = 'https://www.ropingtools.com/drawpro/payout-
 // clear "not configured" error instead of silently failing.
 const PARTNER_INVITE_EMAIL_ID = null;
 
-const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro/enter';
+const ENTRY_BASE_URL = 'https://www.ropingtools.com/drawpro-enter';
 
 /* ------------------------------------------------------------------ */
 /* Fee calculation                                                     */

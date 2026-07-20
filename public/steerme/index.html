@@ -112,11 +112,51 @@
   @media (max-width: 480px) {
     .waitlist-form { flex-direction: column; }
   }
+
+  /* --- LOGO ------------------------------------------- */
+  /* Same treatment as public/drawpro/index.html - see that file's
+     comment for why "Roping" and the tagline are lightened from their
+     original colors while the icon and "Tools" stay exactly as
+     specified (legibility against this page's dark --leather
+     background, not a style choice). */
+  .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+  .logo-wordmark {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--cream);
+    line-height: 1.1;
+    text-align: left;
+  }
+  .logo-wordmark span { color: #D85A30; }
+  .logo-tagline {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: #8a8883;
+    margin-top: 0.1rem;
+  }
 </style>
 </head>
 <body>
 
 <div class="steerme-card">
+  <div class="logo-row">
+    <svg width="30" height="30" viewBox="0 0 60 60" aria-hidden="true">
+      <path d="M14 34 A18 18 0 1 1 32 52" fill="none" stroke="#D85A30" stroke-width="5" stroke-linecap="round"/>
+      <path d="M32 52 Q46 60 56 40" fill="none" stroke="#D85A30" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="logo-wordmark">Roping<span>Tools</span></div>
+      <div class="logo-tagline">DRAW &middot; COACH &middot; COMPETE</div>
+    </div>
+  </div>
   <div class="badge-coming-soon">Coming Soon</div>
   <h1>Steer Me</h1>
   <p class="steerme-body">
