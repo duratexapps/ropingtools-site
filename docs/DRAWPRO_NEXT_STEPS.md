@@ -47,6 +47,20 @@ currently only creates/captures an order against one of the two entrant
 records even though the displayed total is correct — see
 `entrant-entry-form.js`'s `handlePayNow` doc comment.
 
+Also added since: role is no longer fixed per submission (a person can
+head with a known partner while drawing in as heeler — confirmed real
+scenario), `#checkboxUpAndBack` support (same two people, roles
+swapped), a real cap-validation gap fix on pre-formed submissions
+(previously unenforced entirely), a cumulative-entries-across-
+submissions cap fix, and incentive/slide tracking
+(`DrawProEventClasses.incentiveCapNumber` / `DrawProTeams.qualifiesForIncentive`
+— display-only, never gates entry). **Reminder for whenever Page 3
+(Producer Draw Sheet Review) gets built:** it should visually shade or
+highlight teams where `qualifiesForIncentive === true`, so the producer
+can track incentive-qualifying teams at a glance during a live event —
+this was explicitly requested, not yet implemented anywhere in UI since
+Page 3 doesn't exist yet.
+
 ## 1. Build the 3 real pages in the Wix Editor
 **The single biggest remaining blocker.** No API exists for this — has to be
 done by hand. Full element-by-element instructions already written:
