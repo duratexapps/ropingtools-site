@@ -142,7 +142,7 @@ Suggested URL: `/drawpro/enter` (matches `ENTRY_BASE_URL` already used elsewhere
 ### Guest & submit
 | ID | Type | Notes |
 |---|---|---|
-| `#checkboxGuestEntry` | Checkbox | Hidden entirely for logged-in members |
+| `#checkboxGuestEntry` | Checkbox (single, **not** Checkbox Group) | Code reads `.checked` (single boolean) — a Checkbox Group's list-of-choices setup doesn't apply here. Label: "I'm entering as a guest (no RopingTools account)". Hidden entirely for logged-in members |
 | `#btnSubmitEntry` | Button | |
 | `#textStatus` | Text | Status/error messages |
 
