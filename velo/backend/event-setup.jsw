@@ -98,6 +98,7 @@ function validateEventInput(eventInput) {
  * @param {string} classInput.label - e.g. "7.5"
  * @param {number} classInput.capNumber - combined header+heeler ceiling
  * @param {number} [classInput.heelerSubCap] - additional constraint on top of capNumber, not instead of it
+ * @param {number} [classInput.incentiveCapNumber] - display/tracking only, never gates entry — see data-model.md's DrawProEventClasses note. e.g. a "9.5 event w/ an 8.5 incentive" flier
  * @param {number} [classInput.minHeaderNumberToDrawIn]
  * @param {number} [classInput.minHeelerNumberToDrawIn]
  * @param {'pick_or_draw'|'pick_only'|'draw_only'} classInput.entryModeAllowed
@@ -121,6 +122,7 @@ export async function createEventClass(eventId, classInput) {
         label: classInput.label,
         capNumber: classInput.capNumber,
         heelerSubCap: classInput.heelerSubCap || null,
+        incentiveCapNumber: classInput.incentiveCapNumber || null,
         minHeaderNumberToDrawIn: classInput.minHeaderNumberToDrawIn || null,
         minHeelerNumberToDrawIn: classInput.minHeelerNumberToDrawIn || null,
         entryModeAllowed: classInput.entryModeAllowed,
@@ -147,6 +149,9 @@ function validateClassInput(classInput) {
     }
     if (classInput.heelerSubCap != null && (typeof classInput.heelerSubCap !== 'number' || classInput.heelerSubCap <= 0)) {
         throw new Error('heelerSubCap, if set, must be a positive number.');
+    }
+    if (classInput.incentiveCapNumber != null && (typeof classInput.incentiveCapNumber !== 'number' || classInput.incentiveCapNumber <= 0)) {
+        throw new Error('incentiveCapNumber, if set, must be a positive number.');
     }
     if (!VALID_ENTRY_MODES.includes(classInput.entryModeAllowed)) {
         throw new Error(`entryModeAllowed must be one of: ${VALID_ENTRY_MODES.join(', ')}.`);

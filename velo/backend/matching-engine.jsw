@@ -137,6 +137,17 @@ async function executeDraw(classId) {
     // Persist teams
     const savedTeams = [];
     for (const team of sequenced.teams) {
+        // qualifiesForIncentive: display/tracking only, never affects the
+        // draw itself — confirmed real mechanic ("9.5 event w/ an 8.5
+        // incentive"): capNumber stays the only actual entry-eligibility
+        // cap; incentiveCapNumber just flags which already-paired teams
+        // the producer should shade/highlight on the draw sheet for their
+        // own manual time-bonus tracking. null (not false) if the class
+        // doesn't define one, so a producer's review UI can distinguish
+        // "no incentive offered" from "offered but not qualifying."
+        const combined = team.header.classificationNumber + team.heeler.classificationNumber;
+        const qualifiesForIncentive = cls.incentiveCapNumber != null ? combined <= cls.incentiveCapNumber : null;
+
         const saved = await wixData.insert(TEAMS, {
             eventId: cls.eventId,
             classId,
@@ -144,6 +155,7 @@ async function executeDraw(classId) {
             headerEntrantId: team.header._id,
             heelerEntrantId: team.heeler._id,
             preFormed: team.preFormed,
+            qualifiesForIncentive,
             manualOverride: false,
             overrideAcknowledgedBy: null,
             overrideTimestamp: null,
@@ -437,6 +449,7 @@ export async function manualPairEntrants(classId, headerEntrantId, heelerEntrant
     }
 
     const nextTeamNumber = await getNextAvailableTeamNumber(classId);
+    const qualifiesForIncentive = cls.incentiveCapNumber != null ? sum <= cls.incentiveCapNumber : null;
     const team = await wixData.insert(TEAMS, {
         eventId: cls.eventId,
         classId,
@@ -444,6 +457,7 @@ export async function manualPairEntrants(classId, headerEntrantId, heelerEntrant
         headerEntrantId,
         heelerEntrantId,
         preFormed: false,
+        qualifiesForIncentive,
         manualOverride: true,
         overrideAcknowledgedBy: member._id,
         overrideTimestamp: new Date(),
