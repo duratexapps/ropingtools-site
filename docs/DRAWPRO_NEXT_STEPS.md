@@ -54,19 +54,27 @@ swapped), a real cap-validation gap fix on pre-formed submissions
 (previously unenforced entirely), a cumulative-entries-across-
 submissions cap fix, and incentive/slide tracking
 (`DrawProEventClasses.incentiveCapNumber` / `DrawProTeams.qualifiesForIncentive`
-— display-only, never gates entry). **Reminder for whenever Page 3
-(Producer Draw Sheet Review) gets built:** it should visually shade or
-highlight teams where `qualifiesForIncentive === true`, so the producer
-can track incentive-qualifying teams at a glance during a live event —
-this was explicitly requested, not yet implemented anywhere in UI since
-Page 3 doesn't exist yet.
+— display-only, never gates entry).
+
+**Update: Page 2 and Page 3 code is now fully rewritten for the
+multi-class model too** (commit `246f476`) — `producer-event-setup.js`
+(event shell + repeatable class creation + per-class open/close) and
+`producer-draw-sheet-review.js` (class selector, everything downstream
+scoped to classId, displays `qualifiesForIncentive` via a new
+`#iconIncentiveFlag`). This was the actual remaining blocker on starting
+either page, not a vague future dependency — it's done now.
+`docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s Page 2/3 sections are updated
+to match exactly. Neither page has been created in the Wix Editor yet, so
+neither file exists yet in `roping-tools` (the real repo) — that happens
+via the same git-first process Page 1 went through, once each page is
+created/published in the Editor and its generated filename is provided.
 
 ## 1. Build the 3 real pages in the Wix Editor
 **The single biggest remaining blocker.** No API exists for this — has to be
-done by hand. Full element-by-element instructions already written:
-`docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`. Suggested build order (each gives
-real data to test the next against): **Producer Event Setup → Entrant Entry
-Form → Producer Draw Sheet Review.**
+done by hand. Full element-by-element instructions already written and
+current: `docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`. Suggested build order
+(each gives real data to test the next against): **Producer Event Setup →
+Entrant Entry Form → Producer Draw Sheet Review.**
 
 ## 2. Test `elevate()` from Page Code the moment any page goes live
 This project has a known, unresolved question (task #20): `elevate()` is
