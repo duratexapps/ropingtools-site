@@ -187,33 +187,61 @@ Plus the 9 shared Tour Overlay elements above.
 File: `velo/pages/drawpro-real/producer-event-setup.js`
 Suggested URL: `/drawpro/producer/setup` (or similar — no query-param dependency on this one)
 
-### Event basics
+**Fully rewritten 2026-07-21 for the multi-class redesign.** This is a
+different page than before, not an incremental patch — a producer now
+creates a lightweight event shell, then adds one or more classes (ropings)
+to it, each with its own cap/price/rules. If you'd started building
+against the old single-cap version, most of it needs to change.
+
+Flier-upload-and-AI-review is the confirmed long-term design for this
+page (see `docs/ARCHITECTURE.md`), but isn't built yet — what's below is
+the manual-entry fallback, built first per established sequencing.
+
+### Event basics (create once)
 | ID | Type | Notes |
 |---|---|---|
 | `#inputTitle` | Text input | |
 | `#inputEventDate` | Date picker | |
-| `#inputCapNumber` | Text input | Numeric, e.g. `10.5` |
-| `#inputEntryOpen` | Date/time picker | |
-| `#radioCloseMode` | Radio button group | Values: `time`, `teamCount` |
-| `#inputEntryCloseDate` | Date/time picker | Shown when close mode = time |
-| `#inputEntryCloseCount` | Text input | Shown when close mode = teamCount |
 | `#togglePreEntry` | Toggle/checkbox | |
-
-### Pricing & payment
-| ID | Type | Notes |
-|---|---|---|
-| `#inputPricePerEntry` | Text input | Numeric |
-| `#inputPricePerPreformedTeam` | Text input | Numeric, optional — blank defaults to `inputPricePerEntry` |
-| `#radioPaymentMethod` | Radio button group | Values: `cash`, `online` |
+| `#radioPaymentMethod` | Radio button group | Values: `cash`, `online`. Applies to the **whole event**, not per class — no evidence a producer splits payment method by roping |
 | `#textPayoutWarning` | Text | Starts collapsed; shown if online selected but payout setup incomplete |
 | `#linkPayoutSetup` | Link/button | Links to the producer's payout-profile page (not yet built as its own page — see note below) |
+| `#btnCreateEvent` | Button | Creates the SHELL only now — title/date/payment method, no cap or price. Label changes to "Event Created" after success |
 
-### Actions & QR
+### Add a class (repeat this section for each roping — a #7.5, an #8.5, a #9.5, etc.)
 | ID | Type | Notes |
 |---|---|---|
-| `#btnCreateEvent` | Button | Label changes to "Update Event" after first successful create |
-| `#btnOpenEvent` | Button | Starts **disabled** |
-| `#btnGenerateQr` | Button | Starts **disabled** |
+| `#boxAddClass` | Container | Starts **disabled** — enables once the event shell is created |
+| `#inputClassLabel` | Text input | e.g. `"7.5"` |
+| `#inputClassCap` | Text input | Numeric — combined header+heeler ceiling for this class |
+| `#inputHeelerSubCap` | Text input | Numeric, optional — an *additional* constraint on top of the cap, not instead of it (e.g. a flier's "#11.5 WSTR... #7.5 heeler cap") |
+| `#inputIncentiveCap` | Text input | Numeric, optional — **display/tracking only, never gates entry.** e.g. "9.5 event w/ an 8.5 incentive." Just flags which teams get shaded on the draw sheet review page later |
+| `#inputMinHeaderToDrawIn` | Text input | Numeric, optional — floor on classification to be eligible for blind draw-in as a header |
+| `#inputMinHeelerToDrawIn` | Text input | Numeric, optional — same, for heeler |
+| `#radioEntryMode` | Radio button group | Values: `pick_or_draw`, `pick_only`, `draw_only` |
+| `#inputMaxEntries` | Text input | Numeric — max entries per entrant for this class, in any combination of pre-formed and draw-in |
+| `#inputClassPricePerEntry` | Text input | Numeric — draw-in base rate |
+| `#inputClassPricePerPreformedTeam` | Text input | Numeric, optional — blank defaults to `inputClassPricePerEntry` |
+| `#inputDrawInSurcharge` | Text input | Numeric, optional — extra per-roper fee **only** for draw-in entries, on top of the base rate |
+| `#inputClassEntryOpen` | Date/time picker | |
+| `#radioClassCloseMode` | Radio button group | Values: `time`, `teamCount`, `manual`. Manual close is always available regardless of mode — this just controls whether there's also an automatic trigger |
+| `#inputClassCloseDate` | Date/time picker | Shown when close mode = `time` |
+| `#inputClassCloseCount` | Text input | Shown when close mode = `teamCount` |
+| `#btnAddClass` | Button | Adds this class, then clears the form so you can immediately add the next one |
+
+### Classes added so far (repeater)
+| ID | Type | Notes |
+|---|---|---|
+| `#repeaterClasses` | Repeater | Item template needs the 4 elements below inside it |
+| `#textClassLabel` | Text (inside repeater item) | |
+| `#textClassStatus` | Text (inside repeater item) | e.g. "draft" / "open" / "closed" |
+| `#btnClassOpen` | Button (inside repeater item) | Opens **this specific class** for entries — enabled only while status = `draft` |
+| `#btnClassClose` | Button (inside repeater item) | Manually closes **this specific class's** books — enabled only while status = `open` |
+
+### QR & entry link (event-level — one shared link for all classes)
+| ID | Type | Notes |
+|---|---|---|
+| `#btnGenerateQr` | Button | Starts **disabled**, enables once the event shell is created |
 | `#imageQrCode` | Image | Starts collapsed |
 | `#textEntryUrl` | Text | |
 | `#textStatus` | Text | |
@@ -236,13 +264,23 @@ credentials that don't exist yet.
 File: `velo/pages/drawpro-real/producer-draw-sheet-review.js`
 Suggested URL: `/drawpro/producer/review` (reads `?event=EVENT_ID` same as the entry page)
 
-This is the most complex of the three — two repeaters with sub-elements,
-plus two confirmation modals.
+**Updated 2026-07-21 for the multi-class redesign.** Everything below the
+class dropdown is scoped to whichever class is selected — finalize, sign
+off, the draw itself, manual pairing, and notifications all now operate
+per class, since classes close and draw independently (one class in an
+event can be finalized and drawn while a sibling class is still open for
+entries). This is the most complex of the three pages — a class selector,
+two repeaters with sub-elements, plus two confirmation modals.
+
+### Class selector (NEW)
+| ID | Type | Notes |
+|---|---|---|
+| `#dropdownClass` | Dropdown | Which class within this event to review/draw. Populated from every class in the event (not just ones ready to finalize) — showing a still-`open` class too, rather than hiding it, lets the producer see at a glance which of their classes aren't ready yet |
 
 ### Pre-draw entrant list
 | ID | Type | Notes |
 |---|---|---|
-| `#repeaterEntrants` | Repeater | Item template needs the 3 elements below inside it |
+| `#repeaterEntrants` | Repeater | Item template needs the 3 elements below inside it. Scoped to the selected class |
 | `#textEntrantName` | Text (inside repeater item) | |
 | `#textEntrantRole` | Text (inside repeater item) | |
 | `#textEntrantClass` | Text (inside repeater item) | |
@@ -264,6 +302,7 @@ plus two confirmation modals.
 | `#textHeader` | Text (inside repeater item) | |
 | `#textHeeler` | Text (inside repeater item) | |
 | `#iconSpacingFlag` | Icon/image (inside repeater item) | Has a `.tooltip` set programmatically — use an element type that supports a tooltip property |
+| `#iconIncentiveFlag` | Icon/image (inside repeater item) | **NEW.** Shown only if this team's combined number qualifies for the class's incentive/slide (if the class offers one) — display-only, lets the producer visually pick out incentive-qualifying teams for their own manual time-bonus tracking. Doesn't affect anything else here |
 | `#checkboxSwapSelect` | Checkbox (inside repeater item) | |
 | `#btnAcknowledgeConflict` | Button (inside repeater item) | Shown only for flagged-unacknowledged rows |
 

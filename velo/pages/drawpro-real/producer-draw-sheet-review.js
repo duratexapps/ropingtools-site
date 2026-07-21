@@ -1,12 +1,21 @@
 /**
  * Page: Producer — Draw Sheet Review & Sign-Off
  * Covers the "verify → draw → notify" pipeline's middle step for both
- * entry paths. Producer lands here once event status = 'closed'.
+ * entry paths.
+ *
+ * REWRITTEN 2026-07-21 for the multi-class redesign (see
+ * docs/ARCHITECTURE.md's "Draw Pro multi-class redesign" entry). The old
+ * version of this page reviewed/drew one flat event. Now every one of
+ * matching-engine.jsw's and notifications.jsw's functions used here takes
+ * a classId, not an eventId — draws run per class, since classes close and
+ * draw independently (one class in an event can be finalized and drawn
+ * while a sibling class is still open for entries). This page now needs a
+ * class selector; everything downstream of it is scoped to whichever class
+ * is selected.
  *
  * Expected Editor elements:
- *   #repeaterEntrants        (repeater listing all entrants pre-draw,
- *                             with #textEntrantName, #textEntrantRole,
- *                             #textEntrantClass inside)
+ *   #dropdownClass            (NEW — which class within the event to review/draw. Only classes with status 'closed' or beyond are meaningful choices here, since a still-'open' class isn't ready to finalize)
+ *   #repeaterEntrants        (repeater listing all entrants pre-draw for the SELECTED class, with #textEntrantName, #textEntrantRole, #textEntrantClass inside)
  *   #btnFinalize              (locks entries, moves to pending_signoff)
  *   #btnSignOff               (triggers the actual draw — requires confirm)
  *   #boxSignOffConfirm         (confirmation modal/container)
@@ -17,6 +26,13 @@
  *                             #iconSpacingFlag (shown if spacingFlagged and
  *                             not yet acknowledged), #checkboxSwapSelect
  *                             (select this team as one half of a swap))
+ *   #iconIncentiveFlag        (NEW — inside #repeaterTeams item. Shown only if
+ *                             team.qualifiesForIncentive === true, so the
+ *                             producer can visually pick out incentive-
+ *                             qualifying teams at a glance during a live
+ *                             event for their own manual time-bonus
+ *                             tracking. Display-only, doesn't affect
+ *                             anything else on this page.)
  *   #btnSwapSelected          (swaps the two currently-checked teams)
  *   #btnAcknowledgeConflict   (shown per flagged row, opens the ack box)
  *   #boxAcknowledgeConfirm    (confirmation container with a note field)
@@ -39,6 +55,7 @@ import {
 import { sendDrawNotifications, getManualContactList } from 'backend/notifications.jsw';
 
 let eventId;
+let currentClassId = null;
 let selectedForSwap = []; // holds up to 2 team _ids
 let teamPendingAck = null;
 
@@ -49,11 +66,12 @@ $w.onReady(async function () {
         return;
     }
 
-    await loadEntrantList();
+    await loadClassDropdown();
     wireButtons();
 });
 
 function wireButtons() {
+    $w('#dropdownClass').onChange(handleClassChanged);
     $w('#btnFinalize').onClick(handleFinalize);
     $w('#btnSignOff').onClick(() => $w('#boxSignOffConfirm').expand());
     $w('#btnCancelSignOff').onClick(() => $w('#boxSignOffConfirm').collapse());
@@ -65,8 +83,35 @@ function wireButtons() {
     $w('#btnSwapSelected').disable();
 }
 
+/**
+ * Every class in this event, closed or beyond — a still-'open' class
+ * isn't ready to finalize/draw yet, but showing it anyway (rather than
+ * hiding it) lets the producer see at a glance which of their classes
+ * aren't ready, instead of wondering why one's missing from the list.
+ */
+async function loadClassDropdown() {
+    const result = await wixData.query('DrawProEventClasses').eq('eventId', eventId).find();
+    $w('#dropdownClass').options = result.items.map(cls => ({
+        label: `${cls.label} (${cls.status})`,
+        value: cls._id
+    }));
+    if (result.items.length > 0) {
+        currentClassId = result.items[0]._id;
+        $w('#dropdownClass').value = currentClassId;
+        await handleClassChanged();
+    }
+}
+
+async function handleClassChanged() {
+    currentClassId = $w('#dropdownClass').value;
+    setStatus('');
+    selectedForSwap = [];
+    $w('#btnSwapSelected').disable();
+    await loadEntrantList();
+}
+
 async function loadEntrantList() {
-    const result = await wixData.query('DrawProEntrants').eq('eventId', eventId).find();
+    const result = await wixData.query('DrawProEntrants').eq('classId', currentClassId).find();
     $w('#repeaterEntrants').data = result.items;
     $w('#repeaterEntrants').onItemReady(($item, entrant) => {
         $item('#textEntrantName').text = `${entrant.firstName} ${entrant.lastName}`;
@@ -79,7 +124,7 @@ async function handleFinalize() {
     setStatus('');
     $w('#btnFinalize').disable();
     try {
-        await finalizeDrawSheet(eventId);
+        await finalizeDrawSheet(currentClassId);
         setStatus('Entries locked. Review the list above, then sign off to run the draw.');
         $w('#btnSignOff').enable();
     } catch (err) {
@@ -94,7 +139,7 @@ async function handleSignOff() {
     $w('#btnSignOff').disable();
 
     try {
-        const result = await signOffDrawSheet(eventId);
+        const result = await signOffDrawSheet(currentClassId);
         await loadDrawnTeams();
 
         if (result.unmatchedEntrants.length > 0) {
@@ -114,7 +159,7 @@ async function handleSignOff() {
 }
 
 async function loadDrawnTeams() {
-    const result = await wixData.query('DrawProTeams').eq('eventId', eventId).ascending('teamNumber').find();
+    const result = await wixData.query('DrawProTeams').eq('classId', currentClassId).ascending('teamNumber').find();
     $w('#repeaterTeams').data = result.items;
     $w('#repeaterTeams').onItemReady(async ($item, team) => {
         const header = await wixData.get('DrawProEntrants', team.headerEntrantId);
@@ -122,6 +167,14 @@ async function loadDrawnTeams() {
         $item('#textTeamNumber').text = String(team.teamNumber);
         $item('#textHeader').text = `${header.firstName} ${header.lastName}`;
         $item('#textHeeler').text = `${heeler.firstName} ${heeler.lastName}`;
+
+        // Display-only — see file header comment. Doesn't affect anything
+        // else about this team.
+        if (team.qualifiesForIncentive) {
+            $item('#iconIncentiveFlag').expand();
+        } else {
+            $item('#iconIncentiveFlag').collapse();
+        }
 
         if (team.spacingFlagged && !team.spacingAcknowledged) {
             $item('#iconSpacingFlag').expand();
@@ -167,7 +220,7 @@ async function handleSwapSelected() {
     $w('#btnSwapSelected').disable();
 
     try {
-        await swapTeamPositions(eventId, selectedForSwap[0], selectedForSwap[1]);
+        await swapTeamPositions(currentClassId, selectedForSwap[0], selectedForSwap[1]);
         selectedForSwap = [];
         setStatus('Swapped. Spacing has been rechecked across the whole run order.');
         await loadDrawnTeams();
@@ -188,7 +241,7 @@ async function handleConfirmAcknowledge() {
     const note = $w('#inputAcknowledgeNote').value;
 
     try {
-        await acknowledgeSpacingConflict(eventId, teamPendingAck._id, note);
+        await acknowledgeSpacingConflict(currentClassId, teamPendingAck._id, note);
         setStatus(`Acknowledged team #${teamPendingAck.teamNumber} — no fix available. Logged for the record.`);
         $w('#boxAcknowledgeConfirm').collapse();
         teamPendingAck = null;
@@ -200,7 +253,7 @@ async function handleConfirmAcknowledge() {
 }
 
 async function refreshUnresolvedCount() {
-    const unresolved = await getUnresolvedSpacingConflicts(eventId);
+    const unresolved = await getUnresolvedSpacingConflicts(currentClassId);
     if (unresolved.length === 0) {
         setStatus('No unresolved spacing conflicts remain.');
     }
@@ -239,15 +292,12 @@ async function handleManualPair() {
     }
 
     try {
-        await manualPairEntrants(eventId, headerId, heelerId, acknowledged);
+        await manualPairEntrants(currentClassId, headerId, heelerId, acknowledged);
         setStatus('Manual pairing added. This has been logged for accountability.');
         await loadDrawnTeams();
-        // Refresh unmatched list by re-querying rather than re-running the draw.
-        const remaining = await wixData.query('DrawProDrawSheets').eq('eventId', eventId).find();
-        // (In practice: re-filter unmatched list client-side after removing the just-paired pair.)
     } catch (err) {
-        // Cap violations surface here with a clear rejection message —
-        // the pairing is never created.
+        // Cap violations (combined or heeler sub-cap) surface here with a
+        // clear rejection message — the pairing is never created.
         setStatus(err.message, true);
     }
 }
@@ -257,8 +307,8 @@ async function handleSendNotifications() {
     setStatus('Sending notifications…');
 
     try {
-        const summary = await sendDrawNotifications(eventId);
-        const manualContacts = await getManualContactList(eventId);
+        const summary = await sendDrawNotifications(currentClassId);
+        const manualContacts = await getManualContactList(currentClassId);
 
         let message = `Sent: ${summary.sent}. Bounced: ${summary.bounced}.`;
         if (manualContacts.length > 0) {
