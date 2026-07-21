@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro — Producer Draw Sheet Review, Desktop view (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6; --tan-light: #FBF8F1; --leather: #1E140F; --leather-dark: #120C08;
+    --rust: #A9812E; --rope: #7C6448; --ink: #2A2420; --cream: #F4EFE4;
+    --green: #4B5A3C; --brass-light: #C9A54F; --oxblood: #5C2430;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Work Sans', sans-serif; background: var(--cream); min-height: 100vh; }
+
+  .mockup-banner { background: var(--oxblood); color: var(--cream); text-align: center; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.04em; padding: 0.5rem; }
+
+  .topbar {
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -30%, rgba(169,129,46,0.30), transparent 55%);
+    padding: 1.4rem 2.5rem; color: var(--cream); display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.5rem; }
+  .class-dropdown-top {
+    background: var(--tan-light); border: 1px solid var(--rope); border-radius: 6px;
+    padding: 0.45rem 0.8rem; font-weight: 700; font-size: 0.85rem; color: var(--ink);
+  }
+
+  .page-content { max-width: 1180px; margin: 0 auto; padding: 2rem 2.5rem 3rem; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; align-items: start; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--tan-light); border: 1px solid var(--rope); border-left: 4px solid var(--rust);
+    border-radius: 10px; padding: 1.25rem 1.4rem 1.4rem; margin-bottom: 1.5rem;
+  }
+  .card-title { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.1rem; color: var(--leather); margin-bottom: 0.3rem; }
+  .card-subtitle { font-size: 0.78rem; color: var(--rope); margin-bottom: 0.9rem; }
+
+  /* Ledger-style rows, per tokens */
+  .row {
+    display: flex; align-items: center; gap: 0.8rem; background: #fff; border: 1px solid #e2d6bd;
+    border-radius: 8px; padding: 0.55rem 0.85rem; margin-bottom: 0.5rem; font-size: 0.85rem;
+  }
+  .row .tag-mini {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(155deg, var(--brass-light) 0%, var(--rust) 55%, #6E5119 100%);
+    border: 1.5px solid #4a3813; display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15), inset 0 1px 3px rgba(0,0,0,0.4);
+  }
+  .row .tag-mini span { font-family: 'Playfair Display', serif; font-weight: 900; color: #2A2005; font-size: 0.8rem; }
+  .row .row-name { font-weight: 600; color: var(--ink); flex: 1; }
+  .row .row-meta { font-size: 0.75rem; color: var(--rope); }
+  .row .row-flags { display: flex; gap: 0.4rem; }
+  .flag-icon {
+    width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700; color: var(--cream); cursor: help;
+  }
+  .flag-icon.spacing { background: var(--oxblood); }
+  .flag-icon.incentive { background: var(--green); }
+  .row input[type="checkbox"] { accent-color: var(--rust); width: 16px; height: 16px; }
+
+  .btn-primary {
+    background: var(--rust); color: var(--cream); border: none; border-radius: 7px;
+    padding: 0.65rem 1.3rem; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+  }
+  .btn-primary:disabled { opacity: 0.4; }
+  .btn-outline {
+    background: transparent; color: var(--leather); border: 1.5px solid var(--leather); border-radius: 7px;
+    padding: 0.5rem 1rem; font-weight: 700; font-size: 0.8rem; cursor: pointer;
+  }
+  .btn-outline:disabled { opacity: 0.4; }
+  .btn-oxblood {
+    background: var(--oxblood); color: var(--cream); border: none; border-radius: 7px;
+    padding: 0.5rem 1rem; font-weight: 700; font-size: 0.78rem; cursor: pointer;
+  }
+
+  .status-pill { display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.2rem 0.55rem; border-radius: 999px; color: var(--cream); }
+  .status-pill.pending { background: var(--rope); }
+  .status-pill.drawn { background: var(--green); }
+
+  .legend { display: flex; gap: 1.2rem; font-size: 0.72rem; color: var(--rope); margin-top: 0.6rem; }
+  .legend .flag-icon { width: 16px; height: 16px; font-size: 0; margin-right: 0.3rem; vertical-align: middle; display: inline-flex; }
+
+  select.class-select-inline {
+    background: #fff; border: 1px solid var(--rope); border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.8rem;
+  }
+
+  .dropdown-pair { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
+  .dropdown-pair select { flex: 1; padding: 0.5rem 0.6rem; border: 1px solid var(--rope); border-radius: 6px; font-size: 0.82rem; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; font-weight: 600; color: var(--ink); margin-bottom: 0.8rem; }
+  .checkbox-row input { accent-color: var(--oxblood); width: 16px; height: 16px; }
+
+  .annotation { font-size: 0.7rem; color: var(--rope); font-style: italic; margin-top: 0.6rem; }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP ONLY — not functional code, not for pasting into Wix. Desktop view — no Tour Overlay on this page.</div>
+
+<div class="topbar">
+  <h1>Draw Sheet Review &amp; Sign-Off</h1>
+  <select class="class-dropdown-top">
+    <option>7.5 (closed)</option>
+    <option selected>8.5 (drawn)</option>
+    <option>9.5 (open)</option>
+  </select>
+</div>
+
+<div class="page-content">
+
+  <div class="two-col">
+
+    <!-- LEFT: pre-draw / finalize / sign-off -->
+    <div>
+      <div class="card">
+        <div class="card-title">Entrants — Class 8.5</div>
+        <div class="card-subtitle">Locked once finalized. <span class="status-pill drawn">Drawn</span></div>
+
+        <div class="row"><span class="row-name">John Doe</span><span class="row-meta">Header &middot; #6.0</span></div>
+        <div class="row"><span class="row-name">Jane Roe</span><span class="row-meta">Heeler &middot; #4.5</span></div>
+        <div class="row"><span class="row-name">Mike Trent</span><span class="row-meta">Header &middot; #5.5</span></div>
+        <div class="row"><span class="row-name">Sarah Lyle</span><span class="row-meta">Heeler &middot; #5.0</span></div>
+
+        <div style="margin-top:1rem;"><button class="btn-outline" disabled>Finalize Entries</button></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Sign Off</div>
+        <div class="card-subtitle">Triggers the actual draw — requires confirmation.</div>
+        <button class="btn-primary" disabled>Sign Off &amp; Run Draw</button>
+        <div class="annotation">Starts disabled until Finalize succeeds. A confirmation modal appears before the draw actually runs.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: drawn teams -->
+    <div>
+      <div class="card">
+        <div class="card-title">Drawn Teams</div>
+        <div class="card-subtitle">Check exactly two rows, then Swap Selected to reorder.</div>
+
+        <div class="row">
+          <span class="tag-mini"><span>1</span></span>
+          <span class="row-name">John Doe / Jane Roe</span>
+          <div class="row-flags"><span class="flag-icon incentive" title="Qualifies for incentive">★</span></div>
+        </div>
+        <div class="row">
+          <input type="checkbox">
+          <span class="tag-mini"><span>2</span></span>
+          <span class="row-name">Mike Trent / Sarah Lyle</span>
+          <div class="row-flags"><span class="flag-icon spacing" title="Spacing conflict — needs producer attention">!</span></div>
+        </div>
+        <div class="row">
+          <input type="checkbox">
+          <span class="tag-mini"><span>3</span></span>
+          <span class="row-name">Alan Cruz / Beth Ortiz</span>
+        </div>
+
+        <div class="legend">
+          <span><span class="flag-icon spacing" style="display:inline-flex;">!</span>Spacing conflict</span>
+          <span><span class="flag-icon incentive" style="display:inline-flex;">★</span>Incentive-qualifying</span>
+        </div>
+
+        <div style="margin-top:1rem;"><button class="btn-primary" disabled>Swap Selected</button></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FULL WIDTH: unmatched + notifications -->
+  <div class="card">
+    <div class="card-title">Unmatched Entrants — Manual Pairing</div>
+    <div class="card-subtitle">The algorithm couldn't pair these. Cap rules are still enforced server-side, regardless of what's acknowledged here.</div>
+
+    <div class="row"><span class="row-name">Tom Baker</span><span class="row-meta">Header &middot; #7.0</span></div>
+    <div class="row"><span class="row-name">Amy Diaz</span><span class="row-meta">Heeler &middot; #2.5</span></div>
+
+    <div class="dropdown-pair">
+      <select><option>Header: Tom Baker (#7.0)</option></select>
+      <select><option>Heeler: Amy Diaz (#2.5)</option></select>
+    </div>
+    <div class="checkbox-row"><input type="checkbox">I acknowledge the manual-override notice</div>
+    <button class="btn-oxblood">Pair Manually</button>
+  </div>
+
+  <div class="card" style="margin-bottom: 0;">
+    <div class="card-title">Notifications</div>
+    <div class="card-subtitle">Won't send anything until the Triggered Email template exists.</div>
+    <button class="btn-primary">Send Draw Notifications</button>
+    <div class="annotation">Enable once status reaches "drawn."</div>
+  </div>
+
+</div>
+
+</body>
+</html>

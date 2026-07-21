@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro — Entrant Entry Form, Desktop view (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6; --tan-light: #FBF8F1; --leather: #1E140F; --leather-dark: #120C08;
+    --rust: #A9812E; --rope: #7C6448; --ink: #2A2420; --cream: #F4EFE4;
+    --green: #4B5A3C; --brass-light: #C9A54F; --oxblood: #5C2430;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Work Sans', sans-serif; background: var(--cream); min-height: 100vh; }
+
+  .mockup-banner {
+    background: var(--oxblood); color: var(--cream); text-align: center;
+    font-weight: 700; font-size: 0.8rem; letter-spacing: 0.04em; padding: 0.5rem;
+  }
+
+  /* --- Wix Editor note: this is the SAME page as the mobile mockup -
+     same elements, same IDs, same code. Wix's Desktop/Mobile toggle lets
+     you arrange those same elements differently per view; this is the
+     Desktop arrangement. Entrant-facing, but a desktop visitor still
+     benefits from using the width - a two-panel layout (sticky summary +
+     form) rather than just stretching the mobile card wider. --- */
+  .topbar {
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -30%, rgba(169,129,46,0.30), transparent 55%);
+    padding: 1.4rem 2.5rem; color: var(--cream);
+  }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.5rem; }
+
+  .page-content {
+    max-width: 980px; margin: 0 auto; padding: 2rem 2.5rem 3rem;
+    display: grid; grid-template-columns: 300px 1fr; gap: 1.75rem; align-items: start;
+  }
+  @media (max-width: 800px) { .page-content { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--tan-light); border: 1px solid var(--rope);
+    border-left: 4px solid var(--rust); border-radius: 10px;
+    padding: 1.25rem 1.4rem 1.4rem; margin-bottom: 1.5rem;
+  }
+  .card-title {
+    font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.05rem;
+    color: var(--leather); margin-bottom: 0.9rem;
+  }
+
+  /* --- LEFT: sticky summary panel --- */
+  .summary-panel { position: sticky; top: 2rem; }
+  .class-dropdown {
+    width: 100%; background: #fff; border: 1px solid var(--rope); border-radius: 6px;
+    padding: 0.55rem 0.7rem; font-weight: 600; font-size: 0.88rem; color: var(--ink);
+    margin-bottom: 0.6rem;
+  }
+  .cap-line { font-size: 0.78rem; color: var(--rope); margin-bottom: 1rem; }
+  .cap-line .num { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--rust); }
+
+  .fee-box {
+    background: var(--leather); border-radius: 8px; padding: 0.9rem 1rem; margin-top: 0.5rem;
+  }
+  .fee-box .fee-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tan); }
+  .fee-box .fee-amount { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.55rem; color: var(--brass-light); margin: 0.15rem 0; }
+  .fee-box .fee-breakdown { font-size: 0.7rem; color: var(--tan); }
+
+  .steerme-nudge {
+    background: #efe4cf; border: 1px dashed var(--rust); border-radius: 6px;
+    padding: 0.6rem 0.75rem; font-size: 0.74rem; color: var(--ink); margin-top: 0.9rem;
+  }
+  .steerme-nudge strong { color: var(--oxblood); }
+
+  /* --- RIGHT: the form itself --- */
+  label {
+    display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--rope); margin-bottom: 0.3rem;
+  }
+  input[type="text"], input[type="email"] {
+    width: 100%; padding: 0.55rem 0.65rem; border: 1px solid var(--rope); border-radius: 6px;
+    font-size: 0.88rem; color: var(--ink); background: #fff;
+  }
+  .field-group { margin-bottom: 0.9rem; }
+  .field-row { display: flex; gap: 1rem; }
+  .field-row .field-group { flex: 1; }
+
+  .checkbox-row { display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem; }
+  .checkbox-row input { margin-top: 0.15rem; accent-color: var(--rust); width: 16px; height: 16px; }
+  .checkbox-row .label-text { font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .checkbox-row .sub-hint { font-size: 0.73rem; color: var(--rope); margin-top: 0.1rem; }
+
+  .radio-row { display: flex; gap: 1.1rem; margin-bottom: 0.9rem; }
+  .radio-option { display: flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; font-weight: 600; color: var(--ink); }
+  .radio-option input { accent-color: var(--rust); }
+
+  .inner-card {
+    background: #fff; border: 1px solid #e2d6bd; border-left: 3px solid var(--rust);
+    border-radius: 8px; padding: 0.9rem 1rem 1rem; margin-bottom: 1rem;
+  }
+  .inner-card-title { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 0.92rem; color: var(--leather); margin-bottom: 0.7rem; }
+
+  .btn-primary {
+    display: inline-block; background: var(--rust); color: var(--cream); border: none;
+    border-radius: 7px; padding: 0.75rem 1.6rem; font-weight: 700; font-size: 0.92rem; cursor: pointer;
+  }
+  .annotation { font-size: 0.7rem; color: var(--rope); font-style: italic; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP ONLY — not functional code, not for pasting into Wix. Desktop view — same page/elements as the mobile mockup, arranged differently.</div>
+
+<div class="topbar"><h1>Saturday Jackpot — Hallettsville, TX</h1></div>
+
+<div class="page-content">
+
+  <!-- LEFT: summary panel -->
+  <div class="summary-panel">
+    <div class="card">
+      <div class="card-title">This Entry</div>
+      <label>Class</label>
+      <select class="class-dropdown">
+        <option>7.5</option><option>8.5</option><option selected>9.5</option>
+      </select>
+      <div class="cap-line">Cap: <span class="num">9.5</span> &middot; Heeler cap: <span class="num">5.5</span></div>
+
+      <div class="fee-box">
+        <div class="fee-label">Your Total</div>
+        <div class="fee-amount">$460.00</div>
+        <div class="fee-breakdown">1 pre-formed entry at $200.00 + 2 draw-in entries at $240.00 each — cash</div>
+      </div>
+
+      <div class="steerme-nudge"><strong>Entering with a partner</strong> means one entry fee for the team instead of the draw-in rate. Find a partner on Steer Me first to save.</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: the form -->
+  <div>
+    <div class="card">
+      <div class="card-title">Your Info</div>
+      <div class="field-row">
+        <div class="field-group"><label>First Name</label><input type="text" value="John"></div>
+        <div class="field-group"><label>Last Name</label><input type="text" value="Doe"></div>
+      </div>
+      <div class="field-row">
+        <div class="field-group"><label>Classification #</label><input type="text" value="6.0"></div>
+        <div class="field-group"><label>Global ID (optional)</label><input type="text" placeholder="G-000000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field-group"><label>Email</label><input type="email" value="john@example.com"></div>
+        <div class="field-group"><label>Phone (optional)</label><input type="text" placeholder="(555) 555-5555"></div>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" checked>
+        <div class="label-text">I already have a partner</div>
+      </div>
+
+      <div class="inner-card">
+        <div class="inner-card-title">My role with this partner</div>
+        <div class="radio-row">
+          <div class="radio-option"><input type="radio" name="role" checked> Header</div>
+          <div class="radio-option"><input type="radio" name="role"> Heeler</div>
+        </div>
+        <div class="radio-row">
+          <div class="radio-option"><input type="radio" name="pmode" checked> Full details</div>
+          <div class="radio-option"><input type="radio" name="pmode"> Email only</div>
+        </div>
+        <div class="field-row">
+          <div class="field-group"><label>Partner First Name</label><input type="text" value="Jane"></div>
+          <div class="field-group"><label>Partner Last Name</label><input type="text" value="Roe"></div>
+        </div>
+        <div class="field-row">
+          <div class="field-group"><label>Partner Classification #</label><input type="text" value="4.5"></div>
+          <div class="field-group"><label>Partner Email</label><input type="email" value="jane@example.com"></div>
+        </div>
+        <div class="checkbox-row" style="margin-bottom:0;">
+          <input type="checkbox">
+          <div>
+            <div class="label-text">Also enter with Jane in opposite positions</div>
+            <div class="sub-hint">(up &amp; back — adds a second entry, roles swapped)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox">
+        <div class="label-text">I'm entering as a guest (no RopingTools account)</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group" style="max-width:160px;"><label>Draw-In Entries</label><input type="text" value="2"></div>
+      </div>
+
+      <div class="inner-card" style="margin-bottom: 0;">
+        <div class="inner-card-title">My role when drawing in</div>
+        <div class="radio-row" style="margin-bottom:0;">
+          <div class="radio-option"><input type="radio" name="drawrole"> Header</div>
+          <div class="radio-option"><input type="radio" name="drawrole" checked> Heeler</div>
+        </div>
+      </div>
+      <div class="annotation">↑ independent of "my role with this partner" above — same person, different role, per submission</div>
+
+      <div style="margin-top: 1.3rem;">
+        <button class="btn-primary">Submit Entry</button>
+      </div>
+    </div>
+
+    <div class="annotation">Not shown: the pre-open state (replaces this form), the payment step (replaces the submit button after success), and the tour overlay.</div>
+  </div>
+
+</div>
+
+</body>
+</html>

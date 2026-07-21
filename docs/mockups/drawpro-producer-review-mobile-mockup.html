@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro — Producer Draw Sheet Review, Mobile view (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6; --tan-light: #FBF8F1; --leather: #1E140F; --leather-dark: #120C08;
+    --rust: #A9812E; --rope: #7C6448; --ink: #2A2420; --cream: #F4EFE4;
+    --green: #4B5A3C; --brass-light: #C9A54F; --oxblood: #5C2430;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Work Sans', sans-serif; background: #0a0705; min-height: 100vh;
+    display: flex; align-items: flex-start; justify-content: center; padding: 3rem 1rem;
+  }
+  .mockup-banner {
+    position: fixed; top:0; left:0; right:0; background: var(--oxblood); color: var(--cream);
+    text-align: center; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em; padding: 0.5rem; z-index: 100;
+  }
+
+  .phone-frame {
+    width: 390px; max-width: 100%; margin-top: 2.5rem; background: var(--leather-dark);
+    border-radius: 40px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .phone-screen { background: var(--cream); border-radius: 28px; overflow: hidden; min-height: 600px; }
+
+  .topbar {
+    background: var(--leather);
+    background-image: radial-gradient(circle at 85% -20%, rgba(169,129,46,0.35), transparent 60%);
+    padding: 1rem 1.1rem; color: var(--cream);
+  }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1rem; margin-bottom: 0.5rem; }
+  .class-dropdown-top { width: 100%; background: var(--tan-light); border: 1px solid var(--rope); border-radius: 6px; padding: 0.4rem 0.6rem; font-weight: 700; font-size: 0.78rem; color: var(--ink); }
+
+  .content { padding: 1rem 1.05rem 1.4rem; }
+  .card {
+    background: var(--tan-light); border: 1px solid var(--rope); border-left: 4px solid var(--rust);
+    border-radius: 8px; padding: 0.9rem 1rem 1.05rem; margin-bottom: 1rem;
+  }
+  .card-title { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 0.92rem; color: var(--leather); margin-bottom: 0.15rem; }
+  .card-subtitle { font-size: 0.66rem; color: var(--rope); margin-bottom: 0.7rem; }
+
+  .row {
+    display: flex; align-items: center; gap: 0.6rem; background: #fff; border: 1px solid #e2d6bd;
+    border-radius: 7px; padding: 0.5rem 0.65rem; margin-bottom: 0.4rem; font-size: 0.76rem;
+  }
+  .row .tag-mini {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(155deg, var(--brass-light) 0%, var(--rust) 55%, #6E5119 100%);
+    border: 1.5px solid #4a3813; display: flex; align-items: center; justify-content: center;
+  }
+  .row .tag-mini span { font-family: 'Playfair Display', serif; font-weight: 900; color: #2A2005; font-size: 0.68rem; }
+  .row .row-name { font-weight: 600; color: var(--ink); flex: 1; }
+  .row .row-meta { font-size: 0.66rem; color: var(--rope); }
+  .row input[type="checkbox"] { accent-color: var(--rust); width: 14px; height: 14px; }
+  .flag-icon {
+    width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; font-weight: 700; color: var(--cream); flex-shrink: 0;
+  }
+  .flag-icon.spacing { background: var(--oxblood); }
+  .flag-icon.incentive { background: var(--green); }
+
+  .btn-primary { display: block; width: 100%; background: var(--rust); color: var(--cream); border: none; border-radius: 7px; padding: 0.6rem; font-weight: 700; font-size: 0.8rem; text-align: center; }
+  .btn-primary:disabled { opacity: 0.4; }
+  .btn-outline { display: block; width: 100%; background: transparent; color: var(--leather); border: 1.5px solid var(--leather); border-radius: 7px; padding: 0.55rem; font-weight: 700; font-size: 0.78rem; text-align: center; }
+  .btn-outline:disabled { opacity: 0.4; }
+  .btn-oxblood { display: block; width: 100%; background: var(--oxblood); color: var(--cream); border: none; border-radius: 7px; padding: 0.55rem; font-weight: 700; font-size: 0.76rem; text-align: center; }
+
+  .status-pill { display: inline-block; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.16rem 0.5rem; border-radius: 999px; color: var(--cream); }
+  .status-pill.drawn { background: var(--green); }
+
+  .legend { display: flex; gap: 0.9rem; font-size: 0.64rem; color: var(--rope); margin: 0.5rem 0 0.7rem; flex-wrap: wrap; }
+  .legend .flag-icon { width: 14px; height: 14px; margin-right: 0.25rem; }
+  .legend span.item { display: flex; align-items: center; }
+
+  select { width: 100%; padding: 0.45rem 0.55rem; border: 1px solid var(--rope); border-radius: 6px; font-size: 0.74rem; margin-bottom: 0.5rem; }
+  .checkbox-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.74rem; font-weight: 600; color: var(--ink); margin-bottom: 0.7rem; }
+  .checkbox-row input { accent-color: var(--oxblood); width: 14px; height: 14px; }
+
+  .annotation { font-size: 0.62rem; color: var(--rope); font-style: italic; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP ONLY — not functional code. Mobile view — no Tour Overlay on this page.</div>
+
+<div class="phone-frame">
+  <div class="phone-screen">
+
+    <div class="topbar">
+      <h1>Draw Sheet Review</h1>
+      <select class="class-dropdown-top">
+        <option>7.5 (closed)</option>
+        <option selected>8.5 (drawn)</option>
+        <option>9.5 (open)</option>
+      </select>
+    </div>
+
+    <div class="content">
+
+      <div class="card">
+        <div class="card-title">Entrants — Class 8.5</div>
+        <div class="card-subtitle">Locked once finalized. <span class="status-pill drawn">Drawn</span></div>
+        <div class="row"><span class="row-name">John Doe</span><span class="row-meta">Header &middot; #6.0</span></div>
+        <div class="row"><span class="row-name">Jane Roe</span><span class="row-meta">Heeler &middot; #4.5</span></div>
+        <div class="row"><span class="row-name">Mike Trent</span><span class="row-meta">Header &middot; #5.5</span></div>
+        <div class="row"><span class="row-name">Sarah Lyle</span><span class="row-meta">Heeler &middot; #5.0</span></div>
+        <button class="btn-outline" disabled>Finalize Entries</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Sign Off</div>
+        <div class="card-subtitle">Triggers the actual draw.</div>
+        <button class="btn-primary" disabled>Sign Off &amp; Run Draw</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Drawn Teams</div>
+        <div class="card-subtitle">Check exactly two rows to swap.</div>
+
+        <div class="row">
+          <span class="tag-mini"><span>1</span></span>
+          <span class="row-name">John Doe / Jane Roe</span>
+          <span class="flag-icon incentive">★</span>
+        </div>
+        <div class="row">
+          <input type="checkbox">
+          <span class="tag-mini"><span>2</span></span>
+          <span class="row-name">Mike Trent / Sarah Lyle</span>
+          <span class="flag-icon spacing">!</span>
+        </div>
+        <div class="row">
+          <input type="checkbox">
+          <span class="tag-mini"><span>3</span></span>
+          <span class="row-name">Alan Cruz / Beth Ortiz</span>
+        </div>
+
+        <div class="legend">
+          <span class="item"><span class="flag-icon spacing">!</span>Spacing conflict</span>
+          <span class="item"><span class="flag-icon incentive">★</span>Incentive</span>
+        </div>
+
+        <button class="btn-primary" disabled>Swap Selected</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Unmatched — Manual Pairing</div>
+        <div class="card-subtitle">Cap rules still enforced server-side regardless of what's acknowledged here.</div>
+        <div class="row"><span class="row-name">Tom Baker</span><span class="row-meta">Header &middot; #7.0</span></div>
+        <div class="row"><span class="row-name">Amy Diaz</span><span class="row-meta">Heeler &middot; #2.5</span></div>
+        <select><option>Header: Tom Baker (#7.0)</option></select>
+        <select><option>Heeler: Amy Diaz (#2.5)</option></select>
+        <div class="checkbox-row"><input type="checkbox">I acknowledge the override notice</div>
+        <button class="btn-oxblood">Pair Manually</button>
+      </div>
+
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-title">Notifications</div>
+        <div class="card-subtitle">Won't send until the Triggered Email template exists.</div>
+        <button class="btn-primary">Send Draw Notifications</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

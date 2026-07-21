@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro — Producer Event Setup, Mobile view (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6; --tan-light: #FBF8F1; --leather: #1E140F; --leather-dark: #120C08;
+    --rust: #A9812E; --rope: #7C6448; --ink: #2A2420; --cream: #F4EFE4;
+    --green: #4B5A3C; --brass-light: #C9A54F; --oxblood: #5C2430;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Work Sans', sans-serif; background: #0a0705; min-height: 100vh;
+    display: flex; align-items: flex-start; justify-content: center; padding: 3rem 1rem;
+  }
+  .mockup-banner {
+    position: fixed; top:0; left:0; right:0; background: var(--oxblood); color: var(--cream);
+    text-align: center; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.04em; padding: 0.5rem; z-index: 100;
+  }
+
+  /* Same page/elements as the desktop mockup - Wix's Mobile Editor view,
+     stacked single-column. A producer occasionally checking status from
+     a phone still needs this to work, even though desktop is primary. */
+  .phone-frame {
+    width: 390px; max-width: 100%; margin-top: 2.5rem; background: var(--leather-dark);
+    border-radius: 40px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .phone-screen { background: var(--cream); border-radius: 28px; overflow: hidden; min-height: 600px; }
+
+  .topbar {
+    background: var(--leather);
+    background-image: radial-gradient(circle at 85% -20%, rgba(169,129,46,0.35), transparent 60%);
+    padding: 1.1rem 1.2rem; color: var(--cream);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.05rem; }
+  .btn-ghost {
+    background: transparent; color: var(--cream); border: 1px solid var(--rope); border-radius: 6px;
+    padding: 0.3rem 0.6rem; font-size: 0.68rem; font-weight: 600;
+  }
+
+  .content { padding: 1.1rem 1.1rem 1.5rem; }
+  .card {
+    background: var(--tan-light); border: 1px solid var(--rope); border-left: 4px solid var(--rust);
+    border-radius: 8px; padding: 1rem 1.1rem 1.2rem; margin-bottom: 1.1rem;
+  }
+  .card-title { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 0.98rem; color: var(--leather); margin-bottom: 0.2rem; }
+  .card-subtitle { font-size: 0.7rem; color: var(--rope); margin-bottom: 0.9rem; }
+
+  label { display: block; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--rope); margin-bottom: 0.25rem; }
+  input[type="text"], input[type="date"], input[type="datetime-local"] {
+    width: 100%; padding: 0.5rem 0.6rem; border: 1px solid var(--rope); border-radius: 6px; font-size: 0.82rem; color: var(--ink); background: #fff;
+  }
+  .field-group { margin-bottom: 0.75rem; }
+  .checkbox-row { display: flex; align-items: center; gap: 0.45rem; margin-bottom: 0.8rem; font-size: 0.8rem; font-weight: 600; color: var(--ink); }
+  .checkbox-row input { accent-color: var(--rust); width: 15px; height: 15px; }
+  .radio-row { display: flex; gap: 0.8rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+  .radio-option { display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; font-weight: 600; color: var(--ink); }
+  .radio-option input { accent-color: var(--rust); }
+
+  .section-label {
+    font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--rust);
+    margin: 0.9rem 0 0.5rem; padding-top: 0.75rem; border-top: 1px solid #e2d6bd;
+  }
+  .section-label:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+
+  .btn-primary {
+    display: block; width: 100%; background: var(--rust); color: var(--cream); border: none;
+    border-radius: 7px; padding: 0.7rem; font-weight: 700; font-size: 0.85rem; text-align: center;
+  }
+  .btn-primary:disabled { opacity: 0.45; }
+  .btn-outline {
+    background: transparent; color: var(--leather); border: 1.5px solid var(--leather); border-radius: 7px;
+    padding: 0.5rem; font-weight: 700; font-size: 0.8rem; width: 100%; text-align: center;
+  }
+
+  .warning-note { background: #f4e6c9; border: 1px solid var(--brass-light); border-radius: 6px; padding: 0.55rem 0.65rem; font-size: 0.72rem; color: var(--ink); margin-bottom: 0.9rem; }
+
+  .qr-placeholder {
+    width: 110px; height: 110px; background: repeating-conic-gradient(#00000012 0% 25%, transparent 0% 50%) 50% / 10px 10px;
+    border: 1px solid var(--rope); border-radius: 8px; margin: 0 auto 0.7rem;
+  }
+  .entry-url { font-family: 'JetBrains Mono', monospace; font-size: 0.66rem; color: var(--rust); word-break: break-all; text-align: center; margin-bottom: 0.7rem; }
+  .status-text { font-size: 0.7rem; color: var(--rope); margin-top: 0.5rem; text-align: center; }
+
+  .status-pill { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.18rem 0.5rem; border-radius: 999px; color: var(--cream); }
+  .status-pill.draft { background: var(--rope); }
+  .status-pill.open { background: var(--green); }
+  .status-pill.closed { background: var(--leather); }
+
+  .class-row {
+    display: flex; flex-direction: column; gap: 0.5rem; background: #fff; border: 1px solid #e2d6bd; border-radius: 8px;
+    padding: 0.65rem 0.8rem; margin-bottom: 0.55rem;
+  }
+  .class-row-top { display: flex; align-items: center; justify-content: space-between; }
+  .class-row .class-label { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 0.92rem; color: var(--leather); }
+  .class-row .row-actions { display: flex; gap: 0.4rem; }
+  .class-row .row-actions button { flex: 1; font-size: 0.68rem; padding: 0.35rem 0.4rem; }
+
+  .annotation { font-size: 0.65rem; color: var(--rope); font-style: italic; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP ONLY — not functional code. Mobile view — same page/elements as the desktop mockup, stacked.</div>
+
+<div class="phone-frame">
+  <div class="phone-screen">
+
+    <div class="topbar">
+      <h1>Event Setup</h1>
+      <button class="btn-ghost">Tutorial</button>
+    </div>
+
+    <div class="content">
+      <div class="card">
+        <div class="card-title">Event Basics</div>
+        <div class="card-subtitle">Create once — the day/weekend shell.</div>
+        <div class="field-group"><label>Title</label><input type="text" value="Saturday Jackpot"></div>
+        <div class="field-group"><label>Event Date</label><input type="date" value="2026-08-01"></div>
+        <div class="checkbox-row"><input type="checkbox">Allow pre-entry</div>
+        <label>Payment Method</label>
+        <div class="radio-row">
+          <div class="radio-option"><input type="radio" name="pm" checked>Cash</div>
+          <div class="radio-option"><input type="radio" name="pm">Online</div>
+        </div>
+        <div class="warning-note">Finish payout setup before this event can accept online payments.</div>
+        <button class="btn-primary" disabled>Event Created ✓</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add a Class</div>
+        <div class="card-subtitle">Repeat for every roping in the event.</div>
+
+        <div class="section-label">Identity &amp; Cap</div>
+        <div class="field-group"><label>Class Label</label><input type="text" placeholder="e.g. 9.5"></div>
+        <div class="field-group"><label>Cap Number</label><input type="text" placeholder="9.5"></div>
+        <div class="field-group"><label>Heeler Sub-Cap (optional)</label><input type="text" placeholder="5.5"></div>
+        <div class="field-group"><label>Incentive Cap (optional)</label><input type="text" placeholder="8.5"></div>
+        <div class="field-group"><label>Min. Header/Heeler to Draw In (optional)</label><input type="text" placeholder="e.g. 4 / 5"></div>
+
+        <div class="section-label">Entry Rules</div>
+        <label>Entry Mode</label>
+        <div class="radio-row">
+          <div class="radio-option"><input type="radio" name="em" checked>Pick or Draw</div>
+          <div class="radio-option"><input type="radio" name="em">Pick Only</div>
+          <div class="radio-option"><input type="radio" name="em">Draw Only</div>
+        </div>
+        <div class="field-group"><label>Max Entries Per Entrant</label><input type="text" placeholder="e.g. 3"></div>
+
+        <div class="section-label">Pricing</div>
+        <div class="field-group"><label>Price Per Entry</label><input type="text" placeholder="$200.00"></div>
+        <div class="field-group"><label>Pre-Formed Team Price (optional)</label><input type="text" placeholder="defaults to above"></div>
+        <div class="field-group"><label>Draw-In Surcharge (optional)</label><input type="text" placeholder="e.g. $40.00"></div>
+
+        <div class="section-label">Timing</div>
+        <div class="field-group"><label>Entry Opens</label><input type="datetime-local" value="2026-08-01T09:00"></div>
+        <label>Close Mode</label>
+        <div class="radio-row">
+          <div class="radio-option"><input type="radio" name="cm" checked>Time</div>
+          <div class="radio-option"><input type="radio" name="cm">Team Count</div>
+          <div class="radio-option"><input type="radio" name="cm">Manual</div>
+        </div>
+        <div class="field-group"><label>Close Date/Time</label><input type="datetime-local" value="2026-08-01T11:30"></div>
+
+        <button class="btn-primary">Add Class</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Classes Added So Far</div>
+        <div class="class-row">
+          <div class="class-row-top"><span class="class-label">7.5</span><span class="status-pill closed">Closed</span></div>
+          <div class="row-actions"><button class="btn-outline" disabled>Open</button><button class="btn-outline" disabled>Close</button></div>
+        </div>
+        <div class="class-row">
+          <div class="class-row-top"><span class="class-label">8.5</span><span class="status-pill open">Open</span></div>
+          <div class="row-actions"><button class="btn-outline" disabled>Open</button><button class="btn-primary" style="width:auto;flex:1;">Close</button></div>
+        </div>
+        <div class="class-row">
+          <div class="class-row-top"><span class="class-label">9.5</span><span class="status-pill draft">Draft</span></div>
+          <div class="row-actions"><button class="btn-primary" style="width:auto;flex:1;">Open</button><button class="btn-outline" disabled>Close</button></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 0;">
+        <div class="card-title">QR &amp; Entry Link</div>
+        <div class="card-subtitle">One shared link — entrants pick their class.</div>
+        <div class="qr-placeholder"></div>
+        <div class="entry-url">ropingtools.com/drawpro-enter?event=a1b2c3</div>
+        <button class="btn-outline">Generate QR Code</button>
+        <div class="status-text">QR code ready — add it to your flier.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
