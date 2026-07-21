@@ -65,10 +65,25 @@ identically — Wix doesn't have a true shared-component mechanism for
 across-page reuse in the classic Editor.
 
 **Critical setup detail:** `tourHighlightBox` and `tourTooltip` are moved
-around the page programmatically via `.x`, `.y`, `.width`, `.height` — for
-that to work, both elements must be set to **fixed/absolute position**
-(not flow layout) in the Editor's layout settings, otherwise those
-properties won't do anything.
+around the page programmatically via `.x`, `.y`, `.width`, `.height`.
+Correction from earlier guidance: Wix's classic Editor doesn't offer a
+generic "fixed/absolute position" toggle by that name — what it actually
+offers is **Pin**, which takes an element out of normal flow layout and
+anchors it to a chosen quadrant/corner of the page. Both elements should
+be **pinned** (pick whichever starting quadrant is convenient — it just
+needs to be out of flow layout, not in a specific corner).
+
+**Open question, not yet verified:** the onboarding-engine code sets
+`.x`/`.y` to arbitrary computed pixel values at runtime (wherever the
+current tour step's target element happens to be — not confined to one
+quadrant). Whether Wix's Pin mechanism still allows those runtime `.x`/`.y`
+overrides to freely move the element anywhere on the page, or whether
+pinning constrains it more than that, is untested. Worth checking as soon
+as these two elements exist and a tour step can actually be triggered —
+if pinned elements resist being moved via code beyond their pinned
+quadrant, the fallback is likely to leave them in normal flow layout
+instead and rely on `.x`/`.y` alone (no pin at all), but that's a guess,
+not a confirmed plan.
 
 | ID | Element type | Notes |
 |---|---|---|
