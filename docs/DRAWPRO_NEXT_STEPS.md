@@ -5,6 +5,34 @@ aspirational. Ordered roughly by what unblocks the most other things.
 
 ---
 
+## 0. Multi-class event redesign (2026-07-21) — read before continuing Page 1 or starting Page 2
+Full decision record in `docs/ARCHITECTURE.md` ("Draw Pro multi-class
+redesign") and the rewritten schema in
+`docs/source/drawpro-build/files/data-model.md`. Short version: one
+`DrawProEvents` record can no longer carry a single cap/price — real fliers
+show one event routinely bundling multiple differently-capped ropings
+(confirmed against two real fliers spanning largest-to-smallest
+association). Schema is rewritten (new `DrawProEventClasses` collection,
+`DrawProEntrants` supports mixed pre-formed/draw-in entries per person, a
+few other real mechanics like heeler sub-caps and draw-in surcharges).
+**None of this is implemented in code yet** — `matching-engine.jsw`,
+`event-setup.jsw`, `entrant-entry-form.js`, and the live Wix collections
+(created via REST API earlier this project) all still reflect the old
+single-cap model. Concretely:
+- Page 1's already-placed solo/individual fields remain valid; the
+  "Partner"/team-entry section will need rework once the mixed-entry
+  model is implemented — don't build much further into that section
+  without accounting for this.
+- Page 2 (Producer Event Setup) is confirmed to be designed around
+  flier-upload-and-AI-review from the start, not manual-first — see
+  ARCHITECTURE.md for the reasoning. Don't start Page 2 assuming a flat
+  manual form.
+- The live Wix Data Collections need a new `DrawProEventClasses`
+  collection created, and `DrawProEntrants`/`DrawProTeams`/
+  `DrawProDrawSheets`/`DrawProAuditLog`/`DrawProExecutionCharges` need new
+  reference fields added per the rewritten schema, before any of this can
+  actually be tested end-to-end.
+
 ## 1. Build the 3 real pages in the Wix Editor
 **The single biggest remaining blocker.** No API exists for this — has to be
 done by hand. Full element-by-element instructions already written:

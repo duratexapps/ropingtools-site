@@ -8,70 +8,130 @@ queried live cross-product — keeps Draw Pro's draw logic self-contained and wo
 even if an event has no Steer Me linkage at all.
 
 > **Fee model interpretation note:** the producer's pricing example ("draw 3 for
-> $160... $320 enters you six times") works out to a constant $53.33 per entry
-> scaled linearly — 3×$53.33=$160, 6×$53.33=$320. This data model implements
-> pricing as a single **price-per-entry** the producer sets, with total fee =
-> `pricePerEntry × requestedEntryCount`. If the intent is later a true *tiered*
-> discount (e.g. entry 4+ costs less per-unit than entries 1–3), this would need a
-> pricing-tier table instead of a flat rate — flagging that as a design fork worth
-> confirming rather than assuming.
+> $160... $320 enters you six times, up to a $640/12-entry cap") works out to a
+> constant $53.33 per entry scaled linearly, confirmed against two real fliers.
+> This data model implements pricing as a single **price-per-entry** set per
+> class (see `DrawProEventClasses` below), with total fee =
+> `pricePerEntry × requestedEntryCount`, capped at that class's `maxEntriesPerEntrant`.
+
+> **Revision history note (2026-07-21):** sections 1 and 2 below were substantially
+> restructured after reviewing two real event fliers (a large-association WSTR
+> qualifier and a small independent jackpot series) against the original single-cap,
+> single-price, one-entry-type-per-record design. See `docs/ARCHITECTURE.md` for the
+> full decision record and reasoning. Summary of what changed: one `DrawProEvents`
+> record is now a **shell covering an entire multi-class event/day/weekend**
+> (confirmed explicitly — a flier listing 5+ different cap classes across 3 days is
+> still "one event" from the producer's and entrant's point of view), with a new
+> `DrawProEventClasses` child collection carrying everything that varies **per
+> roping** (cap, price, entry rules, timing). `DrawProEntrants` also changed to
+> support one person mixing pre-formed-team and draw-in entries within their own
+> allowed count, instead of one entry-type applying to all of a person's entries.
 
 ---
 
 ## 1. `DrawProEvents`
 
-One record per event a producer runs through Draw Pro.
+One record per event **day/weekend/series** a producer runs through Draw Pro —
+a lightweight shell. All the roping-specific detail (cap, price, entry rules,
+timing) lives one level down on `DrawProEventClasses`, since real fliers
+routinely bundle several differently-capped ropings (e.g. a #7.5, #8.5, and
+#9.5 across one weekend) under what is still, structurally and in the
+producer's own words, "one event" with one shared entry link.
 
 | Field | Type | Notes |
 |---|---|---|
 | `_id` | auto | |
 | `title` | text | |
 | `producerId` | reference → Wix Members | Owner of the event |
-| `eventDate` | date/time | |
-| `capNumber` | number | e.g. 10.5 — the roping's stated cap |
-| `entryOpenDateTime` | date/time | When entries open |
-| `entryCloseMode` | text (enum) | `time` \| `teamCount` |
-| `entryCloseDateTime` | date/time | Used if `entryCloseMode = time` |
-| `entryCloseTeamCount` | number | Used if `entryCloseMode = teamCount` |
+| `eventDate` | date/time | Start date of the event/weekend — individual classes carry their own more precise timing |
 | `preEntryEnabled` | boolean | |
-| `requiredEntryFields` | array of text | Producer-configurable fields beyond the mandatory set |
+| `requiredEntryFields` | array of text | Producer-configurable fields beyond the mandatory set. Kept at the event (not class) level — no evidence from real fliers that extra fields vary by class, revisit if that turns out wrong |
 | `steerMeEventId` | text (nullable) | Set only if producer opted into export |
-| `status` | text (enum) | `draft` \| `open` \| `closed` \| `finalized` \| `drawn` \| `notified` |
-| `qrCodeUrl` | text (nullable) | Cached QR image URL pointing at this event's entry page — generated once, reused on fliers |
+| `paymentMethod` | text (enum) | `cash` \| `online` — assumed to apply to the whole event, not per class (no evidence a producer splits payment method by roping). See `DrawProProducerPayoutProfiles` for the `online` path |
+| `qrCodeUrl` | text (nullable) | Cached QR image URL pointing at this event's **shared** entry page (one link for the whole event; entrant picks which class from a dropdown — see `DrawProEventClasses`) — generated once, reused on fliers |
 | `qrCodeGeneratedDate` | date/time (nullable) | |
-| `pricePerEntry` | number | Dollar cost of a single **solo/draw-in** entry, set by the producer |
-| `pricePerPreformedTeamEntry` | number (nullable) | Optional lower rate for a **pre-formed team** entry (billed once per team, not per person). Defaults to `pricePerEntry` if not set — see the Steer Me incentive note below |
-| `paymentMethod` | text (enum) | `cash` \| `online` — see `DrawProProducerPayoutProfiles` for the `online` path |
+| `sourceFlierImageUrl` | text (nullable) | Set when the event was created via flier upload — see "Flier scan-and-review" below |
 | `createdDate` / `updatedDate` | date/time | Wix-managed |
 
-**Status lifecycle:** `draft` → `open` → `closed` (entries stopped, draw sheet locked for review) → `finalized` (producer reviewed) → `drawn` (algorithm executed) → `notified` (emails sent).
+**Flier scan-and-review (Producer Event Setup, planned):** confirmed decision —
+Producer Event Setup is designed from the start around uploading a flier image,
+having AI draft the event + full `DrawProEventClasses` breakdown against this
+schema, and requiring the producer to review/correct every field before
+anything publishes. Not a manual-first form with scanning added later. Manual
+entry stays available for producers without a flier or building one from
+scratch, but scan-and-review is the primary intended path. Same trust pattern
+already used for scanned entrant cards (`scanVerified`, `rawOcrText`,
+`ocrConfidence` below) — AI drafts, a human confirms, never auto-published
+unreviewed. Not yet built — this is a design commitment for when Page 2 starts,
+not implemented code.
+
+---
+
+## 2. `DrawProEventClasses`
+
+One record per individual roping/class within an event (the "#7.5", "#8.5,"
+"#12.5 Heartland," etc. on a real flier). This is where cap rules, pricing,
+entry-type restrictions, and timing actually live — confirmed by real fliers
+showing different classes in the same event with different prices ($200 vs
+$250/roper on the same day), different cap rules, and independently,
+manually-closed books.
+
+| Field | Type | Notes |
+|---|---|---|
+| `_id` | auto | |
+| `eventId` | reference → DrawProEvents | |
+| `label` | text | e.g. `"7.5"`, `"12.5 Heartland"` — the human-facing class name shown in the entrant's class-selection dropdown |
+| `capNumber` | number | Combined header + heeler classification ceiling, e.g. 11.5. **Required** |
+| `heelerSubCap` | number (nullable) | Additional constraint *on top of* `capNumber`, not instead of it — e.g. an "#11.5 WSTR... #7.5 heeler cap" flier listing means combined ≤ 11.5 **and** heeler's own number ≤ 7.5. Confirmed via real flier + direct correction — this is not a second cap mode, it's a second simultaneous check |
+| `minHeaderNumberToDrawIn` / `minHeelerNumberToDrawIn` | number (nullable, each) | Floor on an entrant's own classification number to be eligible for **blind draw-in** specifically (not pre-formed teams) — e.g. "must be at least 6HD/7HL to draw in." Used by smaller fields to keep the blind-draw pool competitive rather than diluted by lower-numbered ropers who'll miss more. Confirmed present on some real classes, absent on most — legitimately optional, not always set |
+| `entryModeAllowed` | text (enum) | `pick_or_draw` \| `pick_only` \| `draw_only` — confirmed class-level rule (e.g. a flier's Heartland listing says "pick only," no blind draw-in allowed for that class at all) |
+| `maxEntriesPerEntrant` | number | Producer-set ceiling on how many times one person may enter this class, in any combination of pre-formed and draw-in (see `DrawProEntrants.submissionGroupId` below). Confirmed real numbers on fliers scale linearly with price (e.g. $160/3 entries up to $640/12 entries → max 12) |
+| `pricePerEntry` | number | Dollar cost of a single **draw-in** entry base rate |
+| `pricePerPreformedTeamEntry` | number (nullable) | Optional lower rate for a **pre-formed team** entry (billed once per team, not per person). Defaults to `pricePerEntry` if not set |
+| `drawInSurchargeFee` | number (nullable) | Extra per-roper fee added on top of `pricePerEntry`, charged **only** to draw-in entries, not pre-formed. Confirmed real mechanic ("draw in fee: xtra $40/roper") — see the Steer Me incentive note below for why it exists |
+| `entryOpenDateTime` | date/time | |
+| `entryCloseMode` | text (enum) | `time` \| `teamCount` \| `manual` — automatic modes stay available per class, but a producer can always manually close early regardless of mode (confirmed decision: cross-class timing dependencies like "closes after round 3 of the #7" are handled by producer judgment, not automated round-tracking, which doesn't exist anywhere in this design) |
+| `entryCloseDateTime` | date/time (nullable) | Used if `entryCloseMode = time` |
+| `entryCloseTeamCount` | number (nullable) | Used if `entryCloseMode = teamCount` |
+| `status` | text (enum) | `draft` \| `open` \| `closed` \| `finalized` \| `drawn` \| `notified` — moved from the event level; each class runs its own draw independently |
+| `createdDate` / `updatedDate` | date/time | Wix-managed |
+
+**Status lifecycle:** `draft` → `open` → `closed` (entries stopped, draw sheet locked for review) → `finalized` (producer reviewed) → `drawn` (algorithm executed) → `notified` (emails sent). Runs independently per class.
 
 > **Steer Me migration incentive, built structurally rather than as a banner ad:**
 > - **Entrant side:** a pre-formed team is billed once per team; two solo draw-ins
->   are billed individually. At an identical rate that already halves the cost of
->   entering with a partner versus drawing in blind. `pricePerPreformedTeamEntry`
->   lets a producer widen that gap further if they want to.
+>   are billed individually, and draw-ins can carry their own `drawInSurchargeFee`
+>   on top. That fee isn't arbitrary — in an unbalanced draw pool the matching
+>   algorithm sometimes has to give an entrant more actual runs than they
+>   requested/paid for just to get everyone matched (the entrant owes nothing extra
+>   for those forced "bonus" runs; the producer absorbs the cost). A pre-formed team
+>   never creates that imbalance, since nobody's waiting to be paired.
 > - **Producer side:** the cash-event execution charge (see
 >   `DrawProExecutionCharges` below) only counts teams the matching *algorithm*
 >   actually paired — pre-formed teams did no computational work and don't count
->   toward the producer's billable total. The more entrants pre-form via Steer Me,
->   the lower a producer's own Draw Pro bill on the same event.
+>   toward the producer's billable total.
 >
 > Both incentives point the same direction without needing Draw Pro to editorialize
 > about it in the UI — the pricing itself does the nudging.
 
 ---
 
-## 2. `DrawProEntrants`
+## 3. `DrawProEntrants`
 
-One record per person entered into an event (both scanned-card and self-entry paths write here).
+One record per **entry unit** — not strictly one record per person. A single
+person can generate multiple records under one submission if they mix
+pre-formed-team and draw-in entries within their allowed count (confirmed real
+scenario: someone entering 3x who has one known partner and wants to draw in
+for the other two). Both scanned-card and self-entry paths write here.
 
 | Field | Type | Notes |
 |---|---|---|
 | `_id` | auto | |
 | `eventId` | reference → DrawProEvents | |
+| `classId` | reference → DrawProEventClasses | Which roping this entry belongs to — new field, required |
+| `submissionGroupId` | text | Groups every `DrawProEntrants` record created from one person's one form submission — e.g. one `preformed_team` record plus one `solo` record with `requestedEntryCount: 2` share the same value. Used so billing/confirmation/notification treat a mixed submission as one coherent transaction even though it's structurally several pool-eligible records |
 | `firstName` / `lastName` | text | |
-| `classificationNumber` | number | **Required.** e.g. 4.5 |
+| `classificationNumber` | number | **Required.** e.g. 4.5 — the entrant's own personal number, unrelated to which class/roping they're entering |
 | `globalMembershipId` | text (nullable) | Optional — not all producers require it |
 | `email` | text | **Required in v1** (notification channel) |
 | `phone` | text (nullable) | Collected now, unused until SMS ships |
@@ -88,8 +148,8 @@ One record per person entered into an event (both scanned-card and self-entry pa
 | `ocrConfidence` | number (nullable) | 0–1 confidence score returned by the OCR provider, lowest of the parsed fields |
 | `sourceImageUrl` | text (nullable) | Wix Media Manager URL of the scanned card, kept for audit/dispute purposes |
 | `requiresManualContact` | boolean | True if a scanned entrant was verified with no email — producer must contact them outside the app |
-| `requestedEntryCount` | number | How many times this entrant (solo) or this team (pre-formed) is entering the draw — default 1 |
-| `feeOwed` | number | `pricePerEntry × requestedEntryCount` at the time of entry — snapshotted so a later price change doesn't retroactively alter what's owed |
+| `requestedEntryCount` | number | For a `solo` record: how many draw-in slots this represents (the matching engine must expand this into that many separate poolable slots — not yet implemented, see the open gap below). For a `preformed_team` record: effectively always 1 in practice, since a distinct partner needs its own record — default 1 |
+| `feeOwed` | number | Computed from the owning class's `pricePerEntry`/`pricePerPreformedTeamEntry`/`drawInSurchargeFee` × `requestedEntryCount` at entry time — snapshotted so a later price change doesn't retroactively alter what's owed. Never recalculated off actual-assigned-run-count (see the "extra runs" note above) |
 | `isFeeResponsible` | boolean | For `preformed_team` entries: true for whichever entrant submitted/owns payment, false for their partner. Always true for `solo` entries — see "Fee responsibility" below |
 | `paymentStatus` | text (enum) | `unpaid` \| `pending_cash` \| `paid` |
 | `paymentReferenceNumber` | text (nullable) | Shown to the entrant once paid — set for both cash (producer-confirmed) and online (provider-confirmed) payments |
@@ -101,17 +161,33 @@ One record per person entered into an event (both scanned-card and self-entry pa
 
 **Lightweight team entry:** when submitting a pre-formed team entry, the entering person can supply just their partner's **email** (`partnerEmailOnly`) instead of the partner's full info. Draw Pro emails that address inviting them to view/claim the entry — this both lowers friction for the entering contestant and surfaces RopingTools to someone who may not have an account yet. `teamPartnerEntrantId` remains null until/unless the partner claims the invite and their own entrant record is created and linked.
 
+**Mixed pre-formed + draw-in entries (confirmed real scenario):** one person entering a class 3x, with one known partner and two draw-in slots, submits as: one `preformed_team` record (`requestedEntryCount: 1`, `teamPartnerEntrantId` or `partnerEmailOnly` set) plus one `solo` record (`requestedEntryCount: 2`), both sharing the same `submissionGroupId`. Validation must sum every record under one `submissionGroupId` + `classId` against that class's `maxEntriesPerEntrant`, not validate each record in isolation.
+
+> **Open gap, not yet implemented — flagging rather than letting it go unnoticed:**
+> `matching-engine.jsw`'s current draw algorithm pools "solo headers and solo
+> heelers" as if every `DrawProEntrants` record is exactly one poolable slot. It
+> has no logic to expand a `solo` record with `requestedEntryCount: 2` into two
+> separate matchable slots. This needs to be built — the algorithm must treat each
+> unit of `requestedEntryCount` as independently poolable (still respecting the
+> existing 10-team minimum-spacing rule across an entrant's own multiple slots,
+> not just across different entrants) — before multi-entry draw-in actually works
+> correctly. Not yet touched in code; this is a known prerequisite for the mixed-
+> entry model above, not something silently assumed to already work.
+
 ---
 
-## 3. `DrawProTeams`
+## 4. `DrawProTeams`
 
 Created at draw time (or immediately at entry time for pre-formed teams).
+Scoped to a class, not just an event — a #7.5 team and a #9.5 team on the same
+day are entirely separate draws with separate run orders.
 
 | Field | Type | Notes |
 |---|---|---|
 | `_id` | auto | |
 | `eventId` | reference → DrawProEvents | |
-| `teamNumber` | number | Run-order position — the number entrants are notified of |
+| `classId` | reference → DrawProEventClasses | New field — which roping this team belongs to |
+| `teamNumber` | number | Run-order position **within this class** — the number entrants are notified of |
 | `headerEntrantId` | reference → DrawProEntrants | |
 | `heelerEntrantId` | reference → DrawProEntrants | |
 | `preFormed` | boolean | True = entered together, skipped matching |
@@ -131,14 +207,18 @@ the team record itself.
 
 ---
 
-## 4. `DrawProDrawSheets`
+## 5. `DrawProDrawSheets`
 
-One record per event, tracking the finalize → signoff → draw → notify pipeline.
+One record per **class**, not per event, tracking the finalize → signoff →
+draw → notify pipeline — each roping runs this pipeline independently, since
+one class can close/draw/notify while a sibling class in the same event is
+still open for entries.
 
 | Field | Type | Notes |
 |---|---|---|
 | `_id` | auto | |
 | `eventId` | reference → DrawProEvents | |
+| `classId` | reference → DrawProEventClasses | New field |
 | `status` | text (enum) | `building` \| `pending_signoff` \| `signed_off` \| `drawn` \| `notifications_sent` |
 | `finalizedTimestamp` | date/time (nullable) | When entries closed and sheet locked for review |
 | `producerSignoffUserId` | reference → Wix Members (nullable) | |
@@ -153,7 +233,7 @@ close — see `payments.jsw`.
 
 ---
 
-## 5. `DrawProNotificationLog`
+## 6. `DrawProNotificationLog`
 
 Per-entrant delivery record. One row per notification attempt.
 
@@ -171,7 +251,7 @@ Per-entrant delivery record. One row per notification attempt.
 
 ---
 
-## 6. `DrawProAuditLog`
+## 7. `DrawProAuditLog`
 
 Accountability log — every manual override and every attempted cap violation, per your requirement that both be tracked.
 
@@ -179,6 +259,7 @@ Accountability log — every manual override and every attempted cap violation, 
 |---|---|---|
 | `_id` | auto | |
 | `eventId` | reference → DrawProEvents | |
+| `classId` | reference → DrawProEventClasses (nullable) | New field — set when the action is scoped to a specific class (most cap/spacing actions are); null for event-level actions |
 | `actionType` | text (enum) | `manual_pairing` \| `cap_violation_attempt` \| `spacing_conflict_flagged` \| `payment_recorded` |
 | `performedByUserId` | reference → Wix Members | |
 | `timestamp` | date/time | |
@@ -186,7 +267,7 @@ Accountability log — every manual override and every attempted cap violation, 
 
 ---
 
-## 7. `DrawProEntryAlerts`
+## 8. `DrawProEntryAlerts`
 
 Captures "notify me when entries open" signups — reached via the QR-code entry link when a producer's event hasn't opened yet. Doubles as a lead source: same mechanic as the `/drawpro` coming-soon page's email capture, but tied to a specific event instead of the product launch generally, and from a visitor who's already shown real intent (scanned a flier for a specific roping).
 
@@ -202,7 +283,7 @@ Captures "notify me when entries open" signups — reached via the QR-code entry
 
 ---
 
-## 8. `DrawProProducerPayoutProfiles`
+## 9. `DrawProProducerPayoutProfiles`
 
 One record per producer, not per event — set up once at the profile level so it
 doesn't need repeating for every event that uses online payment collection.
@@ -219,7 +300,7 @@ doesn't need repeating for every event that uses online payment collection.
 
 ---
 
-## 9. `DrawProPayments`
+## 10. `DrawProPayments`
 
 Financial transaction log — one row per fee collected, whether cash or online.
 Kept separate from `DrawProEntrants` so there's a clean audit trail independent of
@@ -239,7 +320,7 @@ entrant record edits.
 | `_id` | auto | |
 | `eventId` | reference → DrawProEvents | |
 | `entrantId` | reference → DrawProEntrants | The fee-responsible entrant (see `isFeeResponsible`) |
-| `producerAmount` | number | The producer's own stated fee (`pricePerEntry × count`) — what the producer receives |
+| `producerAmount` | number | The producer's own stated fee (`class.pricePerEntry × count`, plus `class.drawInSurchargeFee × count` if applicable) — what the producer receives |
 | `drawProFee` | number (nullable) | Platform cut — `online` only; always null for `cash` |
 | `processingFee` | number (nullable) | Payment processor's cut — `online` only; always null for `cash` |
 | `totalChargedToEntrant` | number | `producerAmount` for cash; `producerAmount + drawProFee + processingFee` for online |
@@ -252,7 +333,7 @@ entrant record edits.
 
 ---
 
-## 10. `DrawProProducerSubscriptions`
+## 11. `DrawProProducerSubscriptions`
 
 Optional annual plan a producer can hold, covering their **cash-method** events'
 execution fees (online events never generate an execution charge — see above).
@@ -268,16 +349,19 @@ One record per producer.
 
 ---
 
-## 11. `DrawProExecutionCharges`
+## 12. `DrawProExecutionCharges`
 
-One row per **cash-method** event once its draw executes — the mechanism that
+One row per **cash-method class** once its draw executes — the mechanism that
 closes the "Draw Pro is out of the loop on cash events" gap. Only created for
-`paymentMethod: cash` events; online events never touch this collection.
+events with `paymentMethod: cash`; online events never touch this collection.
+Scoped to a class, not the whole event, since each class draws (and so incurs
+this charge) independently.
 
 | Field | Type | Notes |
 |---|---|---|
 | `_id` | auto | |
 | `eventId` | reference → DrawProEvents | |
+| `classId` | reference → DrawProEventClasses | New field |
 | `producerId` | reference → Wix Members | |
 | `teamCount` | number | Total teams in the executed draw, including pre-formed |
 | `matchedTeamCount` | number | Teams the algorithm actually paired — **excludes pre-formed teams**, since they required no matching work. This is the base the free threshold and rate apply to, not `teamCount` |
@@ -297,7 +381,7 @@ closes the "Draw Pro is out of the loop on cash events" gap. Only created for
 
 ---
 
-## 12. `DrawProOnboardingStatus`
+## 13. `DrawProOnboardingStatus`
 
 Tracks whether a logged-in user has seen/dismissed the first-time guided tour on
 each side of the product, so it doesn't reappear once completed and can be
@@ -324,14 +408,15 @@ tracked here at all — see the note below.
 ## Relationships at a glance
 
 ```
-DrawProEvents (1) ──< DrawProEntrants (many)
-DrawProEvents (1) ──< DrawProTeams (many)
-DrawProEvents (1) ──1 DrawProDrawSheets (one active sheet per event)
-DrawProTeams  (1) ──< DrawProNotificationLog (2 rows per team: header + heeler)
-DrawProEvents (1) ──< DrawProAuditLog (many)
-DrawProEvents (1) ──< DrawProEntryAlerts (many)
-DrawProEvents (1) ──< DrawProPayments (many)
-Wix Members   (1) ──1 DrawProProducerPayoutProfiles (one profile per producer)
-Wix Members   (1) ──1 DrawProProducerSubscriptions (one subscription record per producer)
-DrawProEvents (1) ──1 DrawProExecutionCharges (one charge per cash-method event, at draw time)
+DrawProEvents       (1) ──< DrawProEventClasses (many — the individual ropings within one event/day/weekend)
+DrawProEventClasses (1) ──< DrawProEntrants (many)
+DrawProEventClasses (1) ──< DrawProTeams (many)
+DrawProEventClasses (1) ──1 DrawProDrawSheets (one active sheet per class, not per event)
+DrawProTeams        (1) ──< DrawProNotificationLog (2 rows per team: header + heeler)
+DrawProEvents       (1) ──< DrawProAuditLog (many, optionally scoped to a class)
+DrawProEvents       (1) ──< DrawProEntryAlerts (many — one shared alert list per event, not per class)
+DrawProEvents       (1) ──< DrawProPayments (many)
+Wix Members         (1) ──1 DrawProProducerPayoutProfiles (one profile per producer)
+Wix Members         (1) ──1 DrawProProducerSubscriptions (one subscription record per producer)
+DrawProEventClasses (1) ──1 DrawProExecutionCharges (one charge per cash-method class, at draw time)
 ```

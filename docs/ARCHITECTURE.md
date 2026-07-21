@@ -523,3 +523,97 @@ deleted-by-wix-dev artifact recurs on essentially every `wix dev` run,
 not just occasionally — restore it via `git checkout --` before every
 commit while `wix dev` has been running, treat this as routine, not
 exceptional.
+
+---
+
+## Draw Pro multi-class redesign (2026-07-21)
+
+Triggered by placing `textEventCap` on the entrant entry form and asking a
+direct question about it: is a Draw Pro event's cap really a single static
+number? The honest answer, checked against the actual code rather than
+assumed, was yes — and that turned out to be wrong. Confirmed by reviewing
+two real event fliers side by side: a large-association WSTR qualifier
+(Hallettsville, TX) and a small independent jackpot series (Gonzales, TX),
+deliberately chosen as "the gamut" from largest to smallest. Both fliers list
+several differently-capped ropings across multiple days, all still referred
+to as one event.
+
+**Core finding: one `DrawProEvents` record was doing two jobs that needed to
+split.** "The day/weekend a producer is running" and "one specific roping
+with its own cap/price/rules" are different things, and the original schema
+conflated them into a single flat record with one `capNumber` and one
+`pricePerEntry`. Full corrected schema is in `data-model.md` (see its own
+"Revision history note" at the top) — summarized here as a decision record:
+
+- **New `DrawProEventClasses` collection** carries everything that varies
+  per roping: `capNumber`, an optional `heelerSubCap` (an *additional*
+  constraint layered on top of the combined cap, not an alternate mode —
+  corrected after an initial misread of a real flier's "#7.5 heeler cap"
+  notation), `entryModeAllowed` (`pick_or_draw` / `pick_only` / `draw_only`),
+  `maxEntriesPerEntrant`, `pricePerEntry`/`pricePerPreformedTeamEntry`,
+  `drawInSurchargeFee`, optional minimum-classification-to-draw-in
+  thresholds per role, and its own independent timing/status.
+- **`DrawProEvents` becomes a lightweight shell** — title, producer, date,
+  one shared entry link/QR/dropdown-of-classes. Confirmed explicitly: a
+  flier listing 5+ classes across 3 days is still "one event."
+- **Cross-class timing dependencies are handled by producer judgment, not
+  automated.** Real fliers do show "books close after round 3 of the #7"
+  — confirmed as common practice, not an edge case — but automating that
+  would require tracking live round-by-round progress during an event,
+  which doesn't exist anywhere in this design. Decided explicitly: the
+  producer manually closes each class's books whenever they judge the
+  moment has come; the round-based language on a flier is informational
+  for entrants, not something the software enforces. Manual close was
+  already effectively supported via the existing `status` field regardless
+  of `entryCloseMode` — this decision meant no new mechanism, just making
+  sure it's scoped per class once classes exist as separate entities.
+- **`DrawProEntrants` now supports one person mixing pre-formed-team and
+  draw-in entries within their own allowed count** — e.g. entering 3x with
+  one known partner and two draw-in slots — via a new `submissionGroupId`
+  field grouping the multiple records one submission can now produce, and
+  a new `classId` field (an entrant enters a specific class within an
+  event, not the event as an undifferentiated whole).
+- **Draw-in surcharge fees have a real mechanical reason, not just an
+  arbitrary producer markup**: in an unbalanced draw pool, the matching
+  algorithm can be forced to give an entrant more actual runs than they
+  requested/paid for just to get everyone matched. The entrant owes
+  nothing extra for those forced runs — the producer absorbs the cost.
+  Pre-formed teams (the Steer Me path) never create that imbalance in the
+  first place, which is the concrete mechanical reason the fee structure
+  nudges toward Steer Me, not an editorial choice layered on top.
+- **Real, currently-unbuilt gap surfaced by this exercise**:
+  `matching-engine.jsw`'s pairing algorithm pools "solo headers and solo
+  heelers" as if every `DrawProEntrants` record is exactly one poolable
+  slot — it has no logic today to expand a record with
+  `requestedEntryCount: 2` into two separately matchable slots. This is a
+  prerequisite for the mixed pre-formed/draw-in model above actually
+  working, not yet implemented, flagged in `data-model.md` rather than
+  quietly assumed to already work.
+
+**Confirmed decision, not yet built: Producer Event Setup (Page 2) is
+designed from the start around flier upload, not manual entry first with
+scanning added later.** Producer uploads a flier image, AI drafts the full
+event + class breakdown against this schema, producer reviews and corrects
+every field before anything publishes — same trust pattern already used for
+scanned entrant membership cards (AI/OCR drafts, a human confirms, nothing
+auto-published unreviewed). Manual entry stays available as a fallback for
+producers without a flier. Explicit reasoning for going straight to this
+design rather than manual-first: making producers hand-retype an entire
+flier's worth of structured data field-by-field would directly undermine
+Draw Pro's own stated purpose of eliminating tedious manual
+entering/cataloguing, and everything nailed down in this exercise (cap
+rules, entry-mode restrictions, per-class pricing, surcharges, thresholds)
+is exactly the target structure such a parser needs to fill in — this
+conversation was effectively double-duty as both a schema correction and
+the extraction schema for that planned feature.
+
+**Not yet done as of this entry**: no code changes yet (`matching-engine.jsw`,
+`event-setup.jsw`, `entrant-entry-form.js`, the live Wix collections
+created via the REST API earlier in this project). This entry and the
+`data-model.md` rewrite are the design record; implementation is a
+follow-up. Page 1 (Entrant Entry Form) is actively under manual
+construction in the Editor — the parts already placed for solo/individual
+entrant fields remain valid; the "Partner"/team-entry section will need
+rework once the mixed pre-formed/draw-in submission model above is
+actually implemented.
+exceptional.
