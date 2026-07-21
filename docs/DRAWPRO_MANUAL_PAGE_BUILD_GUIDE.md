@@ -185,7 +185,7 @@ Plus the 9 shared Tour Overlay elements above.
 ## Page 2: Producer Event Setup
 
 File: `velo/pages/drawpro-real/producer-event-setup.js`
-Suggested URL: `/drawpro/producer/setup` (or similar — no query-param dependency on this one)
+Suggested URL: `/drawpro-producer-setup` (Wix page slugs can't contain `/` — same fix already applied to the entry page's slug; no query-param dependency on this one)
 
 **Fully rewritten 2026-07-21 for the multi-class redesign.** This is a
 different page than before, not an incremental patch — a producer now
@@ -262,7 +262,7 @@ credentials that don't exist yet.
 ## Page 3: Producer Draw Sheet Review & Sign-Off
 
 File: `velo/pages/drawpro-real/producer-draw-sheet-review.js`
-Suggested URL: `/drawpro/producer/review` (reads `?event=EVENT_ID` same as the entry page)
+Suggested URL: `/drawpro-producer-review` (Wix page slugs can't contain `/` — same fix already applied to the entry page's slug; reads `?event=EVENT_ID` same as the entry page)
 
 **Updated 2026-07-21 for the multi-class redesign.** Everything below the
 class dropdown is scoped to whichever class is selected — finalize, sign
