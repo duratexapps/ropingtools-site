@@ -12,26 +12,40 @@ redesign") and the rewritten schema in
 `DrawProEvents` record can no longer carry a single cap/price — real fliers
 show one event routinely bundling multiple differently-capped ropings
 (confirmed against two real fliers spanning largest-to-smallest
-association). Schema is rewritten (new `DrawProEventClasses` collection,
-`DrawProEntrants` supports mixed pre-formed/draw-in entries per person, a
-few other real mechanics like heeler sub-caps and draw-in surcharges).
-**None of this is implemented in code yet** — `matching-engine.jsw`,
-`event-setup.jsw`, `entrant-entry-form.js`, and the live Wix collections
-(created via REST API earlier this project) all still reflect the old
-single-cap model. Concretely:
-- Page 1's already-placed solo/individual fields remain valid; the
-  "Partner"/team-entry section will need rework once the mixed-entry
-  model is implemented — don't build much further into that section
-  without accounting for this.
-- Page 2 (Producer Event Setup) is confirmed to be designed around
-  flier-upload-and-AI-review from the start, not manual-first — see
-  ARCHITECTURE.md for the reasoning. Don't start Page 2 assuming a flat
-  manual form.
-- The live Wix Data Collections need a new `DrawProEventClasses`
-  collection created, and `DrawProEntrants`/`DrawProTeams`/
-  `DrawProDrawSheets`/`DrawProAuditLog`/`DrawProExecutionCharges` need new
-  reference fields added per the rewritten schema, before any of this can
-  actually be tested end-to-end.
+association).
+
+**Code is now implemented** (commit `cd77183` in `ropingtools-site`,
+mirrored to `roping-tools`): `matching-engine.jsw` (draws run per-class,
+solo entrants expand into `requestedEntryCount` poolable slots, heeler
+sub-cap check added), `event-setup.jsw` (`createEventClass` is new,
+`submitEntry` supports mixing pre-formed + draw-in in one submission),
+`payments.jsw` (pricing reads from the class, draw-in surcharge now
+actually applied — was silently missing even before this redesign),
+`notifications.jsw` (scoped to classId), and Page 1's
+`entrant-entry-form.js` (new `#dropdownClass`, `#radioEntryType` replaced
+by `#checkboxAddPartner` — see the updated
+`docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md` for exactly what that means for
+elements already placed in the Editor).
+
+**Still not done — the actual blocker on testing any of this end-to-end:**
+the live Wix Data Collections. `/tmp/wix_setup/update_collections.mjs` is
+written and ready — creates `DrawProEventClasses`, adds `classId` to
+`DrawProEntrants`/`DrawProTeams`/`DrawProDrawSheets`/`DrawProAuditLog`/
+`DrawProExecutionCharges`/`DrawProNotificationLog`, adds
+`submissionGroupId` to `DrawProEntrants`. Needs a fresh scoped "Wix Data"
+API key to run (the one from the original 12-collection setup was never
+saved, correctly — ephemeral, used once, directory deleted after).
+
+Also still open: Page 2 (Producer Event Setup) is confirmed to be
+designed around flier-upload-and-AI-review from the start, not
+manual-first — see ARCHITECTURE.md for the reasoning — but no code for
+it exists yet at all.
+
+Known limitation, flagged in code comments rather than silently wrong:
+PayPal checkout for a mixed submission (pre-formed + draw-in together)
+currently only creates/captures an order against one of the two entrant
+records even though the displayed total is correct — see
+`entrant-entry-form.js`'s `handlePayNow` doc comment.
 
 ## 1. Build the 3 real pages in the Wix Editor
 **The single biggest remaining blocker.** No API exists for this — has to be
