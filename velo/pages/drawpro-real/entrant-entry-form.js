@@ -5,10 +5,18 @@
  * this page is actually routed.
  *
  * REWRITTEN 2026-07-21 for the multi-class redesign (see
- * docs/ARCHITECTURE.md's "Draw Pro multi-class redesign" entry). Read
- * this comment block before touching elements already placed in the
- * Editor — most of what exists stays exactly as-is; only a few specific
- * things changed:
+ * docs/ARCHITECTURE.md's "Draw Pro multi-class redesign" entry), THEN
+ * REVISED again the same day for a second real scenario: one person's
+ * role can now differ between their pre-formed partner and their draw-in
+ * entries. Confirmed real example — a #5.5 heeler entering with a friend
+ * who's a better heeler can rationally pre-form as HEADER with that
+ * friend (a lower-numbered header has better catch odds than a
+ * lower-numbered heeler), while separately drawing in as heeler — their
+ * genuinely stronger position — for their own solo entries. One radio
+ * group can't represent "different role in different parts of the same
+ * submission," so there are now TWO role selectors, not one. Read this
+ * whole comment block before touching elements already placed in the
+ * Editor — most of what exists stays exactly as-is; the changes are:
  *
  *   - NEW: #dropdownClass — one event can now bundle several differently
  *     capped ropings (confirmed via real fliers); the entrant picks which
@@ -22,6 +30,24 @@
  *     represent. Everything the radio used to show/hide (#boxPartnerFields
  *     and everything inside it) is UNCHANGED — same fields, same IDs, just
  *     triggered by the checkbox now instead of the radio's value.
+ *   - CHANGED: #radioRole now specifically means "my role WITH MY
+ *     PARTNER" — only relevant/shown when #checkboxAddPartner is checked.
+ *     Same element, same ID, narrower meaning.
+ *   - NEW: #radioDrawInRole ('header' | 'heeler') — "my role when drawing
+ *     in," independent of #radioRole above. Only relevant/shown when
+ *     #inputEntryCount is greater than 0. Can be the SAME or DIFFERENT
+ *     role than #radioRole — both can be visible and set differently at
+ *     once, per the confirmed scenario above.
+ *   - NEW: #checkboxUpAndBack — "Also enter with the same partner in
+ *     opposite positions?" Real team-roping mechanic: the same two people
+ *     CAN enter a class twice with roles swapped (unlike entering with the
+ *     identical role assignment twice, which normally isn't allowed).
+ *     Shown only when #checkboxAddPartner is checked. If checked at
+ *     submit, the code automatically builds a SECOND pre-formed pairing
+ *     using the same partner info with roles flipped — no separate UI for
+ *     re-entering the partner's details. Doesn't apply to draw-in at all
+ *     (confirmed — draw-in already naturally varies who you're paired
+ *     with each time, no special handling needed there).
  *   - CHANGED: #inputEntryCount now means "how many draw-in entries" (can
  *     be 0, if the entrant only wants their one pre-formed partner and no
  *     blind draw-in slots), not "total entries." Total requested = 1 (if
@@ -35,7 +61,7 @@
  *   #textEventCap             (display only, reflects selected class)
  *   #inputFirstName, #inputLastName, #inputClassification,
  *   #inputGlobalId (optional), #inputEmail, #inputPhone
- *   #radioRole                ('header' | 'heeler')
+ *   #radioRole                ('header' | 'heeler') — my role WITH MY PARTNER; shown only if checkboxAddPartner is checked
  *   #checkboxAddPartner       (NEW — replaces #radioEntryType; "I already have a partner")
  *   #boxPartnerFields          (container, shown only if checkboxAddPartner is checked — UNCHANGED)
  *   #radioPartnerMode          ('fullDetails' | 'emailOnly', shown only if checkboxAddPartner is checked — UNCHANGED)
@@ -43,8 +69,10 @@
  *   #inputPartnerGlobalId, #inputPartnerEmail, #inputPartnerPhone   (shown if radioPartnerMode = fullDetails — UNCHANGED)
  *   #inputPartnerEmailOnly    (shown if radioPartnerMode = emailOnly — UNCHANGED)
  *   #textPartnerEmailOnlyHint (UNCHANGED)
+ *   #checkboxUpAndBack        (NEW — "also enter with this partner in opposite positions?"; shown only if checkboxAddPartner is checked)
  *   #checkboxGuestEntry       (shown only to non-logged-in visitors — UNCHANGED)
  *   #inputEntryCount          (numeric, draw-in entries specifically now — can be 0)
+ *   #radioDrawInRole          (NEW — 'header' | 'heeler'; my role when drawing in; shown only if inputEntryCount > 0)
  *   #textFeeAmount            (live-computed total based on partner + draw-in count)
  *   #textSteerMeNudge         (shown when a draw-in entry is requested and a team rate is cheaper)
  *   #btnSubmitEntry
@@ -100,6 +128,11 @@ const ENTRANT_TOUR_STEPS = [
         body: 'Set how many additional times you want to draw in — you can combine this with a known partner above, or use it on its own. Your fee updates automatically below.'
     },
     {
+        targetId: '#radioDrawInRole',
+        title: 'Your role when drawing in',
+        body: "This can be different from your role with a known partner above — e.g. head with a partner you trust, then draw in as a heeler if that's your stronger, or lower-odds, position."
+    },
+    {
         targetId: '#textFeeAmount',
         title: 'Your total',
         body: 'This updates live as you change your entries.'
@@ -141,9 +174,11 @@ $w.onReady(async function () {
     await setGuestVisibility();
     $w('#checkboxAddPartner').onChange(() => { togglePartnerFields(); updateFeePreview(); });
     togglePartnerFields();
+    $w('#checkboxUpAndBack').onChange(updateFeePreview);
     $w('#radioPartnerMode').onChange(togglePartnerMode);
     togglePartnerMode();
-    $w('#inputEntryCount').onInput(updateFeePreview);
+    $w('#inputEntryCount').onInput(() => { toggleDrawInRoleVisibility(); updateFeePreview(); });
+    toggleDrawInRoleVisibility();
     updateFeePreview();
     $w('#btnSubmitEntry').onClick(handleSubmit);
     $w('#btnReplayTutorial').onClick(startEntrantTour);
@@ -217,6 +252,7 @@ function onClassChanged() {
     }
 
     togglePartnerFields();
+    toggleDrawInRoleVisibility();
     updateFeePreview();
 }
 
@@ -225,11 +261,13 @@ function onClassChanged() {
  * checkboxAddPartner is checked) priced at the team rate, PLUS any
  * draw-in entries priced at pricePerEntry + drawInSurchargeFee. Both can
  * be present at once — confirmed real scenario, not an either/or like the
- * old radioEntryType version assumed.
+ * old radioEntryType version assumed. Also accounts for #checkboxUpAndBack
+ * doubling the pre-formed entry count (same partner, opposite positions).
  */
 async function updateFeePreview() {
     const drawInCount = Math.max(0, parseInt($w('#inputEntryCount').value, 10) || 0);
     const hasPartner = $w('#checkboxAddPartner').checked;
+    const preformedCount = hasPartner ? ($w('#checkboxUpAndBack').checked ? 2 : 1) : 0;
 
     if (!hasPartner && drawInCount === 0) {
         $w('#textFeeAmount').text = 'Add a partner and/or set a draw-in count to see your total.';
@@ -247,11 +285,11 @@ async function updateFeePreview() {
 
     if (hasPartner) {
         const { producerAmount, drawProFee, processingFee } =
-            await calculateEntrantCharge(teamRate, 1, currentEvent.paymentMethod);
+            await calculateEntrantCharge(teamRate, preformedCount, currentEvent.paymentMethod);
         producerTotal += producerAmount;
         drawProTotal += drawProFee || 0;
         processingTotal += processingFee || 0;
-        parts.push(`1 pre-formed entry at $${teamRate.toFixed(2)}`);
+        parts.push(`${preformedCount} pre-formed ${preformedCount === 1 ? 'entry' : 'entries'} at $${teamRate.toFixed(2)} each`);
     }
 
     if (drawInCount > 0) {
@@ -378,11 +416,41 @@ async function setGuestVisibility() {
     }
 }
 
+/**
+ * #radioRole now specifically means "my role WITH MY PARTNER" (see the
+ * file header comment) — shown alongside the partner fields, not
+ * separately.
+ */
 function togglePartnerFields() {
     if ($w('#checkboxAddPartner').checked) {
         $w('#boxPartnerFields').expand();
+        $w('#radioRole').expand();
+        $w('#checkboxUpAndBack').expand();
     } else {
         $w('#boxPartnerFields').collapse();
+        $w('#radioRole').collapse();
+        $w('#checkboxUpAndBack').collapse();
+        $w('#checkboxUpAndBack').checked = false;
+    }
+}
+
+/**
+ * #radioDrawInRole is independent of #radioRole above — confirmed real
+ * scenario: an entrant's role with a known partner can differ from their
+ * role when drawing in (see file header comment). Shown whenever a
+ * draw-in count is actually requested, regardless of whether a partner
+ * is also being added.
+ */
+function toggleDrawInRoleVisibility() {
+    if (currentClass && currentClass.entryModeAllowed === 'pick_only') {
+        $w('#radioDrawInRole').collapse();
+        return;
+    }
+    const drawInCount = Math.max(0, parseInt($w('#inputEntryCount').value, 10) || 0);
+    if (drawInCount > 0) {
+        $w('#radioDrawInRole').expand();
+    } else {
+        $w('#radioDrawInRole').collapse();
     }
 }
 
@@ -398,46 +466,67 @@ async function handleSubmit() {
         return;
     }
 
-    const entrantInput = {
+    // No role here — role now depends on WHICH part of the submission
+    // (pre-formed vs draw-in), not one fixed value for the whole person.
+    // See file header comment for the confirmed real scenario this fixes.
+    const personInfo = {
         firstName: $w('#inputFirstName').value,
         lastName: $w('#inputLastName').value,
         classificationNumber: parseFloat($w('#inputClassification').value),
         globalMembershipId: $w('#inputGlobalId').value || null,
         email: $w('#inputEmail').value,
         phone: $w('#inputPhone').value || null,
-        role: $w('#radioRole').value,
         isGuestEntry: isGuest
     };
 
     const preformedPartners = [];
     if (hasPartner) {
+        const myRole = $w('#radioRole').value; // "my role WITH MY PARTNER" specifically
+        const oppositeRole = myRole === 'header' ? 'heeler' : 'header';
+        const upAndBack = $w('#checkboxUpAndBack').checked;
+
         if ($w('#radioPartnerMode').value === 'emailOnly') {
             const partnerEmailOnly = $w('#inputPartnerEmailOnly').value;
             if (!partnerEmailOnly) {
                 setStatus("Enter your partner's email.", true);
                 return;
             }
-            preformedPartners.push({ emailOnly: partnerEmailOnly });
+            preformedPartners.push({ myRole, emailOnly: partnerEmailOnly });
+            // Up and back: same two people, roles swapped — real team-
+            // roping mechanic, not entering the identical pairing twice.
+            if (upAndBack) {
+                preformedPartners.push({ myRole: oppositeRole, emailOnly: partnerEmailOnly });
+            }
         } else {
-            preformedPartners.push({
-                fullDetails: {
-                    firstName: $w('#inputPartnerFirstName').value,
-                    lastName: $w('#inputPartnerLastName').value,
-                    classificationNumber: parseFloat($w('#inputPartnerClassification').value),
-                    globalMembershipId: $w('#inputPartnerGlobalId').value || null,
-                    email: $w('#inputPartnerEmail').value,
-                    phone: $w('#inputPartnerPhone').value || null,
-                    role: $w('#radioRole').value === 'header' ? 'heeler' : 'header',
-                    isGuestEntry: isGuest
-                }
-            });
+            const partnerFullDetails = {
+                firstName: $w('#inputPartnerFirstName').value,
+                lastName: $w('#inputPartnerLastName').value,
+                classificationNumber: parseFloat($w('#inputPartnerClassification').value),
+                globalMembershipId: $w('#inputPartnerGlobalId').value || null,
+                email: $w('#inputPartnerEmail').value,
+                phone: $w('#inputPartnerPhone').value || null,
+                isGuestEntry: isGuest
+                // No role here either — submitPreformedTeamFull derives
+                // the partner's role as the opposite of myRole, backend-side.
+            };
+            preformedPartners.push({ myRole, fullDetails: partnerFullDetails });
+            if (upAndBack) {
+                preformedPartners.push({ myRole: oppositeRole, fullDetails: partnerFullDetails });
+            }
         }
     }
+
+    // "My role when drawing in" — independent of myRole above, can be the
+    // same or different (confirmed real scenario: header with a known
+    // partner, heeler for draw-in, same person, same submission).
+    const drawIn = drawInCount > 0
+        ? { role: $w('#radioDrawInRole').value, count: drawInCount }
+        : null;
 
     $w('#btnSubmitEntry').disable();
 
     try {
-        const result = await submitEntry(currentClass._id, entrantInput, { preformedPartners, drawInCount });
+        const result = await submitEntry(currentClass._id, personInfo, { preformedPartners, drawIn });
         $w('#btnSubmitEntry').collapse();
         // Payment step needs one representative entrant record to compute
         // against — prefer the draw-in record (its fee reflects the full

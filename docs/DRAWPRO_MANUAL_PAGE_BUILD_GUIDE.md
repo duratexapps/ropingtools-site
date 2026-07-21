@@ -130,24 +130,26 @@ Only two things actually changed — read the notes on `#dropdownClass`
 | `#inputGlobalId` | Text input | Optional |
 | `#inputEmail` | Text input | |
 | `#inputPhone` | Text input | Optional |
-| `#radioRole` | Radio button group | Values: `header`, `heeler` |
+| `#radioRole` | Radio button group | Values: `header`, `heeler`. **Meaning narrowed**: now specifically "my role WITH MY PARTNER" — only relevant/shown when `#checkboxAddPartner` is checked, not a general "which position am I" for the whole submission. |
 | `#inputEntryCount` | Text input | Numeric. **Meaning changed**: now specifically "how many draw-in entries" (separate from any pre-formed partner above), and `0` is a valid value (someone entering only with their one pre-formed partner and no blind draw-in). Default should read `0`, not `1`. |
+| `#radioDrawInRole` | Radio button group | **NEW.** Values: `header`, `heeler`. "My role when drawing in" — independent of `#radioRole` above, can be set differently. Confirmed real scenario: a lower-numbered heeler can rationally head with a known partner (better catch odds for a low-numbered header) while drawing in as heeler — their genuinely stronger position — for their own solo entries. Shown only when `#inputEntryCount` is greater than 0. |
 | `#textFeeAmount` | Text | Live-updated, read-only. Now sums a pre-formed partner (if checked) and draw-in entries (if any) together, since a submission can include both. |
 | `#textSteerMeNudge` | Text | Shown/hidden based on whether any draw-in entries are requested — start collapsed |
 
-### Partner fields (container — shown only when `#checkboxAddPartner` is checked — UNCHANGED from before the redesign, still exactly as originally built)
+### Partner fields (container — shown only when `#checkboxAddPartner` is checked)
 | ID | Type | Notes |
 |---|---|---|
-| `#boxPartnerFields` | Container | Starts collapsed |
-| `#radioPartnerMode` | Radio button group | Values: `fullDetails`, `emailOnly` |
-| `#inputPartnerFirstName` | Text input | Shown when partner mode = fullDetails |
-| `#inputPartnerLastName` | Text input | " |
-| `#inputPartnerClassification` | Text input | " |
-| `#inputPartnerGlobalId` | Text input | " |
-| `#inputPartnerEmail` | Text input | " |
-| `#inputPartnerPhone` | Text input | " |
-| `#inputPartnerEmailOnly` | Text input | Shown when partner mode = emailOnly |
-| `#textPartnerEmailOnlyHint` | Text | Shown alongside `inputPartnerEmailOnly` |
+| `#boxPartnerFields` | Container | Starts collapsed — UNCHANGED from before the redesign |
+| `#radioPartnerMode` | Radio button group | Values: `fullDetails`, `emailOnly` — UNCHANGED |
+| `#inputPartnerFirstName` | Text input | Shown when partner mode = fullDetails — UNCHANGED |
+| `#inputPartnerLastName` | Text input | " — UNCHANGED |
+| `#inputPartnerClassification` | Text input | " — UNCHANGED |
+| `#inputPartnerGlobalId` | Text input | " — UNCHANGED |
+| `#inputPartnerEmail` | Text input | " — UNCHANGED |
+| `#inputPartnerPhone` | Text input | " — UNCHANGED |
+| `#inputPartnerEmailOnly` | Text input | Shown when partner mode = emailOnly — UNCHANGED |
+| `#textPartnerEmailOnlyHint` | Text | Shown alongside `inputPartnerEmailOnly` — UNCHANGED |
+| `#checkboxUpAndBack` | Checkbox (single) | **NEW.** "Also enter with this partner in opposite positions?" Real team-roping mechanic — the same two people can enter a class twice with roles swapped (unlike entering the identical role assignment twice, which normally isn't allowed). If checked, code automatically builds a second pre-formed pairing with the same partner info and flipped roles — no second set of partner fields needed. Doesn't apply to draw-in at all. |
 
 ### Guest & submit
 | ID | Type | Notes |

@@ -212,40 +212,57 @@ export async function closeClass(classId) {
  * MIX of pre-formed-team entries and draw-in entries within their own
  * allowed count, not one entry-type for the whole submission.
  *
- * Confirmed real scenario: someone wanting to enter a class 3x, with one
- * known partner and two draw-in slots, submits ONE preformed_team pairing
- * plus a solo record with requestedEntryCount: 2 — both created here,
- * sharing one submissionGroupId so billing/confirmation treat them as one
- * transaction even though they're structurally separate DrawProEntrants
- * records (the matching engine pools each requestedEntryCount unit
- * independently — see matching-engine.jsw's poolSoloEntrants).
+ * CHANGED again 2026-07-21, same day as the mixed-entry redesign: role is
+ * no longer one fixed value for the whole submission. Confirmed real
+ * scenario — a #5.5 heeler entering a class with a friend (a better
+ * heeler) can rationally choose to pre-form as HEADER with that friend
+ * (since a lower-numbered header has better catch odds than a
+ * lower-numbered heeler), while separately drawing in TWICE as a heeler
+ * — their genuinely stronger position — for their own solo entries. Same
+ * person, same classification number, two different roles within one
+ * submission. `personInfo` below carries no role at all (it's genuinely
+ * role-independent: name, number, contact info); role now lives on each
+ * preformedPartners entry (myRole) and on the drawIn block separately.
  *
  * @param {string} classId
- * @param {Object} entrantInput - the submitting person's own info: firstName, lastName, classificationNumber, globalMembershipId, email, phone, role, isGuestEntry
+ * @param {Object} personInfo - the submitting person's own info: firstName, lastName, classificationNumber, globalMembershipId, email, phone, isGuestEntry — no role here
  * @param {Object} [submission]
- * @param {Array<{fullDetails?: Object, emailOnly?: string}>} [submission.preformedPartners] - one entry per pre-formed pairing; each item is EITHER fullDetails (partner's complete info) OR emailOnly (lightweight invite), matching the two existing pre-formed paths
- * @param {number} [submission.drawInCount] - how many additional blind draw-in slots to request, 0 if none
+ * @param {Array<{myRole: 'header'|'heeler', fullDetails?: Object, emailOnly?: string}>} [submission.preformedPartners] - one entry per pre-formed pairing; myRole is the SUBMITTER's role in that specific pairing (the partner's role is always the opposite, not separately specified); fullDetails XOR emailOnly per item, matching the two existing pre-formed paths
+ * @param {{role: 'header'|'heeler', count: number}} [submission.drawIn] - the submitter's role for their draw-in slots (can differ from any preformedPartners role) and how many, omit or count:0 if none
  */
-export async function submitEntry(classId, entrantInput, submission) {
+export async function submitEntry(classId, personInfo, submission) {
     const cls = await wixData.get(CLASSES, classId);
     if (!cls) throw new Error('Class not found.');
     const event = await wixData.get(EVENTS, cls.eventId);
 
     await assertEntryWindowOpen(cls);
-    validateEntrant(entrantInput, event);
-    await enforceGuestCapIfApplicable(entrantInput);
+    validatePersonInfo(personInfo, event);
+    await enforceGuestCapIfApplicable(personInfo);
 
     const preformedPartners = (submission && submission.preformedPartners) || [];
-    const drawInCount = (submission && submission.drawInCount) || 0;
+    const drawIn = (submission && submission.drawIn) || null;
+    const drawInCount = drawIn ? (drawIn.count || 0) : 0;
     const totalRequested = preformedPartners.length + drawInCount;
 
     if (totalRequested <= 0) {
         throw new Error('At least one entry (pre-formed or draw-in) must be requested.');
     }
-    if (totalRequested > cls.maxEntriesPerEntrant) {
+
+    // Cap check is CUMULATIVE across this person's existing entries in this
+    // class, not just this one submission in isolation — fixed 2026-07-21.
+    // Previously a person could submit the form multiple separate times and
+    // exceed maxEntriesPerEntrant entirely, since each call only checked its
+    // own total. Identity is matched on email, same as guest-cap enforcement
+    // elsewhere in this file — not perfect (two different people sharing an
+    // email would collide), but consistent with how identity is already
+    // handled everywhere else in this system, not a new assumption.
+    const existingCount = await countExistingEntriesForPerson(classId, personInfo.email);
+    const grandTotal = existingCount + totalRequested;
+    if (grandTotal > cls.maxEntriesPerEntrant) {
         throw new Error(
-            `Requested ${totalRequested} entries, but this class allows a maximum of ` +
-            `${cls.maxEntriesPerEntrant} per entrant.`
+            `Requesting ${totalRequested} more entries would bring your total to ${grandTotal}, but this ` +
+            `class allows a maximum of ${cls.maxEntriesPerEntrant} per entrant` +
+            `${existingCount > 0 ? ` (you already have ${existingCount} on file for this class)` : ''}.`
         );
     }
     if (preformedPartners.length > 0 && cls.entryModeAllowed === 'draw_only') {
@@ -254,8 +271,46 @@ export async function submitEntry(classId, entrantInput, submission) {
     if (drawInCount > 0 && cls.entryModeAllowed === 'pick_only') {
         throw new Error('This class only allows pre-formed team entries — blind draw-in is not permitted.');
     }
+    for (const partner of preformedPartners) {
+        if (partner.myRole !== 'header' && partner.myRole !== 'heeler') {
+            throw new Error('Each preformedPartners entry needs myRole set to "header" or "heeler".');
+        }
+    }
     if (drawInCount > 0) {
-        assertMeetsDrawInThreshold(entrantInput, cls);
+        if (drawIn.role !== 'header' && drawIn.role !== 'heeler') {
+            throw new Error('drawIn.role must be "header" or "heeler".');
+        }
+        assertMeetsDrawInThreshold(personInfo, drawIn.role, cls);
+    }
+
+    // Cap check on pre-formed pairings, added 2026-07-21. This class of
+    // bug was previously invisible: pre-formed submissions skipped cap
+    // validation entirely (comment used to read "cap only constrains the
+    // ALGORITHM's random pairing, not entrants who chose each other") —
+    // wrong. Real fliers state cap as a rule OF THE CLASS ("#10.5,"
+    // "#7.5... #4 cap both ends"), not just a matching-time preference, so
+    // a producer's class needs this enforced regardless of how a team was
+    // formed. Confirmed real scenario this catches: a combined cap is
+    // symmetric under a role swap, but heelerSubCap is NOT — a heeler
+    // sub-cap targets whoever is heeling specifically, so "up and back"
+    // (same two people, roles reversed) can pass in one direction and fail
+    // in the other. Checked here, BEFORE any inserts happen below, so a
+    // failure never leaves a partial submission half-written (e.g. the
+    // normal pairing saved but the up-and-back reversal rejected after).
+    //
+    // Only checked for fullDetails pairings — an emailOnly partner's
+    // classification number isn't known yet at submission time, so cap
+    // validation for that path is deferred to claimPartnerInvite() in
+    // payments.jsw, which is NOT yet updated to do this check. Flagging as
+    // a known, real gap rather than a silent one: right now, a lightweight
+    // (emailOnly) pre-formed entry could still slip past the cap
+    // undetected until/unless the partner claims and that path gets the
+    // same validation added.
+    for (const partner of preformedPartners) {
+        if (partner.fullDetails) {
+            const err = checkPairingCap(partner.myRole, personInfo.classificationNumber, partner.fullDetails.classificationNumber, cls);
+            if (err) throw new Error(err);
+        }
     }
 
     const submissionGroupId = generateSubmissionGroupId();
@@ -266,12 +321,12 @@ export async function submitEntry(classId, entrantInput, submission) {
     for (const partner of preformedPartners) {
         if (partner.fullDetails) {
             const result = await submitPreformedTeamFull(
-                cls, entrantInput, partner.fullDetails, submissionGroupId, initialPaymentStatus
+                cls, personInfo, partner.myRole, partner.fullDetails, submissionGroupId, initialPaymentStatus
             );
             preformedEntries.push(result);
         } else if (partner.emailOnly) {
             const result = await submitPreformedTeamEmailOnly(
-                cls, entrantInput, partner.emailOnly, submissionGroupId, initialPaymentStatus
+                cls, personInfo, partner.myRole, partner.emailOnly, submissionGroupId, initialPaymentStatus
             );
             preformedEntries.push(result);
         } else {
@@ -283,7 +338,7 @@ export async function submitEntry(classId, entrantInput, submission) {
         const drawInRate = cls.pricePerEntry + (cls.drawInSurchargeFee || 0);
         const feeOwed = calculateProducerFee(drawInRate, drawInCount);
 
-        const record = buildEntrantRecord(cls, entrantInput, 'solo', {
+        const record = buildEntrantRecord(cls, personInfo, drawIn.role, 'solo', {
             requestedEntryCount: drawInCount, feeOwed, isFeeResponsible: true,
             paymentStatus: initialPaymentStatus, submissionGroupId
         });
@@ -295,22 +350,52 @@ export async function submitEntry(classId, entrantInput, submission) {
     return { submissionGroupId, preformedEntries, drawInEntry };
 }
 
-async function submitPreformedTeamFull(cls, entrantInput, partnerInput, submissionGroupId, initialPaymentStatus) {
-    // No cap check here — cap only constrains the ALGORITHM's random
-    // pairing of solo/draw-in entrants, not entrants who chose each other.
-    validateEntrant(partnerInput, { requiredEntryFields: [] });
-    if (entrantInput.role === partnerInput.role) {
-        throw new Error('A pre-formed team needs one header and one heeler.');
+/**
+ * Both cap rules a class can define — checkPairingCap below:
+ *  - combined: header# + heeler# <= capNumber (always required, symmetric
+ *    under a role swap)
+ *  - heelerSubCap: heeler# <= heelerSubCap, only if the class defines one
+ *    (NOT symmetric — targets whoever is heeling specifically, which is
+ *    exactly why "up and back" can pass one direction and fail the other)
+ *
+ * Mirrors matching-engine.jsw's randomlyPairByCap logic — same two rules,
+ * different context (pre-formed submission-time here vs. algorithm
+ * draw-time there). Not extracted into a shared module since the two
+ * files don't currently share a utils import; duplicated deliberately
+ * rather than left unenforced in one of the two places.
+ */
+function checkPairingCap(myRole, myNumber, partnerNumber, cls) {
+    const headerNumber = myRole === 'header' ? myNumber : partnerNumber;
+    const heelerNumber = myRole === 'header' ? partnerNumber : myNumber;
+
+    const combined = headerNumber + heelerNumber;
+    if (combined > cls.capNumber) {
+        return `This pairing (header #${headerNumber}, heeler #${heelerNumber}) totals ${combined}, ` +
+               `which exceeds this class's cap of ${cls.capNumber}.`;
     }
+    if (cls.heelerSubCap != null && heelerNumber > cls.heelerSubCap) {
+        return `This pairing's heeler (#${heelerNumber}) exceeds this class's heeler cap of ${cls.heelerSubCap}, ` +
+               `even though the combined total (${combined}) is within the overall cap.`;
+    }
+    return null;
+}
+
+async function submitPreformedTeamFull(cls, personInfo, myRole, partnerInput, submissionGroupId, initialPaymentStatus) {
+    // Cap already validated up front in submitEntry, before any inserts —
+    // see the comment there for why. Partner's role is always the
+    // opposite of myRole — not separately supplied, so there's no way for
+    // the two to conflict.
+    const partnerRole = myRole === 'header' ? 'heeler' : 'header';
+    validatePersonInfo(partnerInput, { requiredEntryFields: [] });
     await enforceGuestCapIfApplicable(partnerInput);
 
     const teamRate = cls.pricePerPreformedTeamEntry || cls.pricePerEntry;
     const feeOwed = calculateProducerFee(teamRate, 1);
 
-    const entrantRecord = buildEntrantRecord(cls, entrantInput, 'preformed_team', {
+    const entrantRecord = buildEntrantRecord(cls, personInfo, myRole, 'preformed_team', {
         requestedEntryCount: 1, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus, submissionGroupId
     });
-    const partnerRecord = buildEntrantRecord(cls, partnerInput, 'preformed_team', {
+    const partnerRecord = buildEntrantRecord(cls, partnerInput, partnerRole, 'preformed_team', {
         requestedEntryCount: 1, feeOwed, isFeeResponsible: false, paymentStatus: initialPaymentStatus, submissionGroupId
     });
 
@@ -323,14 +408,16 @@ async function submitPreformedTeamFull(cls, entrantInput, partnerInput, submissi
     return { entrant: { ...savedEntrant, teamPartnerEntrantId: savedPartner._id }, partner: savedPartner };
 }
 
-async function submitPreformedTeamEmailOnly(cls, entrantInput, partnerEmailOnly, submissionGroupId, initialPaymentStatus) {
+async function submitPreformedTeamEmailOnly(cls, personInfo, myRole, partnerEmailOnly, submissionGroupId, initialPaymentStatus) {
     // Lightweight pre-formed team: only the submitting entrant gets a real
     // record right now. teamPartnerEntrantId stays null unless/until the
-    // partner claims the invite — see payments.jsw's claimPartnerInvite().
+    // partner claims the invite — see payments.jsw's claimPartnerInvite(),
+    // which already derives the partner's role as the opposite of the
+    // original entrant's own stored role, so no change needed there.
     const teamRate = cls.pricePerPreformedTeamEntry || cls.pricePerEntry;
     const feeOwed = calculateProducerFee(teamRate, 1);
 
-    const record = buildEntrantRecord(cls, entrantInput, 'preformed_team', {
+    const record = buildEntrantRecord(cls, personInfo, myRole, 'preformed_team', {
         requestedEntryCount: 1, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus,
         submissionGroupId, partnerEmailOnly, partnerInviteStatus: 'not_sent'
     });
@@ -342,12 +429,12 @@ async function submitPreformedTeamEmailOnly(cls, entrantInput, partnerEmailOnly,
     return { entrant: saved };
 }
 
-function assertMeetsDrawInThreshold(entrantInput, cls) {
-    const minRequired = entrantInput.role === 'header' ? cls.minHeaderNumberToDrawIn : cls.minHeelerNumberToDrawIn;
-    if (minRequired != null && entrantInput.classificationNumber < minRequired) {
+function assertMeetsDrawInThreshold(personInfo, role, cls) {
+    const minRequired = role === 'header' ? cls.minHeaderNumberToDrawIn : cls.minHeelerNumberToDrawIn;
+    if (minRequired != null && personInfo.classificationNumber < minRequired) {
         throw new Error(
-            `This class requires at least a #${minRequired} ${entrantInput.role} to draw in ` +
-            `(yours is #${entrantInput.classificationNumber}). You can still enter with a pre-formed partner.`
+            `This class requires at least a #${minRequired} ${role} to draw in ` +
+            `(yours is #${personInfo.classificationNumber}). You can still enter with a pre-formed partner.`
         );
     }
 }
@@ -356,7 +443,7 @@ function generateSubmissionGroupId() {
     return `sub_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function buildEntrantRecord(cls, input, entryType, extra) {
+function buildEntrantRecord(cls, input, role, entryType, extra) {
     return {
         eventId: cls.eventId,
         classId: cls._id,
@@ -367,7 +454,7 @@ function buildEntrantRecord(cls, input, entryType, extra) {
         globalMembershipId: input.globalMembershipId || null,
         email: input.email,
         phone: input.phone || null,
-        role: input.role,
+        role,
         entryType,
         teamPartnerEntrantId: null,
         partnerEmailOnly: extra.partnerEmailOnly || null,
@@ -389,14 +476,17 @@ function buildEntrantRecord(cls, input, entryType, extra) {
     };
 }
 
-function validateEntrant(input, eventOrOptions) {
+/**
+ * Renamed from validateEntrant — no longer checks role at all, since role
+ * isn't part of personInfo anymore (see submitEntry's doc comment). Role
+ * is validated separately, per preformedPartners entry and for drawIn,
+ * inside submitEntry itself.
+ */
+function validatePersonInfo(input, eventOrOptions) {
     for (const field of MANDATORY_ENTRY_FIELDS) {
         if (!input[field] && input[field] !== 0) {
             throw new Error(`Missing required field: ${field}`);
         }
-    }
-    if (input.role !== 'header' && input.role !== 'heeler') {
-        throw new Error('role must be "header" or "heeler".');
     }
     if (typeof input.classificationNumber !== 'number' || input.classificationNumber <= 0) {
         throw new Error('classificationNumber must be a positive number.');
@@ -405,9 +495,8 @@ function validateEntrant(input, eventOrOptions) {
     // a single entrant's number under the cap is fine on its own (e.g. a 6.5
     // can enter a 10.5 roping); it's the PAIR SUM that the cap constrains,
     // enforced in the matching engine. Minimum-to-draw-in thresholds ARE
-    // checked here, but only for the submitting entrant's own draw-in
-    // request — see assertMeetsDrawInThreshold, called separately since a
-    // pre-formed partner never needs to individually clear that bar.
+    // checked, but by assertMeetsDrawInThreshold — called separately since
+    // a pre-formed partner never needs to individually clear that bar.
     for (const requiredField of (eventOrOptions.requiredEntryFields || [])) {
         if (!input[requiredField]) {
             throw new Error(`Missing producer-required field: ${requiredField}`);
@@ -439,6 +528,18 @@ async function maybeAutoCloseOnTeamCount(cls) {
 
 async function countEntrantsForClass(classId) {
     return wixData.query(ENTRANTS).eq('classId', classId).count();
+}
+
+/**
+ * Sums requestedEntryCount across every DrawProEntrants record this person
+ * already has for this class, across ALL of their past submissions —
+ * not just the current one. This is what makes maxEntriesPerEntrant a real
+ * cumulative cap instead of something only checked within a single form
+ * submission.
+ */
+async function countExistingEntriesForPerson(classId, email) {
+    const result = await wixData.query(ENTRANTS).eq('classId', classId).eq('email', email).find();
+    return result.items.reduce((sum, e) => sum + (e.requestedEntryCount || 1), 0);
 }
 
 /* ------------------------------------------------------------------ */
