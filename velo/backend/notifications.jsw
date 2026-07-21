@@ -30,6 +30,11 @@
  * (which needs a contact ID, not a raw address) can't be called
  * directly. Each send first resolves/creates a Contact via
  * contacts.appendOrCreateContact(), then emails that contact ID.
+ *
+ * UPDATED for the multi-class redesign (2026-07-21, see
+ * docs/ARCHITECTURE.md): scoped to classId now, not eventId — each class
+ * draws and notifies independently, since one class in an event can reach
+ * 'drawn' while a sibling class is still open for entries.
  */
 
 import wixData from 'wix-data';
@@ -38,6 +43,7 @@ import { contacts, triggeredEmails } from 'wix-crm-backend';
 const TEAMS = 'DrawProTeams';
 const ENTRANTS = 'DrawProEntrants';
 const EVENTS = 'DrawProEvents';
+const CLASSES = 'DrawProEventClasses';
 const DRAW_SHEETS = 'DrawProDrawSheets';
 const NOTIFICATION_LOG = 'DrawProNotificationLog';
 
@@ -48,22 +54,23 @@ const BATCH_DELAY_MS = 1000; // throttle between batches
 
 /**
  * Entry point — call this once the draw sheet status is 'drawn'.
- * Loops all teams for the event, sends header + heeler their team
+ * Loops all teams for the class, sends header + heeler their team
  * number and partner info, and logs delivery status per entrant.
  */
-export async function sendDrawNotifications(eventId) {
+export async function sendDrawNotifications(classId) {
     if (!DRAW_NOTIFICATION_EMAIL_ID) {
         throw new Error('Draw notification email template is not configured yet — see backend/notifications.jsw setup note.');
     }
 
-    const event = await wixData.get(EVENTS, eventId);
-    const sheet = await getDrawSheetOrThrow(eventId);
+    const cls = await wixData.get(CLASSES, classId);
+    const event = await wixData.get(EVENTS, cls.eventId);
+    const sheet = await getDrawSheetOrThrow(classId);
 
     if (sheet.status !== 'drawn') {
         throw new Error(`Draw sheet must be in 'drawn' status to notify. Current status: ${sheet.status}`);
     }
 
-    const teamsResult = await wixData.query(TEAMS).eq('eventId', eventId).ascending('teamNumber').limit(1000).find();
+    const teamsResult = await wixData.query(TEAMS).eq('classId', classId).ascending('teamNumber').limit(1000).find();
     const teams = teamsResult.items;
 
     const sendJobs = [];
@@ -75,19 +82,19 @@ export async function sendDrawNotifications(eventId) {
         sendJobs.push({ team, entrant: heeler, partner: header, role: 'Heeler' });
     }
 
-    const results = await sendInBatches(sendJobs, event);
+    const results = await sendInBatches(sendJobs, event, classId);
 
     await wixData.update(DRAW_SHEETS, { ...sheet, status: 'notifications_sent' });
-    await wixData.update(EVENTS, { ...event, status: 'notified' });
+    await wixData.update(CLASSES, { ...cls, status: 'notified' });
 
     return summarize(results);
 }
 
-async function sendInBatches(sendJobs, event) {
+async function sendInBatches(sendJobs, event, classId) {
     const results = [];
     for (let i = 0; i < sendJobs.length; i += BATCH_SIZE) {
         const batch = sendJobs.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(batch.map(job => sendOne(job, event)));
+        const batchResults = await Promise.all(batch.map(job => sendOne(job, event, classId)));
         results.push(...batchResults);
         if (i + BATCH_SIZE < sendJobs.length) {
             await delay(BATCH_DELAY_MS);
@@ -96,7 +103,7 @@ async function sendInBatches(sendJobs, event) {
     return results;
 }
 
-async function sendOne(job, event) {
+async function sendOne(job, event, classId) {
     const { team, entrant, partner, role } = job;
 
     if (!entrant.email) {
@@ -104,6 +111,7 @@ async function sendOne(job, event) {
         // that slipped through — no delivery channel available in v1.
         return logNotification({
             eventId: event._id,
+            classId,
             entrantId: entrant._id,
             teamId: team._id,
             channel: 'email',
@@ -132,6 +140,7 @@ async function sendOne(job, event) {
         // null here, not a bug.
         return logNotification({
             eventId: event._id,
+            classId,
             entrantId: entrant._id,
             teamId: team._id,
             channel: 'email',
@@ -141,6 +150,7 @@ async function sendOne(job, event) {
     } catch (err) {
         return logNotification({
             eventId: event._id,
+            classId,
             entrantId: entrant._id,
             teamId: team._id,
             channel: 'email',
@@ -153,6 +163,7 @@ async function sendOne(job, event) {
 async function logNotification(record) {
     return wixData.insert(NOTIFICATION_LOG, {
         eventId: record.eventId,
+        classId: record.classId,
         entrantId: record.entrantId,
         teamId: record.teamId,
         channel: record.channel,
@@ -175,10 +186,10 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function getDrawSheetOrThrow(eventId) {
-    const result = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
+async function getDrawSheetOrThrow(classId) {
+    const result = await wixData.query(DRAW_SHEETS).eq('classId', classId).find();
     if (result.items.length === 0) {
-        throw new Error('No draw sheet found for this event.');
+        throw new Error('No draw sheet found for this class.');
     }
     return result.items[0];
 }
@@ -195,9 +206,9 @@ async function getDrawSheetOrThrow(eventId) {
  * fix in producer-draw-sheet-review.js at some point, not done here
  * since that's outside this file.
  */
-export async function getManualContactList(eventId) {
+export async function getManualContactList(classId) {
     const result = await wixData.query(NOTIFICATION_LOG)
-        .eq('eventId', eventId)
+        .eq('classId', classId)
         .hasSome('status', ['manual_contact_needed', 'bounced'])
         .find();
     return result.items;

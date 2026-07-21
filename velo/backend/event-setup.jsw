@@ -1,25 +1,26 @@
 /**
  * event-setup.jsw
- * Velo backend web module — Draw Pro event configuration and entry intake.
- * Covers Option 2 (self-service entry) plumbing; Option 1 (scanned cards)
- * writes to the same DrawProEntrants collection via a separate scan-import
- * module (not included here — same validation rules apply).
+ * Velo backend web module — Draw Pro event/class configuration and entry
+ * intake. Covers Option 2 (self-service entry) plumbing; Option 1 (scanned
+ * cards) writes to the same DrawProEntrants collection via a separate
+ * scan-import module (not included here — same validation rules apply).
  *
- * UPDATED to match the pricing/payment fields added to data-model.md and
- * entrant-entry-form.js after the first version of this file was written —
- * the version handed off alongside those files still had the OLD 3-arg
- * submitEntry() signature and didn't set feeOwed/requestedEntryCount/
- * paymentStatus/partnerEmailOnly at all, which would have broken the
- * entry form immediately. Fixed here.
+ * REWRITTEN 2026-07-21 for the multi-class redesign (see
+ * docs/ARCHITECTURE.md's "Draw Pro multi-class redesign" entry and
+ * docs/source/drawpro-build/files/data-model.md). Confirmed via two real
+ * event fliers that a single Draw Pro event routinely bundles several
+ * differently-capped ropings under one shared entry link — this file
+ * previously treated one event as having exactly one cap and one price.
  *
- * MERGED UPDATE: this file previously duplicated fee math and defined
- * its own local sendPartnerInvite() using Wix Triggered Emails directly —
- * written before payments.jsw's fuller version (built across several
- * turns with Claude Chat, including the claimPartnerInvite() "claim your
- * info" flow this file's old comment incorrectly called unbuilt) was
- * available for comparison. Now calls payments.jsw's
- * calculateProducerFee() and sendPartnerInvite() instead of reimplementing
- * either here, so there's one source of truth for both.
+ * What changed:
+ *  - createEvent() now creates only the lightweight event SHELL (title,
+ *    date, payment method, etc). Cap/price/timing/entry-mode rules moved
+ *    to the new createEventClass().
+ *  - openEvent/closeEvent renamed openClass/closeClass — each class opens
+ *    and closes independently now.
+ *  - submitEntry() signature changed completely to support one person
+ *    mixing pre-formed-team and draw-in entries within their own allowed
+ *    count (confirmed real scenario) — see its own doc comment below.
  */
 
 import wixData from 'wix-data';
@@ -28,30 +29,27 @@ import { sendEntryOpenAlerts } from 'backend/qr-and-alerts.jsw';
 import { calculateProducerFee, sendPartnerInvite } from 'backend/payments.jsw';
 
 const EVENTS = 'DrawProEvents';
+const CLASSES = 'DrawProEventClasses';
 const ENTRANTS = 'DrawProEntrants';
 const AUDIT_LOG = 'DrawProAuditLog';
 
 const MANDATORY_ENTRY_FIELDS = ['firstName', 'lastName', 'classificationNumber', 'email'];
+const VALID_ENTRY_MODES = ['pick_or_draw', 'pick_only', 'draw_only'];
 
 /* ------------------------------------------------------------------ */
-/* Event creation                                                      */
+/* Event creation (shell only — see createEventClass for roping detail) */
 /* ------------------------------------------------------------------ */
 
 /**
- * Creates a new Draw Pro event in draft status.
+ * Creates a new Draw Pro event shell — the day/weekend a producer is
+ * running, not any one roping within it. Classes are added separately via
+ * createEventClass().
  * @param {Object} eventInput
  * @param {string} eventInput.title
  * @param {Date} eventInput.eventDate
- * @param {number} eventInput.capNumber
- * @param {Date} eventInput.entryOpenDateTime
- * @param {'time'|'teamCount'} eventInput.entryCloseMode
- * @param {Date} [eventInput.entryCloseDateTime]
- * @param {number} [eventInput.entryCloseTeamCount]
  * @param {boolean} eventInput.preEntryEnabled
  * @param {string[]} [eventInput.requiredEntryFields]
  * @param {string} [eventInput.steerMeEventId]
- * @param {number} eventInput.pricePerEntry
- * @param {number} [eventInput.pricePerPreformedTeamEntry]
  * @param {'cash'|'online'} eventInput.paymentMethod
  */
 export async function createEvent(eventInput) {
@@ -66,18 +64,13 @@ export async function createEvent(eventInput) {
         title: eventInput.title,
         producerId: member._id,
         eventDate: eventInput.eventDate,
-        capNumber: eventInput.capNumber,
-        entryOpenDateTime: eventInput.entryOpenDateTime,
-        entryCloseMode: eventInput.entryCloseMode,
-        entryCloseDateTime: eventInput.entryCloseDateTime || null,
-        entryCloseTeamCount: eventInput.entryCloseTeamCount || null,
         preEntryEnabled: !!eventInput.preEntryEnabled,
         requiredEntryFields: eventInput.requiredEntryFields || [],
         steerMeEventId: eventInput.steerMeEventId || null,
-        pricePerEntry: eventInput.pricePerEntry,
-        pricePerPreformedTeamEntry: eventInput.pricePerPreformedTeamEntry || null,
         paymentMethod: eventInput.paymentMethod,
-        status: 'draft'
+        qrCodeUrl: null,
+        qrCodeGeneratedDate: null,
+        sourceFlierImageUrl: eventInput.sourceFlierImageUrl || null
     };
 
     return wixData.insert(EVENTS, record);
@@ -87,42 +80,127 @@ function validateEventInput(eventInput) {
     if (!eventInput.title || !eventInput.title.trim()) {
         throw new Error('Event title is required.');
     }
-    if (typeof eventInput.capNumber !== 'number' || eventInput.capNumber <= 0) {
-        throw new Error('Cap number must be a positive number (e.g. 10.5).');
-    }
-    if (eventInput.entryCloseMode === 'time' && !eventInput.entryCloseDateTime) {
-        throw new Error('entryCloseDateTime is required when entryCloseMode is "time".');
-    }
-    if (eventInput.entryCloseMode === 'teamCount' && !eventInput.entryCloseTeamCount) {
-        throw new Error('entryCloseTeamCount is required when entryCloseMode is "teamCount".');
-    }
-    if (typeof eventInput.pricePerEntry !== 'number' || eventInput.pricePerEntry < 0) {
-        throw new Error('Price per entry must be zero or a positive number.');
-    }
     if (eventInput.paymentMethod !== 'cash' && eventInput.paymentMethod !== 'online') {
         throw new Error('paymentMethod must be "cash" or "online".');
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* Class creation — one per roping within an event                     */
+/* ------------------------------------------------------------------ */
+
 /**
- * Opens an event for entries. Producer-triggered, or can be scheduled
- * via a Wix job that flips status at entryOpenDateTime.
+ * Creates one class (roping) within an existing event — e.g. the "#7.5"
+ * within a weekend event that also has an "#8.5" and "#9.5". Everything
+ * that varies per roping lives here, not on the event shell.
+ * @param {string} eventId
+ * @param {Object} classInput
+ * @param {string} classInput.label - e.g. "7.5"
+ * @param {number} classInput.capNumber - combined header+heeler ceiling
+ * @param {number} [classInput.heelerSubCap] - additional constraint on top of capNumber, not instead of it
+ * @param {number} [classInput.minHeaderNumberToDrawIn]
+ * @param {number} [classInput.minHeelerNumberToDrawIn]
+ * @param {'pick_or_draw'|'pick_only'|'draw_only'} classInput.entryModeAllowed
+ * @param {number} classInput.maxEntriesPerEntrant
+ * @param {number} classInput.pricePerEntry
+ * @param {number} [classInput.pricePerPreformedTeamEntry]
+ * @param {number} [classInput.drawInSurchargeFee]
+ * @param {Date} classInput.entryOpenDateTime
+ * @param {'time'|'teamCount'|'manual'} classInput.entryCloseMode
+ * @param {Date} [classInput.entryCloseDateTime]
+ * @param {number} [classInput.entryCloseTeamCount]
  */
-export async function openEvent(eventId) {
+export async function createEventClass(eventId, classInput) {
     const event = await wixData.get(EVENTS, eventId);
-    if (event.status !== 'draft') {
-        throw new Error(`Event must be in draft status to open. Current status: ${event.status}`);
+    if (!event) throw new Error('Event not found.');
+
+    validateClassInput(classInput);
+
+    const record = {
+        eventId,
+        label: classInput.label,
+        capNumber: classInput.capNumber,
+        heelerSubCap: classInput.heelerSubCap || null,
+        minHeaderNumberToDrawIn: classInput.minHeaderNumberToDrawIn || null,
+        minHeelerNumberToDrawIn: classInput.minHeelerNumberToDrawIn || null,
+        entryModeAllowed: classInput.entryModeAllowed,
+        maxEntriesPerEntrant: classInput.maxEntriesPerEntrant,
+        pricePerEntry: classInput.pricePerEntry,
+        pricePerPreformedTeamEntry: classInput.pricePerPreformedTeamEntry || null,
+        drawInSurchargeFee: classInput.drawInSurchargeFee || null,
+        entryOpenDateTime: classInput.entryOpenDateTime,
+        entryCloseMode: classInput.entryCloseMode,
+        entryCloseDateTime: classInput.entryCloseDateTime || null,
+        entryCloseTeamCount: classInput.entryCloseTeamCount || null,
+        status: 'draft'
+    };
+
+    return wixData.insert(CLASSES, record);
+}
+
+function validateClassInput(classInput) {
+    if (!classInput.label || !classInput.label.trim()) {
+        throw new Error('Class label is required (e.g. "7.5").');
     }
-    const opened = await wixData.update(EVENTS, { ...event, status: 'open' });
+    if (typeof classInput.capNumber !== 'number' || classInput.capNumber <= 0) {
+        throw new Error('Cap number must be a positive number (e.g. 10.5).');
+    }
+    if (classInput.heelerSubCap != null && (typeof classInput.heelerSubCap !== 'number' || classInput.heelerSubCap <= 0)) {
+        throw new Error('heelerSubCap, if set, must be a positive number.');
+    }
+    if (!VALID_ENTRY_MODES.includes(classInput.entryModeAllowed)) {
+        throw new Error(`entryModeAllowed must be one of: ${VALID_ENTRY_MODES.join(', ')}.`);
+    }
+    if (typeof classInput.maxEntriesPerEntrant !== 'number' || classInput.maxEntriesPerEntrant <= 0) {
+        throw new Error('maxEntriesPerEntrant must be a positive number.');
+    }
+    if (typeof classInput.pricePerEntry !== 'number' || classInput.pricePerEntry < 0) {
+        throw new Error('Price per entry must be zero or a positive number.');
+    }
+    if (classInput.entryCloseMode === 'time' && !classInput.entryCloseDateTime) {
+        throw new Error('entryCloseDateTime is required when entryCloseMode is "time".');
+    }
+    if (classInput.entryCloseMode === 'teamCount' && !classInput.entryCloseTeamCount) {
+        throw new Error('entryCloseTeamCount is required when entryCloseMode is "teamCount".');
+    }
+}
+
+/**
+ * Opens a class for entries. Producer-triggered, or can be scheduled via a
+ * Wix job that flips status at entryOpenDateTime. Classes open/close
+ * independently — confirmed real scenario: one class in an event can still
+ * be open while a sibling class has already closed.
+ */
+export async function openClass(classId) {
+    const cls = await wixData.get(CLASSES, classId);
+    if (cls.status !== 'draft') {
+        throw new Error(`Class must be in draft status to open. Current status: ${cls.status}`);
+    }
+    const opened = await wixData.update(CLASSES, { ...cls, status: 'open' });
 
     // Notify anyone who signed up for a "tell me when this opens" alert
     // via the QR/entry link before entries were live. Fire-and-forget-ish:
     // don't block the open action if the alert batch has an issue.
-    sendEntryOpenAlerts(eventId).catch(err =>
-        console.error(`Entry-open alerts failed for event ${eventId}: ${err.message}`)
+    sendEntryOpenAlerts(cls.eventId).catch(err =>
+        console.error(`Entry-open alerts failed for event ${cls.eventId}: ${err.message}`)
     );
 
     return opened;
+}
+
+/**
+ * Closes a class's books. Always available as a manual producer action
+ * regardless of entryCloseMode — confirmed decision: cross-class timing
+ * dependencies shown on real fliers ("closes after round 3 of the #7")
+ * are handled by producer judgment, not automated round-tracking, which
+ * doesn't exist anywhere in this design. entryCloseMode's automatic
+ * triggers (time/teamCount) are a convenience on top of this, not a
+ * replacement for it.
+ */
+export async function closeClass(classId) {
+    const cls = await wixData.get(CLASSES, classId);
+    if (cls.status !== 'open') return cls; // already closed/beyond
+    return wixData.update(CLASSES, { ...cls, status: 'closed' });
 }
 
 /* ------------------------------------------------------------------ */
@@ -130,95 +208,159 @@ export async function openEvent(eventId) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Submits a solo entry (matched by the draw algorithm), a pre-formed team
- * entry with full partner details, or a "lightweight" pre-formed team
- * entry where only the partner's email is known (partnerEmailOnly).
+ * Submits one person's entire entry into one class — which may now be a
+ * MIX of pre-formed-team entries and draw-in entries within their own
+ * allowed count, not one entry-type for the whole submission.
  *
- * @param {string} eventId
- * @param {Object} entrantInput - header/heeler fields, see MANDATORY_ENTRY_FIELDS, plus requestedEntryCount
- * @param {Object} [partnerInput] - present only for a full-details pre-formed team entry
- * @param {string} [partnerEmailOnly] - present only for a lightweight pre-formed team entry
+ * Confirmed real scenario: someone wanting to enter a class 3x, with one
+ * known partner and two draw-in slots, submits ONE preformed_team pairing
+ * plus a solo record with requestedEntryCount: 2 — both created here,
+ * sharing one submissionGroupId so billing/confirmation treat them as one
+ * transaction even though they're structurally separate DrawProEntrants
+ * records (the matching engine pools each requestedEntryCount unit
+ * independently — see matching-engine.jsw's poolSoloEntrants).
+ *
+ * @param {string} classId
+ * @param {Object} entrantInput - the submitting person's own info: firstName, lastName, classificationNumber, globalMembershipId, email, phone, role, isGuestEntry
+ * @param {Object} [submission]
+ * @param {Array<{fullDetails?: Object, emailOnly?: string}>} [submission.preformedPartners] - one entry per pre-formed pairing; each item is EITHER fullDetails (partner's complete info) OR emailOnly (lightweight invite), matching the two existing pre-formed paths
+ * @param {number} [submission.drawInCount] - how many additional blind draw-in slots to request, 0 if none
  */
-export async function submitEntry(eventId, entrantInput, partnerInput, partnerEmailOnly) {
-    const event = await wixData.get(EVENTS, eventId);
-    await assertEntryWindowOpen(event);
+export async function submitEntry(classId, entrantInput, submission) {
+    const cls = await wixData.get(CLASSES, classId);
+    if (!cls) throw new Error('Class not found.');
+    const event = await wixData.get(EVENTS, cls.eventId);
 
+    await assertEntryWindowOpen(cls);
     validateEntrant(entrantInput, event);
     await enforceGuestCapIfApplicable(entrantInput);
 
-    const requestedEntryCount = entrantInput.requestedEntryCount && entrantInput.requestedEntryCount > 0
-        ? entrantInput.requestedEntryCount
-        : 1;
+    const preformedPartners = (submission && submission.preformedPartners) || [];
+    const drawInCount = (submission && submission.drawInCount) || 0;
+    const totalRequested = preformedPartners.length + drawInCount;
 
-    if (partnerInput) {
-        // Full-details pre-formed team: both entrants validated, both
-        // roles must differ, no cap check here — cap only constrains the
-        // ALGORITHM's random pairing of solo entrants, not entrants who
-        // chose each other.
-        validateEntrant(partnerInput, event);
-        if (entrantInput.role === partnerInput.role) {
-            throw new Error('A pre-formed team needs one header and one heeler.');
-        }
-        await enforceGuestCapIfApplicable(partnerInput);
-
-        const teamRate = event.pricePerPreformedTeamEntry || event.pricePerEntry;
-        const feeOwed = calculateProducerFee(teamRate, requestedEntryCount);
-        const initialPaymentStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
-
-        const entrantRecord = buildEntrantRecord(eventId, entrantInput, 'preformed_team', {
-            requestedEntryCount, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus
-        });
-        const partnerRecord = buildEntrantRecord(eventId, partnerInput, 'preformed_team', {
-            requestedEntryCount, feeOwed, isFeeResponsible: false, paymentStatus: initialPaymentStatus
-        });
-
-        const savedEntrant = await wixData.insert(ENTRANTS, entrantRecord);
-        const savedPartner = await wixData.insert(ENTRANTS, partnerRecord);
-
-        await wixData.update(ENTRANTS, { ...savedEntrant, teamPartnerEntrantId: savedPartner._id });
-        await wixData.update(ENTRANTS, { ...savedPartner, teamPartnerEntrantId: savedEntrant._id });
-
-        await maybeAutoCloseOnTeamCount(event);
-        return { entrant: { ...savedEntrant, teamPartnerEntrantId: savedPartner._id }, partner: savedPartner };
+    if (totalRequested <= 0) {
+        throw new Error('At least one entry (pre-formed or draw-in) must be requested.');
     }
-
-    if (partnerEmailOnly) {
-        // Lightweight pre-formed team: only the submitting entrant gets a
-        // real record right now. teamPartnerEntrantId stays null unless/
-        // until the partner claims the invite — see payments.jsw's
-        // claimPartnerInvite() for that flow.
-        const teamRate = event.pricePerPreformedTeamEntry || event.pricePerEntry;
-        const feeOwed = calculateProducerFee(teamRate, requestedEntryCount);
-        const initialPaymentStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
-
-        const record = buildEntrantRecord(eventId, entrantInput, 'preformed_team', {
-            requestedEntryCount, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus,
-            partnerEmailOnly, partnerInviteStatus: 'not_sent'
-        });
-
-        const saved = await wixData.insert(ENTRANTS, record);
-        await sendPartnerInvite(saved._id).catch((err) =>
-            console.error(`Partner invite email failed for entrant ${saved._id}: ${err.message}`)
+    if (totalRequested > cls.maxEntriesPerEntrant) {
+        throw new Error(
+            `Requested ${totalRequested} entries, but this class allows a maximum of ` +
+            `${cls.maxEntriesPerEntrant} per entrant.`
         );
-        await maybeAutoCloseOnTeamCount(event);
-        return { entrant: saved };
+    }
+    if (preformedPartners.length > 0 && cls.entryModeAllowed === 'draw_only') {
+        throw new Error('This class only allows blind draw-in entries — pre-formed teams are not permitted.');
+    }
+    if (drawInCount > 0 && cls.entryModeAllowed === 'pick_only') {
+        throw new Error('This class only allows pre-formed team entries — blind draw-in is not permitted.');
+    }
+    if (drawInCount > 0) {
+        assertMeetsDrawInThreshold(entrantInput, cls);
     }
 
-    // Solo entry
-    const feeOwed = calculateProducerFee(event.pricePerEntry, requestedEntryCount);
+    const submissionGroupId = generateSubmissionGroupId();
     const initialPaymentStatus = event.paymentMethod === 'cash' ? 'pending_cash' : 'unpaid';
+    const preformedEntries = [];
+    let drawInEntry = null;
 
-    const record = buildEntrantRecord(eventId, entrantInput, 'solo', {
-        requestedEntryCount, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus
+    for (const partner of preformedPartners) {
+        if (partner.fullDetails) {
+            const result = await submitPreformedTeamFull(
+                cls, entrantInput, partner.fullDetails, submissionGroupId, initialPaymentStatus
+            );
+            preformedEntries.push(result);
+        } else if (partner.emailOnly) {
+            const result = await submitPreformedTeamEmailOnly(
+                cls, entrantInput, partner.emailOnly, submissionGroupId, initialPaymentStatus
+            );
+            preformedEntries.push(result);
+        } else {
+            throw new Error('Each preformedPartners entry needs either fullDetails or emailOnly.');
+        }
+    }
+
+    if (drawInCount > 0) {
+        const drawInRate = cls.pricePerEntry + (cls.drawInSurchargeFee || 0);
+        const feeOwed = calculateProducerFee(drawInRate, drawInCount);
+
+        const record = buildEntrantRecord(cls, entrantInput, 'solo', {
+            requestedEntryCount: drawInCount, feeOwed, isFeeResponsible: true,
+            paymentStatus: initialPaymentStatus, submissionGroupId
+        });
+        drawInEntry = await wixData.insert(ENTRANTS, record);
+    }
+
+    await maybeAutoCloseOnTeamCount(cls);
+
+    return { submissionGroupId, preformedEntries, drawInEntry };
+}
+
+async function submitPreformedTeamFull(cls, entrantInput, partnerInput, submissionGroupId, initialPaymentStatus) {
+    // No cap check here — cap only constrains the ALGORITHM's random
+    // pairing of solo/draw-in entrants, not entrants who chose each other.
+    validateEntrant(partnerInput, { requiredEntryFields: [] });
+    if (entrantInput.role === partnerInput.role) {
+        throw new Error('A pre-formed team needs one header and one heeler.');
+    }
+    await enforceGuestCapIfApplicable(partnerInput);
+
+    const teamRate = cls.pricePerPreformedTeamEntry || cls.pricePerEntry;
+    const feeOwed = calculateProducerFee(teamRate, 1);
+
+    const entrantRecord = buildEntrantRecord(cls, entrantInput, 'preformed_team', {
+        requestedEntryCount: 1, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus, submissionGroupId
     });
+    const partnerRecord = buildEntrantRecord(cls, partnerInput, 'preformed_team', {
+        requestedEntryCount: 1, feeOwed, isFeeResponsible: false, paymentStatus: initialPaymentStatus, submissionGroupId
+    });
+
+    const savedEntrant = await wixData.insert(ENTRANTS, entrantRecord);
+    const savedPartner = await wixData.insert(ENTRANTS, partnerRecord);
+
+    await wixData.update(ENTRANTS, { ...savedEntrant, teamPartnerEntrantId: savedPartner._id });
+    await wixData.update(ENTRANTS, { ...savedPartner, teamPartnerEntrantId: savedEntrant._id });
+
+    return { entrant: { ...savedEntrant, teamPartnerEntrantId: savedPartner._id }, partner: savedPartner };
+}
+
+async function submitPreformedTeamEmailOnly(cls, entrantInput, partnerEmailOnly, submissionGroupId, initialPaymentStatus) {
+    // Lightweight pre-formed team: only the submitting entrant gets a real
+    // record right now. teamPartnerEntrantId stays null unless/until the
+    // partner claims the invite — see payments.jsw's claimPartnerInvite().
+    const teamRate = cls.pricePerPreformedTeamEntry || cls.pricePerEntry;
+    const feeOwed = calculateProducerFee(teamRate, 1);
+
+    const record = buildEntrantRecord(cls, entrantInput, 'preformed_team', {
+        requestedEntryCount: 1, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus,
+        submissionGroupId, partnerEmailOnly, partnerInviteStatus: 'not_sent'
+    });
+
     const saved = await wixData.insert(ENTRANTS, record);
-    await maybeAutoCloseOnTeamCount(event);
+    await sendPartnerInvite(saved._id).catch((err) =>
+        console.error(`Partner invite email failed for entrant ${saved._id}: ${err.message}`)
+    );
     return { entrant: saved };
 }
 
-function buildEntrantRecord(eventId, input, entryType, extra) {
+function assertMeetsDrawInThreshold(entrantInput, cls) {
+    const minRequired = entrantInput.role === 'header' ? cls.minHeaderNumberToDrawIn : cls.minHeelerNumberToDrawIn;
+    if (minRequired != null && entrantInput.classificationNumber < minRequired) {
+        throw new Error(
+            `This class requires at least a #${minRequired} ${entrantInput.role} to draw in ` +
+            `(yours is #${entrantInput.classificationNumber}). You can still enter with a pre-formed partner.`
+        );
+    }
+}
+
+function generateSubmissionGroupId() {
+    return `sub_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildEntrantRecord(cls, input, entryType, extra) {
     return {
-        eventId,
+        eventId: cls.eventId,
+        classId: cls._id,
+        submissionGroupId: extra.submissionGroupId,
         firstName: input.firstName,
         lastName: input.lastName,
         classificationNumber: input.classificationNumber,
@@ -247,7 +389,7 @@ function buildEntrantRecord(eventId, input, entryType, extra) {
     };
 }
 
-function validateEntrant(input, event) {
+function validateEntrant(input, eventOrOptions) {
     for (const field of MANDATORY_ENTRY_FIELDS) {
         if (!input[field] && input[field] !== 0) {
             throw new Error(`Missing required field: ${field}`);
@@ -262,44 +404,41 @@ function validateEntrant(input, event) {
     // Note: individual classification is NOT checked against the cap here —
     // a single entrant's number under the cap is fine on its own (e.g. a 6.5
     // can enter a 10.5 roping); it's the PAIR SUM that the cap constrains,
-    // enforced in the matching engine.
-    for (const requiredField of event.requiredEntryFields || []) {
+    // enforced in the matching engine. Minimum-to-draw-in thresholds ARE
+    // checked here, but only for the submitting entrant's own draw-in
+    // request — see assertMeetsDrawInThreshold, called separately since a
+    // pre-formed partner never needs to individually clear that bar.
+    for (const requiredField of (eventOrOptions.requiredEntryFields || [])) {
         if (!input[requiredField]) {
             throw new Error(`Missing producer-required field: ${requiredField}`);
         }
     }
 }
 
-async function assertEntryWindowOpen(event) {
-    if (event.status !== 'open') {
-        throw new Error('This event is not currently open for entries.');
+async function assertEntryWindowOpen(cls) {
+    if (cls.status !== 'open') {
+        throw new Error('This class is not currently open for entries.');
     }
     const now = new Date();
-    if (event.entryCloseMode === 'time' && event.entryCloseDateTime && now > new Date(event.entryCloseDateTime)) {
-        await closeEvent(event._id);
-        throw new Error('Entries have closed for this event.');
+    if (cls.entryCloseMode === 'time' && cls.entryCloseDateTime && now > new Date(cls.entryCloseDateTime)) {
+        await closeClass(cls._id);
+        throw new Error('Entries have closed for this class.');
     }
 }
 
-async function maybeAutoCloseOnTeamCount(event) {
-    if (event.entryCloseMode !== 'teamCount') return;
-    const currentCount = await countEntrantsForEvent(event._id);
+async function maybeAutoCloseOnTeamCount(cls) {
+    if (cls.entryCloseMode !== 'teamCount') return;
+    const currentCount = await countEntrantsForClass(cls._id);
     // Team count target is in TEAMS, entrants come in as individuals/pairs —
     // caller-side team count is approximated as entrants/2 for solo pool
     // plus actual pre-formed teams; exact reconciliation happens at close.
-    if (currentCount >= event.entryCloseTeamCount * 2) {
-        await closeEvent(event._id);
+    if (currentCount >= cls.entryCloseTeamCount * 2) {
+        await closeClass(cls._id);
     }
 }
 
-async function countEntrantsForEvent(eventId) {
-    return wixData.query(ENTRANTS).eq('eventId', eventId).count();
-}
-
-export async function closeEvent(eventId) {
-    const event = await wixData.get(EVENTS, eventId);
-    if (event.status !== 'open') return event; // already closed/beyond
-    return wixData.update(EVENTS, { ...event, status: 'closed' });
+async function countEntrantsForClass(classId) {
+    return wixData.query(ENTRANTS).eq('classId', classId).count();
 }
 
 /* ------------------------------------------------------------------ */

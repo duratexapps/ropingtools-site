@@ -67,6 +67,7 @@ import { currentMember } from 'wix-members-backend';
 import { contacts, triggeredEmails } from 'wix-crm-backend';
 
 const EVENTS = 'DrawProEvents';
+const CLASSES = 'DrawProEventClasses';
 const ENTRANTS = 'DrawProEntrants';
 const TEAMS = 'DrawProTeams';
 const PAYMENTS = 'DrawProPayments';
@@ -460,6 +461,7 @@ async function getPayPalAccessToken() {
 export async function createPayPalOrder(eventId, entrantId) {
     const event = await wixData.get(EVENTS, eventId);
     const entrant = await wixData.get(ENTRANTS, entrantId);
+    const cls = await wixData.get(CLASSES, entrant.classId);
 
     if (event.paymentMethod !== 'online') {
         throw new Error('This event is not set up for online payment.');
@@ -473,9 +475,15 @@ export async function createPayPalOrder(eventId, entrantId) {
         throw new Error('This producer has not finished payout setup — online payment is unavailable for this event.');
     }
 
+    // UPDATED for the multi-class redesign: rate now comes from the
+    // entrant's class, not the event. Also now applies drawInSurchargeFee
+    // for solo/draw-in entries — this was missing even before the
+    // redesign (the old code only ever distinguished preformed vs solo
+    // rate, never added the draw-in surcharge on top), caught while
+    // fixing this function for classId, not a separate pass.
     const rate = entrant.entryType === 'preformed_team'
-        ? (event.pricePerPreformedTeamEntry || event.pricePerEntry)
-        : event.pricePerEntry;
+        ? (cls.pricePerPreformedTeamEntry || cls.pricePerEntry)
+        : cls.pricePerEntry + (cls.drawInSurchargeFee || 0);
 
     const { producerAmount, drawProFee, processingFee, totalChargedToEntrant } =
         calculateEntrantCharge(rate, entrant.requestedEntryCount, 'online');
@@ -668,11 +676,11 @@ export async function cancelSubscription(producerId) {
  * only calculates and logs the charge; actually collecting it from the
  * producer needs its own billing flow, not yet built (see data-model.md).
  *
- * NOT YET WIRED UP: matching-engine.jsw's executeDraw does not currently
- * call this function — confirmed by checking that file directly, it has
- * no reference to ExecutionCharge or payments.jsw at all. That's a real
- * gap, flagging rather than silently fixing it here since it means
- * touching matching-engine.jsw, outside this merge's scope.
+ * UPDATED for the multi-class redesign (2026-07-21, see
+ * docs/ARCHITECTURE.md): scoped to classId now, not eventId — each class
+ * draws (and so incurs this charge) independently. matching-engine.jsw's
+ * executeDraw calls this with classId once teams are persisted for that
+ * class.
  *
  * Only teams the matching ALGORITHM paired count toward the billable
  * total — pre-formed teams (Steer Me matches, or any two people who
@@ -681,21 +689,23 @@ export async function cancelSubscription(producerId) {
  * producers a direct financial reason to want more of their field
  * pre-formed via Steer Me, not just a values-based nudge.
  */
-export async function calculateAndRecordExecutionCharge(eventId) {
-    const event = await wixData.get(EVENTS, eventId);
+export async function calculateAndRecordExecutionCharge(classId) {
+    const cls = await wixData.get(CLASSES, classId);
+    const event = await wixData.get(EVENTS, cls.eventId);
     if (event.paymentMethod !== 'cash') {
         return null; // online events never generate an execution charge
     }
 
-    const teamCount = await wixData.query(TEAMS).eq('eventId', eventId).count();
-    const matchedTeamCount = await wixData.query(TEAMS).eq('eventId', eventId).eq('preFormed', false).count();
+    const teamCount = await wixData.query(TEAMS).eq('classId', classId).count();
+    const matchedTeamCount = await wixData.query(TEAMS).eq('classId', classId).eq('preFormed', false).count();
     const covered = await hasActiveSubscription(event.producerId);
 
     const billableTeamCount = Math.max(0, matchedTeamCount - FREE_TEAM_THRESHOLD);
     const amountDue = covered ? 0 : round2(billableTeamCount * PER_TEAM_EXECUTION_RATE);
 
     const record = {
-        eventId,
+        eventId: cls.eventId,
+        classId,
         producerId: event.producerId,
         teamCount,
         matchedTeamCount,
@@ -712,7 +722,8 @@ export async function calculateAndRecordExecutionCharge(eventId) {
 
     if (amountDue > 0) {
         await wixData.insert(AUDIT_LOG, {
-            eventId,
+            eventId: cls.eventId,
+            classId,
             actionType: 'payment_recorded',
             performedByUserId: event.producerId,
             timestamp: new Date(),
@@ -781,6 +792,8 @@ export async function claimPartnerInvite(originalEntrantId, partnerDetails) {
     const partnerRole = original.role === 'header' ? 'heeler' : 'header';
     const partnerRecord = {
         eventId: original.eventId,
+        classId: original.classId,
+        submissionGroupId: original.submissionGroupId,
         firstName: partnerDetails.firstName,
         lastName: partnerDetails.lastName,
         classificationNumber: partnerDetails.classificationNumber,

@@ -1,23 +1,47 @@
 /**
  * matching-engine.jsw
- * Velo backend web module — the actual draw for a team roping event.
+ * Velo backend web module — the actual draw for one class within a Draw Pro
+ * event.
+ *
+ * REWRITTEN 2026-07-21 for the multi-class redesign (see
+ * docs/ARCHITECTURE.md's "Draw Pro multi-class redesign" entry and
+ * docs/source/drawpro-build/files/data-model.md). Every function that used
+ * to operate on `eventId` alone now operates on `classId` — a draw runs
+ * once per roping/class, not once per event, since one event can bundle
+ * several independently-timed, independently-capped classes.
  *
  * Pipeline: verify → draw → notify (notify lives in notifications.jsw,
  * triggered separately after producer sign-off).
  *
- * Algorithm shape (as specced):
+ * Algorithm shape (as specced, extended for multi-entry + heeler sub-cap):
  *  1. Pull out pre-formed teams — they get team numbers, skip matching.
- *  2. Pool remaining solo headers and solo heelers separately.
+ *  2. Pool remaining solo headers and solo heelers separately. An entrant
+ *     with requestedEntryCount > 1 is expanded into that many independently
+ *     poolable slots (confirmed real scenario: one person mixing a
+ *     pre-formed entry with several draw-in entries within their own
+ *     allowed count) — NEW in this revision, previously entrants were only
+ *     ever poolable once regardless of requestedEntryCount.
  *  3. Randomly pair: pick a random unmatched header, then randomly pick
  *     from the subset of unmatched heelers whose classification satisfies
- *     header# + heeler# <= cap. No preference order — pure random among
+ *     BOTH header# + heeler# <= class.capNumber AND, if the class defines
+ *     one, heeler# <= class.heelerSubCap (confirmed real mechanic — the
+ *     sub-cap is an *additional* constraint on top of the combined cap,
+ *     not an alternate mode). No preference order — pure random among
  *     valid options.
  *  4. Anyone left unmatched goes to manual override.
  *  5. Sequence all teams (pre-formed + drawn) so no entrant runs twice
  *     within a 10-team gap. If impossible for a given field, flag it and
  *     notify the producer rather than guessing.
- *  6. Cap rule is absolute — even manual override cannot exceed it.
- *     Any attempted violation is logged, never executed.
+ *  6. Cap rule is absolute — even manual override cannot exceed either
+ *     the combined cap or the heeler sub-cap. Any attempted violation is
+ *     logged, never executed.
+ *
+ * NOT handled here, by design: minHeaderNumberToDrawIn / minHeelerNumberToDrawIn
+ * eligibility is enforced at entry-submission time (event-setup.jsw), not
+ * re-checked here. Unlike the cap rule, which is explicitly specced as
+ * absolute even under manual override, the draw-in-minimum rule has no such
+ * requirement — this file trusts that entry-time validation already kept
+ * ineligible entrants out of the solo pool.
  */
 
 import wixData from 'wix-data';
@@ -25,6 +49,7 @@ import { currentMember } from 'wix-members-backend';
 import { calculateAndRecordExecutionCharge } from 'backend/payments.jsw';
 
 const EVENTS = 'DrawProEvents';
+const CLASSES = 'DrawProEventClasses';
 const ENTRANTS = 'DrawProEntrants';
 const TEAMS = 'DrawProTeams';
 const DRAW_SHEETS = 'DrawProDrawSheets';
@@ -36,17 +61,18 @@ const MIN_SPACING = 10; // minimum teams between a repeat entrant's runs
 /* Finalize — lock entries, prep draw sheet for producer review        */
 /* ------------------------------------------------------------------ */
 
-export async function finalizeDrawSheet(eventId) {
-    const event = await wixData.get(EVENTS, eventId);
-    if (event.status !== 'closed') {
-        throw new Error(`Event must be closed before finalizing. Current status: ${event.status}`);
+export async function finalizeDrawSheet(classId) {
+    const cls = await wixData.get(CLASSES, classId);
+    if (cls.status !== 'closed') {
+        throw new Error(`Class must be closed before finalizing. Current status: ${cls.status}`);
     }
 
-    await wixData.update(EVENTS, { ...event, status: 'finalized' });
+    await wixData.update(CLASSES, { ...cls, status: 'finalized' });
 
-    const existing = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
+    const existing = await wixData.query(DRAW_SHEETS).eq('classId', classId).find();
     const sheetRecord = {
-        eventId,
+        eventId: cls.eventId,
+        classId,
         status: 'pending_signoff',
         finalizedTimestamp: new Date()
     };
@@ -61,11 +87,11 @@ export async function finalizeDrawSheet(eventId) {
 /* Producer sign-off — required before the draw executes               */
 /* ------------------------------------------------------------------ */
 
-export async function signOffDrawSheet(eventId) {
+export async function signOffDrawSheet(classId) {
     const member = await currentMember.getMember();
     if (!member) throw new Error('Must be signed in as the producer to sign off.');
 
-    const sheet = await getDrawSheet(eventId);
+    const sheet = await getDrawSheet(classId);
     if (sheet.status !== 'pending_signoff') {
         throw new Error(`Draw sheet is not awaiting sign-off. Current status: ${sheet.status}`);
     }
@@ -78,22 +104,32 @@ export async function signOffDrawSheet(eventId) {
     });
 
     // Sign-off immediately triggers the draw itself.
-    return executeDraw(eventId);
+    return executeDraw(classId);
 }
 
 /* ------------------------------------------------------------------ */
 /* The draw                                                             */
 /* ------------------------------------------------------------------ */
 
-async function executeDraw(eventId) {
-    const event = await wixData.get(EVENTS, eventId);
-    const entrantsResult = await wixData.query(ENTRANTS).eq('eventId', eventId).limit(1000).find();
+async function executeDraw(classId) {
+    const cls = await wixData.get(CLASSES, classId);
+    const entrantsResult = await wixData.query(ENTRANTS).eq('classId', classId).limit(1000).find();
     const entrants = entrantsResult.items;
 
     const preFormedTeams = extractPreFormedTeams(entrants);
-    const { unmatchedHeaders, unmatchedHeelers } = poolSoloEntrants(entrants, preFormedTeams);
+    const preFormedIds = new Set();
+    for (const team of preFormedTeams) {
+        preFormedIds.add(team.header._id);
+        preFormedIds.add(team.heeler._id);
+    }
+    const { unmatchedHeaders, unmatchedHeelers } = poolSoloEntrants(entrants, preFormedIds);
 
-    const { drawnTeams, unmatched } = randomlyPairByCap(unmatchedHeaders, unmatchedHeelers, event.capNumber);
+    const { drawnTeams, unmatched } = randomlyPairByCap(
+        unmatchedHeaders,
+        unmatchedHeelers,
+        cls.capNumber,
+        cls.heelerSubCap
+    );
 
     const allTeams = [...preFormedTeams, ...drawnTeams];
     const sequenced = sequenceWithSpacing(allTeams, MIN_SPACING);
@@ -102,7 +138,8 @@ async function executeDraw(eventId) {
     const savedTeams = [];
     for (const team of sequenced.teams) {
         const saved = await wixData.insert(TEAMS, {
-            eventId,
+            eventId: cls.eventId,
+            classId,
             teamNumber: team.teamNumber,
             headerEntrantId: team.header._id,
             heelerEntrantId: team.heeler._id,
@@ -120,7 +157,7 @@ async function executeDraw(eventId) {
     }
 
     // Update draw sheet with results
-    const sheet = await getDrawSheet(eventId);
+    const sheet = await getDrawSheet(classId);
     await wixData.update(DRAW_SHEETS, {
         ...sheet,
         status: 'drawn',
@@ -128,10 +165,10 @@ async function executeDraw(eventId) {
         unmatchedEntrantIds: unmatched.map(e => e._id)
     });
 
-    await wixData.update(EVENTS, { ...event, status: 'drawn' });
+    await wixData.update(CLASSES, { ...cls, status: 'drawn' });
 
     if (sequenced.unresolvedSpacingConflicts.length > 0) {
-        await logSpacingConflicts(eventId, sequenced.unresolvedSpacingConflicts);
+        await logSpacingConflicts(cls.eventId, classId, sequenced.unresolvedSpacingConflicts);
     }
 
     // Cash-event execution billing (payments.jsw's calculateAndRecordExecutionCharge):
@@ -140,8 +177,8 @@ async function executeDraw(eventId) {
     // logged failure, same pattern as event-setup.jsw's sendEntryOpenAlerts —
     // a billing-calc problem shouldn't roll back a draw that already succeeded
     // and whose results producers/entrants are about to see.
-    calculateAndRecordExecutionCharge(eventId).catch(err =>
-        console.error(`Execution charge calculation failed for event ${eventId}: ${err.message}`)
+    calculateAndRecordExecutionCharge(classId).catch(err =>
+        console.error(`Execution charge calculation failed for class ${classId}: ${err.message}`)
     );
 
     return {
@@ -153,7 +190,9 @@ async function executeDraw(eventId) {
 
 /**
  * Pre-formed teams are entrants who declared a partner at entry time.
- * Pulled first, no matching logic applied.
+ * Pulled first, no matching logic applied. A preformed_team record's
+ * requestedEntryCount is effectively always 1 in practice (a distinct
+ * partner needs its own record) — not expanded like solo entries are.
  */
 function extractPreFormedTeams(entrants) {
     const teams = [];
@@ -178,29 +217,55 @@ function extractPreFormedTeams(entrants) {
 }
 
 /**
- * Everyone not part of a pre-formed team, split by role.
+ * Everyone not part of a pre-formed team, split by role, expanded to
+ * respect requestedEntryCount.
+ *
+ * NEW in the multi-class/mixed-entry revision: a solo entrant record with
+ * requestedEntryCount > 1 represents that many separate draw-in slots, not
+ * one. Confirmed real scenario — one person entering a class 3x with one
+ * known partner (a separate preformed_team record) and two draw-in slots
+ * (this one solo record, requestedEntryCount: 2) submitted together under
+ * one submissionGroupId. Each slot must be independently matchable so that
+ * entrant can end up with two different drawn partners, not the literal
+ * same pairing repeated.
+ *
+ * Implementation: each solo entrant appears `requestedEntryCount` times in
+ * the pool array (same record, multiple array entries). This is enough for
+ * pairing purposes — randomlyPairByCap treats array position as identity —
+ * and sequenceWithSpacing already keys its minimum-gap tracking by raw
+ * entrantId, so an entrant's own multiple slots correctly get spaced apart
+ * from EACH OTHER too, not just from other entrants, with no extra
+ * bookkeeping needed here.
+ *
+ * Accepted, not fixed: two people who each have multiple slots could
+ * theoretically draw each other more than once. No "no repeat pairing"
+ * rule was specced, so this isn't guarded against — flagging as a known,
+ * accepted edge case rather than a silent gap.
  */
-function poolSoloEntrants(entrants, preFormedTeams) {
-    const preFormedIds = new Set();
-    for (const team of preFormedTeams) {
-        preFormedIds.add(team.header._id);
-        preFormedIds.add(team.heeler._id);
-    }
-
+function poolSoloEntrants(entrants, preFormedIds) {
     const solo = entrants.filter(e => e.entryType === 'solo' && !preFormedIds.has(e._id));
+
+    const expand = (list) => list.flatMap(entrant =>
+        Array(Math.max(1, entrant.requestedEntryCount || 1)).fill(entrant)
+    );
+
     return {
-        unmatchedHeaders: solo.filter(e => e.role === 'header'),
-        unmatchedHeelers: solo.filter(e => e.role === 'heeler')
+        unmatchedHeaders: expand(solo.filter(e => e.role === 'header')),
+        unmatchedHeelers: expand(solo.filter(e => e.role === 'heeler'))
     };
 }
 
 /**
- * Random pairing among valid (sum <= cap) combinations. No preference
- * order — pure random per spec. Anyone who can't be matched at all
- * (no valid partner left in the remaining pool) is returned unmatched
- * for manual override.
+ * Random pairing among valid combinations. No preference order — pure
+ * random per spec. Anyone who can't be matched at all (no valid partner
+ * left in the remaining pool) is returned unmatched for manual override.
+ *
+ * Two independent constraints must both hold, per the class's rules:
+ *  - combined: header# + heeler# <= capNumber (always required)
+ *  - heelerSubCap: heeler# <= heelerSubCap, only if the class defines one
+ *    (confirmed additional constraint, not an alternate cap mode)
  */
-function randomlyPairByCap(headers, heelers, cap) {
+function randomlyPairByCap(headers, heelers, capNumber, heelerSubCap) {
     const remainingHeaders = shuffle([...headers]);
     let remainingHeelers = shuffle([...heelers]);
     const drawnTeams = [];
@@ -209,7 +274,11 @@ function randomlyPairByCap(headers, heelers, cap) {
     for (const header of remainingHeaders) {
         const validHeelerIndexes = remainingHeelers
             .map((heeler, idx) => ({ heeler, idx }))
-            .filter(({ heeler }) => header.classificationNumber + heeler.classificationNumber <= cap);
+            .filter(({ heeler }) => {
+                const combinedOk = header.classificationNumber + heeler.classificationNumber <= capNumber;
+                const subCapOk = heelerSubCap == null || heeler.classificationNumber <= heelerSubCap;
+                return combinedOk && subCapOk;
+            });
 
         if (validHeelerIndexes.length === 0) {
             unmatched.push(header);
@@ -242,6 +311,11 @@ function shuffle(array) {
  * earliest available slot that doesn't violate spacing for either of
  * its two entrants. If no such slot exists for a team by the time all
  * slots are placed, flag it rather than forcing a violation.
+ *
+ * Works unchanged for multi-slot entrants: since each of an entrant's
+ * slots produced a separate team object referencing the same entrantId,
+ * lastSlotForEntrant naturally accumulates every one of that entrant's
+ * runs regardless of which pool-expansion slot produced them.
  */
 function sequenceWithSpacing(teams, minSpacing) {
     const shuffled = shuffle([...teams]);
@@ -302,10 +376,11 @@ function buildConflictDetail(team, lastSlotForEntrant, minSpacing) {
     return notes.join(' ');
 }
 
-async function logSpacingConflicts(eventId, conflictTeams) {
+async function logSpacingConflicts(eventId, classId, conflictTeams) {
     for (const team of conflictTeams) {
         await wixData.insert(AUDIT_LOG, {
             eventId,
+            classId,
             actionType: 'spacing_conflict_flagged',
             performedByUserId: null,
             timestamp: new Date(),
@@ -317,16 +392,16 @@ async function logSpacingConflicts(eventId, conflictTeams) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Manual override — cap rule is absolute, never bendable              */
+/* Manual override — cap rules are absolute, never bendable            */
 /* ------------------------------------------------------------------ */
 
 /**
  * Producer manually pairs two unmatched entrants (or reassigns an
  * existing pairing). Requires prior acknowledgment of the override
- * prompt on the client side; this function still re-validates the cap
- * server-side regardless of what the client claims was acknowledged.
+ * prompt on the client side; this function still re-validates both cap
+ * rules server-side regardless of what the client claims was acknowledged.
  */
-export async function manualPairEntrants(eventId, headerEntrantId, heelerEntrantId, acknowledged) {
+export async function manualPairEntrants(classId, headerEntrantId, heelerEntrantId, acknowledged) {
     const member = await currentMember.getMember();
     if (!member) throw new Error('Must be signed in as the producer.');
     if (!acknowledged) {
@@ -335,27 +410,36 @@ export async function manualPairEntrants(eventId, headerEntrantId, heelerEntrant
 
     const header = await wixData.get(ENTRANTS, headerEntrantId);
     const heeler = await wixData.get(ENTRANTS, heelerEntrantId);
-    const event = await wixData.get(EVENTS, eventId);
+    const cls = await wixData.get(CLASSES, classId);
 
     const sum = header.classificationNumber + heeler.classificationNumber;
-    if (sum > event.capNumber) {
-        // Cap rule applies across the board, no exceptions. Log the
+    const combinedOk = sum <= cls.capNumber;
+    const subCapOk = cls.heelerSubCap == null || heeler.classificationNumber <= cls.heelerSubCap;
+
+    if (!combinedOk || !subCapOk) {
+        // Cap rules apply across the board, no exceptions. Log the
         // attempt and reject it — do NOT create the team.
+        const reason = !combinedOk
+            ? `combined classification (${sum}) exceeds the class cap (${cls.capNumber})`
+            : `heeler classification (${heeler.classificationNumber}) exceeds the class's heeler sub-cap (${cls.heelerSubCap})`;
+
         await wixData.insert(AUDIT_LOG, {
-            eventId,
+            eventId: cls.eventId,
+            classId,
             actionType: 'cap_violation_attempt',
             performedByUserId: member._id,
             timestamp: new Date(),
             detail: `Attempted manual pairing of ${header.firstName} ${header.lastName} ` +
                      `(#${header.classificationNumber}) with ${heeler.firstName} ${heeler.lastName} ` +
-                     `(#${heeler.classificationNumber}) — sum ${sum} exceeds cap ${event.capNumber}. Rejected.`
+                     `(#${heeler.classificationNumber}) — ${reason}. Rejected.`
         });
-        throw new Error(`Rejected: combined classification (${sum}) exceeds the event cap (${event.capNumber}).`);
+        throw new Error(`Rejected: ${reason}.`);
     }
 
-    const nextTeamNumber = await getNextAvailableTeamNumber(eventId);
+    const nextTeamNumber = await getNextAvailableTeamNumber(classId);
     const team = await wixData.insert(TEAMS, {
-        eventId,
+        eventId: cls.eventId,
+        classId,
         teamNumber: nextTeamNumber,
         headerEntrantId,
         heelerEntrantId,
@@ -368,7 +452,8 @@ export async function manualPairEntrants(eventId, headerEntrantId, heelerEntrant
     });
 
     await wixData.insert(AUDIT_LOG, {
-        eventId,
+        eventId: cls.eventId,
+        classId,
         actionType: 'manual_pairing',
         performedByUserId: member._id,
         timestamp: new Date(),
@@ -379,15 +464,15 @@ export async function manualPairEntrants(eventId, headerEntrantId, heelerEntrant
     return team;
 }
 
-async function getNextAvailableTeamNumber(eventId) {
-    const result = await wixData.query(TEAMS).eq('eventId', eventId).descending('teamNumber').limit(1).find();
+async function getNextAvailableTeamNumber(classId) {
+    const result = await wixData.query(TEAMS).eq('classId', classId).descending('teamNumber').limit(1).find();
     return result.items.length > 0 ? result.items[0].teamNumber + 1 : 1;
 }
 
-async function getDrawSheet(eventId) {
-    const result = await wixData.query(DRAW_SHEETS).eq('eventId', eventId).find();
+async function getDrawSheet(classId) {
+    const result = await wixData.query(DRAW_SHEETS).eq('classId', classId).find();
     if (result.items.length === 0) {
-        throw new Error('No draw sheet found for this event. Call finalizeDrawSheet first.');
+        throw new Error('No draw sheet found for this class. Call finalizeDrawSheet first.');
     }
     return result.items[0];
 }
@@ -403,18 +488,18 @@ async function getDrawSheet(eventId) {
  *
  * A swap can ripple beyond the two teams involved (an entrant might have
  * a THIRD run elsewhere in the field), so rather than only re-checking
- * the two swapped teams, this recomputes spacing for the entire event
+ * the two swapped teams, this recomputes spacing for the entire class
  * and refreshes every team's flag accordingly.
  */
-export async function swapTeamPositions(eventId, teamIdA, teamIdB) {
+export async function swapTeamPositions(classId, teamIdA, teamIdB) {
     const member = await currentMember.getMember();
     if (!member) throw new Error('Must be signed in as the producer.');
 
     const teamA = await wixData.get(TEAMS, teamIdA);
     const teamB = await wixData.get(TEAMS, teamIdB);
 
-    if (teamA.eventId !== eventId || teamB.eventId !== eventId) {
-        throw new Error('Both teams must belong to the event being edited.');
+    if (teamA.classId !== classId || teamB.classId !== classId) {
+        throw new Error('Both teams must belong to the class being edited.');
     }
 
     const numberA = teamA.teamNumber;
@@ -424,19 +509,20 @@ export async function swapTeamPositions(eventId, teamIdA, teamIdB) {
     await wixData.update(TEAMS, { ...teamB, teamNumber: numberA });
 
     await wixData.insert(AUDIT_LOG, {
-        eventId,
+        eventId: teamA.eventId,
+        classId,
         actionType: 'manual_pairing',
         performedByUserId: member._id,
         timestamp: new Date(),
         detail: `Swapped team #${numberA} and team #${numberB} in the run order.`
     });
 
-    return recomputeSpacingFlags(eventId);
+    return recomputeSpacingFlags(classId);
 }
 
 /**
- * Recomputes spacingFlagged / spacingConflictDetail for every team in an
- * event from scratch. Called after any manual reorder, since moving one
+ * Recomputes spacingFlagged / spacingConflictDetail for every team in a
+ * class from scratch. Called after any manual reorder, since moving one
  * team can affect spacing for entrants elsewhere in the field (an
  * entrant with three total runs, not just the two just swapped).
  *
@@ -444,8 +530,8 @@ export async function swapTeamPositions(eventId, teamIdA, teamIdB) {
  * changed — an acknowledgment covers a specific flagged situation, not
  * "whatever this team's flag says in the future."
  */
-async function recomputeSpacingFlags(eventId) {
-    const teamsResult = await wixData.query(TEAMS).eq('eventId', eventId).ascending('teamNumber').limit(1000).find();
+async function recomputeSpacingFlags(classId) {
+    const teamsResult = await wixData.query(TEAMS).eq('classId', classId).ascending('teamNumber').limit(1000).find();
     const teams = teamsResult.items;
 
     // Build entrantId -> sorted list of slot numbers (teamNumber) they appear in.
@@ -498,12 +584,12 @@ async function recomputeSpacingFlags(eventId) {
  * erasing the fact that it happened. Requires an existing, unresolved
  * flag; acknowledging a team that isn't currently flagged is rejected.
  */
-export async function acknowledgeSpacingConflict(eventId, teamId, note) {
+export async function acknowledgeSpacingConflict(classId, teamId, note) {
     const member = await currentMember.getMember();
     if (!member) throw new Error('Must be signed in as the producer.');
 
     const team = await wixData.get(TEAMS, teamId);
-    if (team.eventId !== eventId) throw new Error('Team does not belong to this event.');
+    if (team.classId !== classId) throw new Error('Team does not belong to this class.');
     if (!team.spacingFlagged) throw new Error('This team does not currently have a flagged spacing conflict.');
     if (team.spacingAcknowledged) throw new Error('This conflict has already been acknowledged.');
 
@@ -515,7 +601,8 @@ export async function acknowledgeSpacingConflict(eventId, teamId, note) {
     });
 
     await wixData.insert(AUDIT_LOG, {
-        eventId,
+        eventId: team.eventId,
+        classId,
         actionType: 'spacing_conflict_flagged',
         performedByUserId: member._id,
         timestamp: new Date(),
@@ -531,9 +618,9 @@ export async function acknowledgeSpacingConflict(eventId, teamId, note) {
  * Convenience for the producer dashboard: teams that still need
  * attention — flagged but not yet acknowledged.
  */
-export async function getUnresolvedSpacingConflicts(eventId) {
+export async function getUnresolvedSpacingConflicts(classId) {
     const result = await wixData.query(TEAMS)
-        .eq('eventId', eventId)
+        .eq('classId', classId)
         .eq('spacingFlagged', true)
         .eq('spacingAcknowledged', false)
         .find();
