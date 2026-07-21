@@ -104,16 +104,26 @@ not a confirmed plan.
 File: `velo/pages/drawpro-real/entrant-entry-form.js`
 Suggested URL: `/drawpro/enter` (matches `ENTRY_BASE_URL` already used elsewhere)
 
+**Updated 2026-07-21 for the multi-class redesign** (see
+`docs/ARCHITECTURE.md`'s "Draw Pro multi-class redesign" entry). If you
+already placed elements from the OLD version of this table: most of it is
+still correct and untouched (all of "Entrant info" below, the entire
+Partner fields section including `#boxPartnerFields` and everything
+inside it, guest/submit, payment step, pre-open state, tour overlay).
+Only two things actually changed — read the notes on `#dropdownClass`
+(new) and `#checkboxAddPartner` (replaces `#radioEntryType`) below.
+
 ### Event display (read-only)
-| ID | Type |
-|---|---|
-| `#textEventTitle` | Text |
-| `#textEventCap` | Text |
+| ID | Type | Notes |
+|---|---|---|
+| `#textEventTitle` | Text | |
+| `#dropdownClass` | Dropdown | **NEW.** One event can bundle several differently-capped ropings (confirmed via real fliers) — this is how the entrant picks which one. Populated by code from that event's open classes; no static options need to be set in the Editor. |
+| `#textEventCap` | Text | Now reflects whichever class is selected in `#dropdownClass`, not one flat event-wide number — same element, no change needed here, just different behavior driven by the dropdown. |
 
 ### Entry type & entrant info
 | ID | Type | Notes |
 |---|---|---|
-| `#radioEntryType` | Radio button group | Values: `solo`, `preformed_team` |
+| `#checkboxAddPartner` | Checkbox (single, **not** Checkbox Group) | **REPLACES `#radioEntryType`.** Not cosmetic — structural: one person can now submit a pre-formed partner AND draw-in entries together in one submission (confirmed real scenario), which a mutually-exclusive radio can't represent. If `#radioEntryType` is already placed, delete it and add this instead — same trigger role (shows/hides `#boxPartnerFields` below), different control type. Label: "I already have a partner". |
 | `#inputFirstName` | Text input | |
 | `#inputLastName` | Text input | |
 | `#inputClassification` | Text input | Numeric |
@@ -121,11 +131,11 @@ Suggested URL: `/drawpro/enter` (matches `ENTRY_BASE_URL` already used elsewhere
 | `#inputEmail` | Text input | |
 | `#inputPhone` | Text input | Optional |
 | `#radioRole` | Radio button group | Values: `header`, `heeler` |
-| `#inputEntryCount` | Text input | Numeric, default should read `1` |
-| `#textFeeAmount` | Text | Live-updated, read-only |
-| `#textSteerMeNudge` | Text | Shown/hidden based on entry type — start collapsed |
+| `#inputEntryCount` | Text input | Numeric. **Meaning changed**: now specifically "how many draw-in entries" (separate from any pre-formed partner above), and `0` is a valid value (someone entering only with their one pre-formed partner and no blind draw-in). Default should read `0`, not `1`. |
+| `#textFeeAmount` | Text | Live-updated, read-only. Now sums a pre-formed partner (if checked) and draw-in entries (if any) together, since a submission can include both. |
+| `#textSteerMeNudge` | Text | Shown/hidden based on whether any draw-in entries are requested — start collapsed |
 
-### Partner fields (container — shown only when entry type = preformed_team)
+### Partner fields (container — shown only when `#checkboxAddPartner` is checked — UNCHANGED from before the redesign, still exactly as originally built)
 | ID | Type | Notes |
 |---|---|---|
 | `#boxPartnerFields` | Container | Starts collapsed |
