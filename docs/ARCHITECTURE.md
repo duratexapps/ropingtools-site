@@ -616,4 +616,34 @@ construction in the Editor — the parts already placed for solo/individual
 entrant fields remain valid; the "Partner"/team-entry section will need
 rework once the mixed pre-formed/draw-in submission model above is
 actually implemented.
-exceptional.
+
+---
+
+## Wix Editor bug: moving an element outside its container can silently reset its Element ID (2026-07-21)
+
+Confirmed live while building/styling Page 1: dragging an element outside
+its parent container/margins in the Editor can silently strip its custom
+Element ID, resetting it back to a generic auto-name (`input1`,
+`radiogroup1`, etc.) with no warning or error at the time it happens. The
+element itself, its content, and its position are unaffected — only the
+ID is lost. This is dangerous specifically because there's no visible
+symptom until something tries to reference that ID later (a `$w('#...')`
+call that used to work suddenly can't find the element).
+
+**Mitigation, not a fix (this is a real Wix bug, not something we can
+prevent from our side):** if this happens, the specific element can be
+identified by its remaining visible properties (label text, position,
+type, what it's near) and cross-referenced against
+`docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s element tables, then the
+correct ID can be re-typed into the Properties panel — this is a full,
+complete fix with no underlying data loss, since only the label was
+reset, nothing else.
+
+**Real, practical risk:** since there's no error at the moment of the
+reset, a page could accumulate several silently-renamed elements without
+it being obvious anything happened until testing surfaces a confusing
+"element not found" error much later. Recommended practice going
+forward: after any session of dragging/repositioning elements for
+styling purposes, do a full pass checking every element's Properties
+panel ID against the build guide before considering that session done —
+not just the elements you remember moving.
