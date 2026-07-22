@@ -206,10 +206,31 @@
   .risk-modal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
   .risk-modal-btn:hover:not(:disabled) { background: var(--gold-light); }
 
-  /* LOGIN GATE - sits above the risk modal (higher z-index) since account
-     creation now has to happen first; reuses the same visual style. */
-  .login-gate-overlay { z-index: 10000; }
   .risk-modal-error { color: #B3261E; font-size: 0.85rem; margin-top: 0.75rem; display: none; }
+
+  /* INLINE SIGNUP PROMPT - added 2026-07-22, replacing an earlier
+     full-page-blocking version. Sits inline within chapter 1.1, after the
+     free descriptive excerpt (rope terminology - no actionable technique)
+     and before the gated remainder (actual drills/instruction, which is
+     exactly the content the risk disclaimer exists to cover). This is what
+     gives a real "taste" of actual course content to an anonymous visitor
+     instead of hiding everything behind a wall before they've read a word. */
+  .inline-signup-prompt {
+    background: var(--cream);
+    border-left: 4px solid var(--gold);
+    border-radius: 0 6px 6px 0;
+    padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+  }
+  .inline-signup-prompt h4 { font-family: 'Playfair Display', serif; color: var(--brown); font-size: 1.05rem; margin-bottom: 0.5rem; }
+  .inline-signup-prompt p { font-size: 0.92rem; color: var(--text-mid); line-height: 1.6; margin-bottom: 1rem; }
+  .inline-signup-btn {
+    background: var(--gold); color: #fff; border: none; padding: 0.65rem 1.5rem;
+    border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  }
+  .inline-signup-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .inline-signup-btn:hover:not(:disabled) { background: var(--gold-light); }
+  .inline-signup-error { color: #B3261E; font-size: 0.85rem; margin-top: 0.75rem; display: none; }
 
   /* NAV */
   nav {
@@ -709,16 +730,6 @@
 </head>
 <body>
 
-<div class="risk-modal-overlay login-gate-overlay" id="login-gate-overlay">
-  <div class="risk-modal">
-    <h3>Create a free account to continue</h3>
-    <p>Even the first chapter requires a free account - this course involves real physical risk (see the disclaimer you'll be asked to review next), and we need every acknowledgment tied to an actual person, not an anonymous visit.</p>
-    <p>Signing up is free. Creating an account doesn't charge you anything or start a subscription.</p>
-    <button class="risk-modal-btn" id="login-gate-btn" onclick="startLoginGate()">Create account or log in</button>
-    <p class="risk-modal-error" id="login-gate-error"></p>
-  </div>
-</div>
-
 <div class="risk-modal-overlay" id="risk-modal-overlay" style="display:none;">
   <div class="risk-modal">
     <h3>Before you start</h3>
@@ -744,7 +755,7 @@
     <p class="hero-teaser-emphasis">This is what happens when you put it all in one room.</p>
     <p>This course organizes everything that actually works - swing mechanics, body position, timing and delivery, horsemanship, the header's game, partnership, the mental game, long-term versatility - into one coherent path. Not eight different opinions pulling you eight different directions. One system, built to fit together from the first chapter to the last.</p>
     <p>And it doesn't just tell you what to fix. Upload a video of yourself roping the dummy, and the coach breaks down what's actually happening - your tip angle, your delivery, exactly where your breakover lands relative to the horns or heels - the same way it will for every chapter after.</p>
-    <p class="hero-teaser-cta-line">Create a free account and try the first chapter - no charge, no subscription. See what the coach sees. Then decide how far you want to take it.</p>
+    <p class="hero-teaser-cta-line">Read the start of the first chapter free below, no account needed - then create a free account (no charge, no subscription) to unlock the rest, including the ground drill and AI video coaching. See what the coach sees. Then decide how far you want to take it.</p>
   </div>
 
   <!--
@@ -855,6 +866,10 @@
   </div>
 
   <!-- CH 1.1 -->
+  <!-- Starts expanded (unlike every other chapter, which starts collapsed) -
+       this is the one chapter meant to be seen immediately without an extra
+       click, since the whole point of the free excerpt above the signup
+       prompt is to give a real taste of content before any commitment. -->
   <div class="chapter">
     <div class="chapter-header" onclick="toggleChapter(this)">
       <div class="ch-left">
@@ -864,9 +879,9 @@
           <div class="ch-title">Loop Size & Tip Angle</div>
         </div>
       </div>
-      <div class="ch-toggle">&#9660;</div>
+      <div class="ch-toggle open">&#9660;</div>
     </div>
-    <div class="chapter-body">
+    <div class="chapter-body open">
 
       <p>Loop size and tip angle are the first two variables you need to master, because everything downstream - momentum, delivery, catch location - is built on getting these right from the start of the swing. Both are adjustable, but both must become automatic through repetition so that in competition, you're focused on the target, not the rope.</p>
 
@@ -882,6 +897,19 @@
           <li><strong>Honda and honda burner</strong> - the honda is the knot or eyelet the rope passes through to form the loop; the honda burner is the reinforced piece (rawhide, leather, or metal) that protects the rope where it repeatedly slides through the honda.</li>
         </ul>
       </div>
+
+      <!-- Free taste ends here - everything above is descriptive/terminology,
+           no actionable technique instruction. Everything below is real
+           drill/instruction content, gated behind login + the risk
+           disclaimer, per the reasoning in ARCHITECTURE.md. -->
+      <div class="inline-signup-prompt" id="inline-signup-prompt">
+        <h4>Keep reading - it's free</h4>
+        <p>The rest of this chapter gets into actual technique and a physical ground drill, so we need a free account first - this course involves real physical risk, and every risk acknowledgment needs to be tied to an actual person, not an anonymous visit. Creating an account doesn't charge you anything or start a subscription.</p>
+        <button class="inline-signup-btn" id="inline-signup-btn" onclick="startLoginGate()">Create account or log in</button>
+        <p class="inline-signup-error" id="inline-signup-error"></p>
+      </div>
+
+      <div id="chapter-1-gated" style="display:none;">
 
       <div class="key-concept">
         <div class="key-concept-label">The Loop Size Rule</div>
@@ -976,6 +1004,8 @@
         <div class="vc-result" id="vc-result-1-1" style="display:none"></div>
       </div>
 
+      </div>
+      <!-- /#chapter-1-gated -->
 
     </div>
   </div>
@@ -3306,13 +3336,16 @@ function sendFeedback() {
 }
 
 // =========== LOGIN GATE + RISK ACKNOWLEDGMENT ===========
-// Rewritten 2026-07-22. Previously the free preview chapter (and the risk
-// modal itself) never required login, so acknowledgeRisk() silently failed
-// for anonymous visitors - the only population actually likely to be
-// encountering this content for the first time. Content (including the
-// free chapter) now waits behind a login gate; the risk modal only ever
-// shows to someone already logged in, which is what makes the resulting
-// LegalAcknowledgments row actually mean something.
+// Rewritten 2026-07-22, then reworked again same day into an inline
+// (rather than full-page-blocking) design - see ARCHITECTURE.md's "Course
+// disclaimer had no real log for anonymous visitors" entry. The free
+// descriptive excerpt at the top of chapter 1.1 (rope terminology, no
+// actionable technique) stays visible to everyone, always - only the
+// actionable remainder (#chapter-1-gated: drills, quiz, the video-coach
+// upload widget) waits behind login + the risk disclaimer. This gives an
+// anonymous visitor a real taste of actual course content instead of a
+// wall before they've read anything, while still gating every genuinely
+// actionable/physical-risk piece behind an identified acknowledgment.
 //
 // Also fixes a separate bug found in the same pass: hasAcknowledgedCurrentVersion()
 // was written and wired into the backend, but nothing on this side ever
@@ -3324,9 +3357,9 @@ const DISCLAIMER_VERSION = '1.0'; // bump this and re-deploy whenever RISK_DISCL
 async function initAccessGate() {
   const loggedIn = await wixBridge.call('checkIsLoggedIn').catch(() => false);
   if (!loggedIn) {
-    return; // #login-gate-overlay is already visible by default - nothing else to do until they log in
+    return; // #inline-signup-prompt is already visible by default - nothing else to do until they log in
   }
-  document.getElementById('login-gate-overlay').style.display = 'none';
+  document.getElementById('inline-signup-prompt').style.display = 'none';
   await showRiskModalIfNeeded();
 }
 
@@ -3334,14 +3367,16 @@ async function showRiskModalIfNeeded() {
   const alreadyAcknowledged = await wixBridge
     .call('hasAcknowledgedCurrentVersion', { disclaimerVersion: DISCLAIMER_VERSION })
     .catch(() => false); // fail safe toward showing the modal, not skipping it
-  if (!alreadyAcknowledged) {
+  if (alreadyAcknowledged) {
+    document.getElementById('chapter-1-gated').style.display = 'block';
+  } else {
     document.getElementById('risk-modal-overlay').style.display = 'flex';
   }
 }
 
 function startLoginGate() {
-  const btn = document.getElementById('login-gate-btn');
-  const errorEl = document.getElementById('login-gate-error');
+  const btn = document.getElementById('inline-signup-btn');
+  const errorEl = document.getElementById('inline-signup-error');
   errorEl.style.display = 'none';
   btn.disabled = true;
   // Long timeout - this is waiting on the visitor to finish the Wix login/
@@ -3350,7 +3385,7 @@ function startLoginGate() {
     .then((isLoggedIn) => {
       btn.disabled = false;
       if (isLoggedIn) {
-        document.getElementById('login-gate-overlay').style.display = 'none';
+        document.getElementById('inline-signup-prompt').style.display = 'none';
         showRiskModalIfNeeded();
       } else {
         errorEl.textContent = 'Please finish creating an account or logging in to continue.';
@@ -3368,7 +3403,8 @@ function startLoginGate() {
 // save confirms - since every visitor reaching this point is guaranteed
 // logged in (via the gate above), a failure here is a genuine, unexpected
 // problem worth surfacing, not something to swallow with a console.warn
-// nobody will ever see.
+// nobody will ever see. On success, reveals the gated remainder of the
+// chapter - this is the moment that content actually becomes visible.
 function acknowledgeRisk() {
   const btn = document.getElementById('risk-ack-btn');
   const errorEl = document.getElementById('risk-ack-error');
@@ -3377,6 +3413,7 @@ function acknowledgeRisk() {
   wixBridge.call('acknowledgeRisk', { disclaimerVersion: DISCLAIMER_VERSION })
     .then(() => {
       document.getElementById('risk-modal-overlay').style.display = 'none';
+      document.getElementById('chapter-1-gated').style.display = 'block';
     })
     .catch((err) => {
       btn.disabled = false;
