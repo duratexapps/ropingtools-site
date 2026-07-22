@@ -27,6 +27,14 @@ export async function acknowledgeRisk(params) {
 /**
  * Called on page load (from course-page.js) to decide whether the modal
  * should show at all for a logged-in member.
+ *
+ * As of the 2026-07-22 login-gate rewrite, course-embed.html only ever
+ * calls this AFTER confirming the visitor is logged in (see
+ * initAccessGate() there) - the catch below should be unreachable in
+ * normal operation now. Left in as a defensive fallback (fails toward
+ * showing the modal, never toward silently skipping it) rather than
+ * removed, since a stale cached page or a race with a just-expired
+ * session could theoretically still hit it.
  * @param {{ disclaimerVersion: string }} params
  * @returns {Promise<boolean>} true if the modal should be skipped
  */
@@ -35,7 +43,7 @@ export async function hasAcknowledgedCurrentVersion(params) {
   try {
     member = await currentMember.getMember();
   } catch (e) {
-    return false; // not logged in — always show the modal (matches current prototype behavior for anonymous visitors)
+    return false; // not logged in - show the modal rather than skip it
   }
 
   const result = await wixData.query(LEGAL_ACK_COLLECTION)

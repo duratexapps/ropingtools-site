@@ -17,6 +17,7 @@
 // this file is written from the documented Velo API surface, not tested
 // against a real site yet.
 
+import { authentication, currentMember } from 'wix-members-frontend';
 import { analyzeRoping } from 'backend/aiCoach.jsw';
 import { recordQuizResult } from 'backend/progress.jsw';
 import { submitFeedback } from 'backend/feedback.jsw';
@@ -58,7 +59,44 @@ async function handleAction(action, payload) {
       return hasAcknowledgedCurrentVersion(payload);
     case 'getChapterContent':
       return getChapterContent(payload);
+    case 'checkIsLoggedIn':
+      return checkIsLoggedIn();
+    case 'promptLogin':
+      return promptLoginAndWait();
     default:
       throw new Error('Unknown bridge action: ' + action);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Login gate - added 2026-07-22 so every risk-disclaimer acknowledgment
+ * is guaranteed to be tied to a real, identified member. Previously the
+ * free preview chapter (and the disclaimer modal itself) never required
+ * login at all, so acknowledgeRisk() silently failed for anyone not
+ * already signed in - see ARCHITECTURE.md's "Course disclaimer had no
+ * real log for anonymous visitors" entry for the full reasoning. Content
+ * (including the free chapter) now waits behind this gate; the
+ * disclaimer modal only ever shows to someone already logged in. */
+/* ------------------------------------------------------------------ */
+
+// wix-members-frontend's currentMember.getMember() resolves null when
+// nobody's logged in (unlike the backend version in legalAcknowledgments.jsw,
+// which throws) - worth double-checking against Wix's current reference if
+// this ever behaves unexpectedly: https://www.wix.com/velo/reference/wix-members-frontend/currentmember
+async function checkIsLoggedIn() {
+  try {
+    const member = await currentMember.getMember();
+    return !!member;
+  } catch (e) {
+    return false;
+  }
+}
+
+// promptLogin() opens Wix's own hosted login lightbox, which already
+// includes a "Sign up" path - no separate custom signup form needed.
+// Resolves once the visitor is actually logged in; rejects if they close
+// it without completing (caller should just leave the gate up in that case).
+async function promptLoginAndWait() {
+  await authentication.promptLogin({ mode: 'login' });
+  return checkIsLoggedIn();
 }

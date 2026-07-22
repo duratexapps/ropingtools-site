@@ -657,3 +657,54 @@ reported possible instance of Wix losing a newly-added element
 entirely (not just its ID), not a confirmed bug. If this happens again,
 worth checking Save timing (does it survive a Save + Editor refresh?)
 and whether it's specific to Dropdown elements or general.
+
+---
+
+## Course disclaimer had no real log for anonymous visitors (2026-07-22)
+
+**Confirmed bug, now fixed.** `legalAcknowledgments.jsw`'s `acknowledgeRisk()`
+calls `currentMember.getMember()`, which throws if nobody's logged in. The
+free preview chapter (and the risk-disclaimer modal itself) never required
+login. The frontend's `acknowledgeRisk()` in `course-embed.html` closed the
+modal immediately and fired the backend call as an unawaited promise,
+swallowing any failure with a `console.warn` nobody would ever see. Net
+effect: for any visitor who hadn't already logged in — the population most
+likely to be encountering this content for the first time — clicking
+through the disclaimer produced **zero record**, silently, while looking
+identical to a successful acknowledgment.
+
+A second, separate bug was found in the same pass: `hasAcknowledgedCurrentVersion()`
+was written and wired into the backend, but the frontend never actually
+called it anywhere. The modal unconditionally showed on every page load
+for every visitor, logged in or not, regardless of prior acknowledgment.
+
+**Fix**: content (including the free first chapter) now sits behind a
+login gate (`#login-gate-overlay` in `course-embed.html`, `checkIsLoggedIn`/
+`promptLoginAndWait` in `course-page.js`, using `wix-members-frontend`'s
+`authentication.promptLogin()` — Wix's own hosted login/signup lightbox, no
+custom signup form needed). The risk modal only shows to an already-logged-in
+member, and only once `hasAcknowledgedCurrentVersion()` — now actually
+called — confirms they haven't accepted the current `DISCLAIMER_VERSION`
+yet. `acknowledgeRisk()` no longer hides the modal optimistically before
+the save confirms; a failure is now a visible, retriable error rather than
+a silently-swallowed one, since every visitor reaching that point is
+guaranteed logged in and a failure there is a genuine, unexpected problem.
+
+**Deliberate trade-off, decided with the user**: gating the free chapter
+behind account creation adds friction — some anonymous visitors who'd
+have casually sampled it will now bounce at the signup step instead.
+Accepted anyway because (a) this is a liability record for a real
+physical-risk activity, not a generic content paywall, and an
+acknowledgment with no identity behind it is close to legally
+meaningless, and (b) it has a real secondary benefit: every visitor who
+does sample the free chapter is now an identified lead who can be
+followed up with later if they don't subscribe, rather than an anonymous,
+unreachable visit.
+
+**Known, separate, unaddressed gap surfaced by this conversation**: Coaching/
+Draw Pro run on Wix Members; Steer Me runs on its own independent Supabase
+Auth. There is no SSO or account linking between the two today — a person
+using both products needs two separate logins. Not fixed here; recorded as
+a known limitation, not a bug, since building real cross-platform SSO
+between two different auth vendors is a substantial separate effort, not
+something to bolt on incidentally while fixing the disclaimer logging gap.
