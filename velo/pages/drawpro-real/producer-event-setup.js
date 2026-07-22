@@ -18,6 +18,10 @@
  *
  *   -- Event basics (create once) --
  *   #inputTitle           (text input)
+ *   #inputEventLocation     (text input, e.g. "Hallettsville, TX" - required, same as title)
+ *   #textEventTitleLocation (text - starts collapsed; expands to e.g. "Saturday Jackpot - Hallettsville, TX"
+ *                            once the event shell is created, as an on-page confirmation of which event
+ *                            you're configuring below)
  *   #inputEventDate        (date picker)
  *   #togglePreEntry        (toggle/checkbox)
  *   #radioPaymentMethod    (radio group: 'cash' | 'online' — applies to the WHOLE event, not per class)
@@ -116,6 +120,7 @@ $w.onReady(async function () {
     $w('#btnGenerateQr').disable();
     $w('#imageQrCode').collapse();
     $w('#textPayoutWarning').collapse();
+    $w('#textEventTitleLocation').collapse();
 
     $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields);
     toggleClassCloseModeFields();
@@ -184,6 +189,7 @@ async function handleCreateEvent() {
 
     const eventInput = {
         title: $w('#inputTitle').value,
+        location: $w('#inputEventLocation').value,
         eventDate: $w('#inputEventDate').value,
         preEntryEnabled: $w('#togglePreEntry').checked,
         paymentMethod: $w('#radioPaymentMethod').value
@@ -195,6 +201,8 @@ async function handleCreateEvent() {
         const event = await createEvent(eventInput);
         currentEventId = event._id;
         setStatus('Event created. Now add at least one class (roping) below.');
+        $w('#textEventTitleLocation').text = `${event.title} - ${event.location}`;
+        $w('#textEventTitleLocation').expand();
         $w('#boxAddClass').enable();
         $w('#btnGenerateQr').enable(); // QR can be generated before any class opens —
                                         // it goes on fliers ahead of time, and early

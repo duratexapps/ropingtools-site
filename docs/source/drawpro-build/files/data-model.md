@@ -42,6 +42,7 @@ producer's own words, "one event" with one shared entry link.
 |---|---|---|
 | `_id` | auto | |
 | `title` | text | |
+| `location` | text | Town/venue, e.g. "Hallettsville, TX" — free text, same single-string convention as Steer Me's home_area rather than split town/state fields. Required, same as title (every real flier lists a venue). Combines with title for the on-page confirmation display, e.g. "Saturday Jackpot - Hallettsville, TX" |
 | `producerId` | reference → Wix Members | Owner of the event |
 | `eventDate` | date/time | Start date of the event/weekend — individual classes carry their own more precise timing |
 | `preEntryEnabled` | boolean | |

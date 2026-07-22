@@ -201,12 +201,14 @@ the manual-entry fallback, built first per established sequencing.
 | ID | Type | Notes |
 |---|---|---|
 | `#inputTitle` | Text input | |
+| `#inputEventLocation` | Text input | e.g. "Hallettsville, TX" — required, same as title. Free text, same single-string convention as Steer Me's home_area rather than split town/state fields |
+| `#textEventTitleLocation` | Text | **NEW**, added 2026-07-22. Starts collapsed; expands once the event shell is created, showing e.g. "Saturday Jackpot - Hallettsville, TX" as a persistent on-page confirmation of which event you're configuring below — useful since a producer managing several events could otherwise lose track while scrolling through the class-adding section |
 | `#inputEventDate` | Date picker | |
 | `#togglePreEntry` | Toggle/checkbox | |
 | `#radioPaymentMethod` | Radio button group | Values: `cash`, `online`. Applies to the **whole event**, not per class — no evidence a producer splits payment method by roping |
 | `#textPayoutWarning` | Text | Starts collapsed; shown if online selected but payout setup incomplete |
 | `#linkPayoutSetup` | Link/button | Links to the producer's payout-profile page (not yet built as its own page — see note below) |
-| `#btnCreateEvent` | Button | Creates the SHELL only now — title/date/payment method, no cap or price. Label changes to "Event Created" after success |
+| `#btnCreateEvent` | Button | Creates the SHELL only now — title/location/date/payment method, no cap or price. Label changes to "Event Created" after success |
 
 ### Add a class (repeat this section for each roping — a #7.5, an #8.5, a #9.5, etc.)
 | ID | Type | Notes |

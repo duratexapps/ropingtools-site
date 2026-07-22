@@ -46,6 +46,7 @@ const VALID_ENTRY_MODES = ['pick_or_draw', 'pick_only', 'draw_only'];
  * createEventClass().
  * @param {Object} eventInput
  * @param {string} eventInput.title
+ * @param {string} eventInput.location - e.g. "Hallettsville, TX" - free text, same convention as Steer Me's home_area
  * @param {Date} eventInput.eventDate
  * @param {boolean} eventInput.preEntryEnabled
  * @param {string[]} [eventInput.requiredEntryFields]
@@ -62,6 +63,7 @@ export async function createEvent(eventInput) {
 
     const record = {
         title: eventInput.title,
+        location: eventInput.location,
         producerId: member._id,
         eventDate: eventInput.eventDate,
         preEntryEnabled: !!eventInput.preEntryEnabled,
@@ -79,6 +81,9 @@ export async function createEvent(eventInput) {
 function validateEventInput(eventInput) {
     if (!eventInput.title || !eventInput.title.trim()) {
         throw new Error('Event title is required.');
+    }
+    if (!eventInput.location || !eventInput.location.trim()) {
+        throw new Error('Event location is required (e.g. "Hallettsville, TX").');
     }
     if (eventInput.paymentMethod !== 'cash' && eventInput.paymentMethod !== 'online') {
         throw new Error('paymentMethod must be "cash" or "online".');
