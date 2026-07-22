@@ -1,0 +1,62 @@
+// backend/issueReports.jsw
+//
+// "Report an Issue" - a bug/problem report about the site itself, distinct
+// from feedback.jsw (general course feedback). Reachable from a link in
+// the site's global Footer, so it appears on every page (Draw Pro,
+// Coaching, landing) without per-page wiring. Mirrors the same concept on
+// the Steer Me side (issue_reports Supabase table) - two backends, same
+// shape, so the evening triage routine can reason about both the same way.
+//
+// Deliberately allows anonymous (logged-out) submission - a visitor
+// hitting a bug before creating an account should still be able to report
+// it. reporterId is recorded when available, null otherwise; the frontend
+// only asks for a typed-in name when nothing could be resolved from
+// context. Nothing this module writes is ever auto-emailed to the
+// reporter - draftReply/triageNote are filled in later, by the triage
+// process reading this collection directly, and a human decides if/when
+// to actually send a reply.
+
+import { currentMember } from 'wix-members-backend';
+import wixData from 'wix-data';
+
+const ISSUE_REPORTS_COLLECTION = 'IssueReports';
+
+/**
+ * @param {{
+ *   role: 'contestant' | 'producer',
+ *   description: string,
+ *   pageUrl: string,
+ *   reporterNameOverride?: string,
+ *   screenshotUrl?: string
+ * }} params
+ */
+export async function submitIssueReport(params) {
+  if (!params.description || !params.description.trim()) {
+    throw new Error('Please describe what happened.');
+  }
+  if (params.role !== 'contestant' && params.role !== 'producer') {
+    throw new Error('Please select whether you are a contestant or producer.');
+  }
+
+  let reporterId = null;
+  try {
+    const member = await currentMember.getMember();
+    reporterId = member ? member._id : null;
+  } catch (e) {
+    // Not logged in - fine, this endpoint allows anonymous submissions.
+  }
+
+  await wixData.insert(ISSUE_REPORTS_COLLECTION, {
+    reporterId: reporterId,
+    reporterNameOverride: params.reporterNameOverride || null,
+    role: params.role,
+    description: params.description.trim(),
+    pageUrl: params.pageUrl,
+    screenshotUrl: params.screenshotUrl || null,
+    status: 'new',
+    resolutionType: null,
+    draftReply: null,
+    triageNote: null,
+    timestamp: new Date()
+  });
+}

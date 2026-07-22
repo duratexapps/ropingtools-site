@@ -179,6 +179,39 @@ row is an acceptable trade-off for not exposing the email list to reads.
 
 ---
 
+## `IssueReports`
+"Report an Issue" bug/problem reports, reachable from a link in the site's
+global Footer (so it appears on every page — Draw Pro, Coaching, and the
+landing site — without adding anything per-page). Distinct from `Feedback`
+above: `Feedback` is general course feedback; this is specifically "something
+in the app is broken," triaged by reading this collection directly (see the
+Steer Me side's `issue_reports` Supabase table and the evening check-in
+routine — same concept, two backends, since Draw Pro/Coaching run on Wix
+Data and Steer Me runs on Supabase). Written via
+`velo/backend/issueReports.jsw`'s `submitIssueReport()`. Nothing here is
+ever auto-emailed to the reporter — `draftReply` just sits here until a
+human decides to send it.
+
+**Permissions**: like `DrawProWaitlist`, `insert` needs to be open to
+**Everyone** (a visitor hitting a bug before logging in should still be able
+to report it) — `view`/`update`/`delete` stay Admin-only.
+
+| Field | Type | Notes |
+|---|---|---|
+| `reporterId` | Text | Wix member ID if logged in as one, or whatever Draw Pro entrant/producer identity is available in context. Nullable — reporting a bug shouldn't require being logged in. |
+| `reporterNameOverride` | Text | Only set when no name could be resolved from context — the "if their ID doesn't give us a name" fallback, typed in by hand. |
+| `role` | Text | `"contestant"` \| `"producer"`. |
+| `description` | Text | Required. |
+| `pageUrl` | Text | Captured by the Lightbox's frontend code via `wix-location-frontend` and passed into `submitIssueReport()` - the backend module has no visibility into which page the visitor was on, so this isn't automatic on the backend side. Not typed by the reporter. |
+| `screenshotUrl` | Text | Optional — Wix Media Manager URL from an Upload Button element. |
+| `status` | Text | `"new"` \| `"triaged"` \| `"resolved"` — matches the Steer Me side's vocabulary exactly. `triaged` means a draft reply/fix note exists; `resolved` is set manually once a human actually sends it. |
+| `resolutionType` | Text | Nullable. `"fixed"` \| `"clarified"` \| `"escalated"` — set during triage, not by the reporter. |
+| `draftReply` | Text | What would be sent to the reporter, once approved. Never sent automatically by anything that writes this field. |
+| `triageNote` | Text | Internal note for Justin, e.g. "fixed in commit abc123" or "3rd report about the same flow." |
+| `timestamp` | Date/Time | |
+
+---
+
 ## Important operational notes (learned the hard way, 2026-07-18/19)
 
 ### Collection ID vs. display name — always verify both, separately
