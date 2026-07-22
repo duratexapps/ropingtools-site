@@ -647,3 +647,13 @@ forward: after any session of dragging/repositioning elements for
 styling purposes, do a full pass checking every element's Properties
 panel ID against the build guide before considering that session done —
 not just the elements you remember moving.
+
+**Follow-up from the same page-building session, unconfirmed but worth
+recording:** `#dropdownClass` was reported added, then wasn't visible
+in a full Layers-panel audit shortly after, alongside a mention of "the
+site glitched once" around the same time. Unlike the ID-reset bug
+above, this wasn't reproduced or diagnosed — it's recorded here as a
+reported possible instance of Wix losing a newly-added element
+entirely (not just its ID), not a confirmed bug. If this happens again,
+worth checking Save timing (does it survive a Save + Editor refresh?)
+and whether it's specific to Dropdown elements or general.
