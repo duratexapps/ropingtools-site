@@ -241,7 +241,7 @@
       <div class="tool-tag">For Ropers &amp; Producers</div>
       <h3>Skip the Draw. Keep the Check.</h3>
       <p>Find and lock in your own partner ahead of time - no draw-in fee, no luck of the draw. Producers get entries who show up ready to pay, not owing it out of their winnings. And coming soon: tap straight through to the venue to lock down your RV spot and stalls before you ever hit the road.</p>
-      <a class="tool-cta" href="/steerme" target="_top" onclick="return topNavigate(event, '/steerme')">Find Your Partner <span>&#8594;</span></a>
+      <a class="tool-cta" href="https://steerme.ropingtools.com" target="_top" onclick="return topNavigate(event, 'https://steerme.ropingtools.com')">Find Your Partner <span>&#8594;</span></a>
     </div>
 
     <div class="tool-card card-external">
@@ -255,7 +255,7 @@
       <div class="badge-coming-soon">Coming Soon</div>
       <h3>Draw Pro</h3>
       <p>The one-stop way to run your draw and notify every entrant - without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely. It's not live yet - but Steer Me already eliminates the need for a draw on a huge share of your entries today. Start there while Draw Pro finishes the rest.</p>
-      <a class="tool-cta tool-cta-primary" href="/steerme" target="_top" onclick="return topNavigate(event, '/steerme')">Try Steer Me Now <span>&#8594;</span></a>
+      <a class="tool-cta tool-cta-primary" href="https://steerme.ropingtools.com" target="_top" onclick="return topNavigate(event, 'https://steerme.ropingtools.com')">Try Steer Me Now <span>&#8594;</span></a>
       <br>
       <a class="tool-cta-secondary" href="/drawpro" target="_top" onclick="return topNavigate(event, '/drawpro')">Get Notified When Draw Pro Launches</a>
     </div>
@@ -313,7 +313,14 @@ document.getElementById('landing-year').textContent = new Date().getFullYear();
 // tab", costs nothing to leave in place).
 function topNavigate(event, path) {
   event.preventDefault();
-  window.top.location.href = 'https://www.ropingtools.com' + path;
+  // Steer Me now lives on its own subdomain (steerme.ropingtools.com,
+  // deployed via Vercel), not a path on this Wix site - confirmed live
+  // and tested 2026-07-22. path may now be a full absolute URL (that
+  // subdomain) rather than always a relative path on this same site, so
+  // detect and use it directly instead of concatenating onto the root
+  // domain, which would have produced a broken URL for an external host.
+  const isAbsolute = /^https?:\/\//i.test(path);
+  window.top.location.href = isAbsolute ? path : ('https://www.ropingtools.com' + path);
   return false;
 }
 </script>

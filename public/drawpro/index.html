@@ -180,7 +180,7 @@
   <div class="waitlist-note" id="waitlist-note"></div>
 
   <div class="drawpro-links">
-    <a href="/steerme" target="_top" onclick="return topNavigate(event, '/steerme')">Try Steer Me Now &#8594;</a>
+    <a href="https://steerme.ropingtools.com" target="_top" onclick="return topNavigate(event, 'https://steerme.ropingtools.com')">Try Steer Me Now &#8594;</a>
     <a href="/" target="_top" onclick="return topNavigate(event, '/')">Back to RopingTools</a>
   </div>
 </div>
@@ -198,7 +198,13 @@
 // then; this was probably the real cause all along.
 function topNavigate(event, path) {
   event.preventDefault();
-  window.top.location.href = 'https://www.ropingtools.com' + path;
+  // Steer Me now lives on its own subdomain (steerme.ropingtools.com,
+  // deployed via Vercel), not a path on this Wix site - confirmed live
+  // and tested 2026-07-22. path may now be a full absolute URL rather
+  // than always a relative path on this same site - detect and use it
+  // directly instead of concatenating onto the root domain.
+  const isAbsolute = /^https?:\/\//i.test(path);
+  window.top.location.href = isAbsolute ? path : ('https://www.ropingtools.com' + path);
   return false;
 }
 
