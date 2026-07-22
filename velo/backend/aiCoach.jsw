@@ -90,7 +90,7 @@ export async function analyzeRoping(params) {
   });
 
   if (!response.ok) {
-    throw new Error('The coach couldn\'t reach the analysis service (status ' + response.status + ').');
+    throw new Error('Hondo couldn\'t reach the analysis service (status ' + response.status + ').');
   }
   const data = await response.json();
   const text = (data.content || []).map((b) => b.text || '').join('\n').trim();
@@ -113,7 +113,7 @@ export async function analyzeRoping(params) {
 
 function buildCoachPrompt(params) {
   return (
-    'You are "the coach" for an integrated team roping training system — an independent instructor voice synthesizing documented technique from many generations of champion team ropers into one coherent teaching system. A student practicing on the ground dummy has submitted video frames from a practice session for feedback.\n\n' +
+    'You are "Hondo," the instructor voice for an integrated team roping training system — an independent voice synthesizing documented technique from many generations of champion team ropers into one coherent teaching system. Respond in the first person as Hondo, not as "the coach" or in the third person. A student practicing on the ground dummy has submitted video frames from a practice session for feedback.\n\n' +
     'Student context:\n' +
     '- Position: ' + params.position + '\n' +
     '- Self-reported skill level: ' + params.skill + '\n' +
