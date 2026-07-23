@@ -29,6 +29,7 @@
 
 import { getSecret } from 'wix-secrets-backend';
 import { buildEntryUrl } from 'backend/qr-and-alerts.jsw';
+import { getProducerProfile } from 'backend/producerProfiles.jsw';
 
 const STEERME_SUPABASE_URL_SECRET = 'steerme-supabase-url';
 const STEERME_SUPABASE_SERVICE_KEY_SECRET = 'steerme-supabase-service-role-key';
@@ -74,6 +75,16 @@ export async function syncEventToSteerMe(event, classes) {
         // any .jsw-to-.jsw cross-module call, even ones that "look" sync.
         const entryUrlResult = await buildEntryUrl(event._id);
 
+        // NEW, added 2026-07-23: previously always null (see the removed
+        // comment on this field below) - now reads from the producer's
+        // own Draw Pro profile if they've set one up. Still null for
+        // producers who haven't (a real, expected case, not an error) -
+        // EventCard on the Steer Me side already falls back to "Posted
+        // via Draw Pro" for that case. Cross-.jsw call, so this must be
+        // awaited even though getProducerProfile() looks synchronous-ish
+        // internally - see the buildEntryUrl() comment above for why.
+        const producerProfile = await getProducerProfile(event.producerId);
+
         const payload = {
             name: event.title,
             event_date: toDateOnly(event.eventDate),
@@ -88,11 +99,7 @@ export async function syncEventToSteerMe(event, classes) {
             status: 'published',
             draw_pro_event_id: event._id,
             draw_pro_entry_url: entryUrlResult,
-            // No verified way to look up the producer's real display name
-            // from a bare Wix Member ID here yet - left null rather than
-            // guessing at an unconfirmed API. EventCard on the Steer Me
-            // side already falls back to "Posted via Draw Pro" for this.
-            external_producer_name: null
+            external_producer_name: producerProfile ? producerProfile.organizationName : null
         };
         console.log(`[steerMeSync] payload: ${JSON.stringify(payload)}`);
 

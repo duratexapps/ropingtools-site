@@ -370,6 +370,33 @@ No Tour Overlay elements on this page.
 
 ---
 
+## Page 4: Producer Profile (NEW, added 2026-07-23)
+
+A producer's own org-facing identity — organization name, contact info, logo. Standalone page, not
+gated behind any other Draw Pro page. Once set up, the organization name flows into
+`backend/steerMeSync.jsw`'s `external_producer_name` field automatically — no other wiring needed on
+this page itself. See `docs/ARCHITECTURE.md`'s "Draw Pro producer profiles" entry for the full
+reasoning on why this is a separate, standalone Draw Pro concept rather than shared with Steer Me.
+
+Source: `velo/pages/drawpro-real/producer-profile.js`. Not yet created in the Editor as of this
+writing — same process as the other 3 pages: create it, then provide the generated filename so the
+code can be mirrored into `roping-tools`.
+
+| ID | Type | Notes |
+|---|---|---|
+| `#inputOrgName` | Text input | Required — the only required field |
+| `#inputContactEmail` | Text input | Optional |
+| `#inputContactPhone` | Text input | Optional |
+| `#inputLogoUrl` | Text input | Optional — a plain URL field for now, not a real image upload component |
+| `#btnSaveProfile` | Button | |
+| `#textStatus` | Text | Status/error messages |
+
+No Tour Overlay elements on this page. Also worth adding a plain Editor-native Link element on
+Producer Event Setup pointing here once this page exists — no custom code needed for that, since the
+exact page URL isn't known until it's created.
+
+---
+
 ## Suggested build order
 
 1. **Producer Event Setup** first — it's the only one of the three with no

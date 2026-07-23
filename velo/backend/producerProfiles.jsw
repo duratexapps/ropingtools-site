@@ -1,0 +1,62 @@
+// backend/producerProfiles.jsw
+//
+// A Draw Pro producer's own org-facing profile - organization name,
+// contact info, logo. Genuinely missing until now: Draw Pro producers
+// had no identity beyond their raw Wix Member account (whatever name/
+// email Wix's built-in Members Area collects at generic sign-up).
+// Deliberately kept SEPARATE from Steer Me's own producer_profiles
+// (Supabase) rather than unified - Draw Pro and Steer Me already use
+// three independent login systems by design (see ARCHITECTURE.md), and
+// Draw Pro is meant to work standalone without requiring a Steer Me
+// account at all. See ARCHITECTURE.md's "Draw Pro producer profiles"
+// entry for the full reasoning.
+//
+// Needs the DrawProProducerProfiles collection: producerId (text - a
+// plain Wix Member ID string, not a Reference field, matching the
+// pattern already used elsewhere in this schema), organizationName
+// (text), contactEmail (text, nullable), contactPhone (text, nullable),
+// logoUrl (text, nullable).
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const PROFILES = 'DrawProProducerProfiles';
+
+/**
+ * @param {string} producerId
+ * @returns {Promise<Object|null>} null if this producer has never set one up
+ */
+export async function getProducerProfile(producerId) {
+    if (!producerId) return null;
+    const result = await wixData.query(PROFILES).eq('producerId', producerId).find();
+    return result.items.length > 0 ? result.items[0] : null;
+}
+
+/**
+ * Called from the Producer Profile page. Creates or updates the
+ * SIGNED-IN member's own profile - a producer can only ever create/edit
+ * their own, never anyone else's (producerId is taken from the current
+ * session, never accepted as caller input).
+ */
+export async function upsertProducerProfile(profileInput) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as a producer.');
+
+    if (!profileInput.organizationName || !profileInput.organizationName.trim()) {
+        throw new Error('Organization name is required.');
+    }
+
+    const existing = await getProducerProfile(member._id);
+    const record = {
+        producerId: member._id,
+        organizationName: profileInput.organizationName.trim(),
+        contactEmail: profileInput.contactEmail || null,
+        contactPhone: profileInput.contactPhone || null,
+        logoUrl: profileInput.logoUrl || null
+    };
+
+    if (existing) {
+        return wixData.update(PROFILES, { ...existing, ...record });
+    }
+    return wixData.insert(PROFILES, record);
+}

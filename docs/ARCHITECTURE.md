@@ -936,3 +936,50 @@ sufficient on its own. Revisit only if an actual load test at 300-500
 teams says otherwise. No load test has been run yet - the numbers above
 are reasoned estimates from the code's actual before/after shape, not
 measured.
+
+---
+
+## Draw Pro producer profiles (2026-07-23)
+
+**Real gap found, not a deliberate design decision.** Draw Pro producers
+had no identity beyond their raw Wix Member account - no organization
+name, contact info, or logo anywhere in the schema or pages. The only
+producer-facing onboarding concept that existed at all was the PayPal
+payout KYC step, itself still unbuilt (blocked on PayPal approval).
+
+Confirmed via direct comparison: Steer Me already has this fully built
+and live - a real `producer_profiles` Supabase table (migrations `0006`/
+`0007`), a real screen (`app/producer.tsx`), a real hook
+(`useProducerProfile.ts`). Draw Pro had nothing equivalent.
+
+**Decision: build it as a separate, standalone Draw Pro concept, not
+unified with Steer Me's.** Considered unifying (a producer who sets up a
+profile on Steer Me automatically getting Draw Pro producer access) and
+rejected it for two reasons:
+1. It would fight an already-accepted architecture decision - Draw Pro,
+   Steer Me, and the coaching course already use three independent login
+   systems by design, specifically so none of them depends on another.
+2. Draw Pro is meant to be the *source of truth* for real event data,
+   with Steer Me as the lighter companion (see the "Draw Pro multi-class
+   redesign" and "Draw Pro -> Steer Me event continuity" entries above).
+   Making Draw Pro producer access depend on a Steer Me profile would
+   invert that relationship, and would force every Draw Pro producer
+   through a product they might not otherwise want at all - plenty of
+   small local producers want a draw tool without caring about Steer
+   Me's partner-finding features for themselves.
+
+New `DrawProProducerProfiles` collection (see data-model.md), a new
+`backend/producerProfiles.jsw` (`getProducerProfile()` /
+`upsertProducerProfile()`), and a new standalone page
+(`velo/pages/drawpro-real/producer-profile.js` - not yet created in the
+Wix Editor as of this writing, so not yet mirrored to `roping-tools`).
+`organizationName` now flows into `steerMeSync.jsw`'s
+`external_producer_name` field once a producer sets one up - previously
+always `null` unconditionally.
+
+**Not done, worth considering later, not now**: a lightweight one-way
+convenience where a NEW Draw Pro profile could pre-fill its organization
+name from a matching Steer Me profile if one exists for the same email -
+a suggestion, not shared identity, and only worth building once real
+usage shows producers actually maintaining separate names across both
+products is a genuine friction point.

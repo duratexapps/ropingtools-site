@@ -313,6 +313,33 @@ Captures "notify me when entries open" signups — reached via the QR-code entry
 
 ---
 
+## 8.5. `DrawProProducerProfiles`
+
+**NEW, added 2026-07-23.** A producer's org-facing identity within Draw
+Pro - genuinely missing until now. Producers had no identity beyond
+their raw Wix Member account (whatever name/email Wix's built-in Members
+Area collects at generic sign-up). Deliberately a SEPARATE, standalone
+concept from Steer Me's own `producer_profiles` (Supabase) - Draw Pro
+and Steer Me already use three independent login systems by design (see
+`docs/ARCHITECTURE.md`), and Draw Pro is meant to work standalone
+without requiring a Steer Me account. Once set up, `organizationName`
+flows into `backend/steerMeSync.jsw`'s `external_producer_name` field,
+fixing a real gap where every Draw-Pro-sourced event on Steer Me showed
+no producer name at all (fell back to a generic "Posted via Draw Pro"
+label).
+
+| Field | Type | Notes |
+|---|---|---|
+| `_id` | auto | |
+| `producerId` | text | A plain Wix Member ID string, not a Reference field - matches the pattern already used elsewhere in this schema |
+| `organizationName` | text | Required - the only required field on this profile |
+| `contactEmail` | text (nullable) | |
+| `contactPhone` | text (nullable) | |
+| `logoUrl` | text (nullable) | A plain URL field for now, not a real image upload component - upgrading to one is a reasonable future enhancement, not done in this first pass |
+| `createdDate` / `updatedDate` | date/time | Wix-managed |
+
+---
+
 ## 9. `DrawProProducerPayoutProfiles`
 
 One record per producer, not per event — set up once at the profile level so it

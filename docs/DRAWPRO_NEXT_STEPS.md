@@ -118,12 +118,17 @@ added, and only for `divisions`/entry-URL purposes - editing an event's
 title/date/location afterward does not re-sync those fields. Revisit if
 that turns out to matter in practice.
 
-## 1. Build the 3 real pages in the Wix Editor
-**The single biggest remaining blocker.** No API exists for this — has to be
-done by hand. Full element-by-element instructions already written and
-current: `docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`. Suggested build order
-(each gives real data to test the next against): **Producer Event Setup →
-Entrant Entry Form → Producer Draw Sheet Review.**
+## 1. Build the real pages in the Wix Editor
+Producer Event Setup, Entrant Entry Form, and Producer Draw Sheet Review
+are all built and live-tested. **Producer Profile (Page 4, added
+2026-07-23) still needs to be created** - see
+`docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s "Page 4" section for the
+element list. A producer's org name/contact info/logo - currently
+missing entirely, which also means `steerMeSync.jsw`'s
+`external_producer_name` field has no real data to use yet. Also need a
+new `DrawProProducerProfiles` collection (5 fields, see
+data-model.md's "8.5" entry) - small enough to create manually in the
+Editor's Content Manager, same as `DrawProVenues` was.
 
 ## 2. `elevate()` — RESOLVED, this item is moot (2026-07-23)
 Turns out this was never actually a live dependency to test. Checked the
