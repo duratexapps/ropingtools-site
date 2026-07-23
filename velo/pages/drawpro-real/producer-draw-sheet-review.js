@@ -36,6 +36,11 @@
  *                             event for their own manual time-bonus
  *                             tracking. Display-only, doesn't affect
  *                             anything else on this page.)
+ *   #textRotationLabel        (NEW, added 2026-07-23 — inside #repeaterTeams item. Shows "Rotation N" if the
+ *                             class has a rotationSize set, hidden otherwise. Purely a pacing/display label
+ *                             over the SAME draw order — Draw Pro doesn't track catches, advancement, or
+ *                             results at any point; that stays the producer's own manual process, same
+ *                             established boundary as qualifiesForIncentive. See assignRotations() below.)
  *   #btnSwapSelected          (swaps the two currently-checked teams)
  *   #btnAcknowledgeConflict   (shown per flagged row, opens the ack box)
  *   #boxAcknowledgeConfirm    (confirmation container with a note field)
@@ -188,14 +193,38 @@ async function handleSignOff() {
 }
 
 async function loadDrawnTeams() {
+    // Real scaling problem, same class of bug as matching-engine.jsw's
+    // executeDraw() before it was fixed: this used to do one
+    // wixData.get('DrawProEntrants', ...) PER TEAM, twice (header +
+    // heeler) - up to 1000 individual calls at a 500-team field, purely
+    // to display names. Now one batch query for every entrant in the
+    // class up front, looked up locally from there.
     const result = await wixData.query('DrawProTeams').eq('classId', currentClassId).ascending('teamNumber').find();
-    $w('#repeaterTeams').data = result.items;
-    $w('#repeaterTeams').onItemReady(async ($item, team) => {
-        const header = await wixData.get('DrawProEntrants', team.headerEntrantId);
-        const heeler = await wixData.get('DrawProEntrants', team.heelerEntrantId);
+    const teams = result.items;
+
+    const entrantsResult = await wixData.query('DrawProEntrants').eq('classId', currentClassId).find();
+    const entrantsById = new Map(entrantsResult.items.map((e) => [e._id, e]));
+
+    // Rotation display - purely a pacing label over the same draw order,
+    // not anything Draw Pro tracks live. See assignRotations()'s own
+    // comment for the full reasoning.
+    const cls = allClasses.find((c) => c._id === currentClassId);
+    const teamsWithRotations = assignRotations(teams, cls ? cls.rotationSize : null);
+
+    $w('#repeaterTeams').data = teamsWithRotations;
+    $w('#repeaterTeams').onItemReady(($item, team) => {
+        const header = entrantsById.get(team.headerEntrantId);
+        const heeler = entrantsById.get(team.heelerEntrantId);
         $item('#textTeamNumber').text = String(team.teamNumber);
         $item('#textHeader').text = `${header.firstName} ${header.lastName}`;
         $item('#textHeeler').text = `${heeler.firstName} ${heeler.lastName}`;
+
+        if (team.rotationNumber != null) {
+            $item('#textRotationLabel').text = `Rotation ${team.rotationNumber}`;
+            $item('#textRotationLabel').expand();
+        } else {
+            $item('#textRotationLabel').collapse();
+        }
 
         // Display-only — see file header comment. Doesn't affect anything
         // else about this team.
@@ -348,6 +377,33 @@ async function handleSendNotifications() {
         setStatus(err.message, true);
         $w('#btnSendNotifications').enable();
     }
+}
+
+/**
+ * Splits an already-sorted team list into rotations, purely for producer/
+ * entrant display and pacing on a large field (confirmed real scenario:
+ * single classes with 200-500+ teams, sometimes run across multiple
+ * arenas). Deliberately NOT a live/dynamic concept - Draw Pro doesn't
+ * track catches, advancement, buy-backs, or results at any point in this
+ * pipeline; that stays the producer's own manual, in-arena process, same
+ * established boundary as qualifiesForIncentive. This just labels the
+ * SAME static draw order that already exists.
+ *
+ * rotationSize is the producer's target size (e.g. "about 100"). Every
+ * rotation is exactly that size except the last, which absorbs whatever
+ * remains - simplest, most predictable rule, matching the literal "teams
+ * 1-100 in rotation 1, 101-200 in rotation 2" example this was built
+ * from. (Note: a producer might sometimes think in terms of "however
+ * many even rotations divide the field cleanly" instead - e.g. 550
+ * teams as 5 rotations of 110 rather than 6 of ~92 - which this does NOT
+ * do. Flagged as a real, acknowledged difference, not an oversight -
+ * easy to change if the literal-chunking rule doesn't match real usage.)
+ */
+function assignRotations(teams, rotationSize) {
+    if (!rotationSize || rotationSize <= 0 || teams.length === 0) {
+        return teams.map((team) => ({ ...team, rotationNumber: null }));
+    }
+    return teams.map((team, i) => ({ ...team, rotationNumber: Math.floor(i / rotationSize) + 1 }));
 }
 
 function setStatus(message, isError) {

@@ -73,6 +73,12 @@
  *   #radioClassCloseMode    (radio group: 'time' | 'teamCount' | 'manual')
  *   #inputClassCloseDate    (date/time picker, shown when close mode = 'time')
  *   #inputClassCloseCount   (text input, shown when close mode = 'teamCount')
+ *   #inputRotationSize      (NEW, added 2026-07-23 - text input, numeric, optional. e.g. "100" - only
+ *                            relevant for large fields split across rotations/multiple arenas. Purely a
+ *                            display/pacing label on the SAME draw order Draw Pro already produces - it
+ *                            does not track catches, advancement, or results, which stay the producer's
+ *                            own manual process (same established boundary as qualifiesForIncentive).
+ *                            Leave blank for no rotation grouping at all)
  *   #btnAddClass           (button — adds this class, then clears the form for the next one)
  *
  *   -- Classes added so far (repeater) --
@@ -404,7 +410,8 @@ async function handleAddClass() {
         entryOpenDateTime: $w('#inputClassEntryOpen').value,
         entryCloseMode: closeMode,
         entryCloseDateTime: closeMode === 'time' ? $w('#inputClassCloseDate').value : null,
-        entryCloseTeamCount: closeMode === 'teamCount' ? parseInt($w('#inputClassCloseCount').value, 10) : null
+        entryCloseTeamCount: closeMode === 'teamCount' ? parseInt($w('#inputClassCloseCount').value, 10) : null,
+        rotationSize: parseOptionalNumber($w('#inputRotationSize').value)
     };
 
     $w('#btnAddClass').disable();

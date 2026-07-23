@@ -234,6 +234,7 @@ the manual-entry fallback, built first per established sequencing.
 | `#radioClassCloseMode` | Radio button group | Values: `time`, `teamCount`, `manual`. Manual close is always available regardless of mode — this just controls whether there's also an automatic trigger |
 | `#inputClassCloseDate` | Date/time picker | Shown when close mode = `time` |
 | `#inputClassCloseCount` | Text input | Shown when close mode = `teamCount` |
+| `#inputRotationSize` | Text input | **NEW**, added 2026-07-23. Numeric, optional - e.g. "100." Only relevant for large fields split across rotations/multiple arenas. Purely a display/pacing label on the draw sheet - Draw Pro doesn't track catches, advancement, or results at any point; that stays the producer's own manual process. Leave blank for no rotation grouping |
 | `#btnAddClass` | Button | Adds this class, then clears the form so you can immediately add the next one |
 
 ### Classes added so far (repeater)
@@ -322,6 +323,7 @@ three update together, every time `#dropdownClass` changes.
 | `#textHeeler` | Text (inside repeater item) | |
 | `#iconSpacingFlag` | Icon/image (inside repeater item) | Has a `.tooltip` set programmatically — use an element type that supports a tooltip property |
 | `#iconIncentiveFlag` | Icon/image (inside repeater item) | **NEW.** Shown only if this team's combined number qualifies for the class's incentive/slide (if the class offers one) — display-only, lets the producer visually pick out incentive-qualifying teams for their own manual time-bonus tracking. Doesn't affect anything else here |
+| `#textRotationLabel` | Text (inside repeater item) | **NEW**, added 2026-07-23. Shows "Rotation N" if the class has a rotation size set (`#inputRotationSize` on Producer Event Setup), hidden otherwise. Purely a pacing/display label over the same draw order — Draw Pro doesn't track catches, advancement, or results, same as `#iconIncentiveFlag` above |
 | `#checkboxSwapSelect` | Checkbox (inside repeater item) | |
 | `#btnAcknowledgeConflict` | Button (inside repeater item) | Shown only for flagged-unacknowledged rows |
 

@@ -173,6 +173,13 @@ export async function createEventClass(eventId, classInput) {
         entryCloseMode: classInput.entryCloseMode,
         entryCloseDateTime: classInput.entryCloseDateTime || null,
         entryCloseTeamCount: classInput.entryCloseTeamCount || null,
+        // NEW, added 2026-07-23: purely a display/pacing grouping over the
+        // SAME draw order this class already produces - see
+        // producer-draw-sheet-review.js's assignRotations() for where this
+        // actually gets used. Draw Pro doesn't track catches, advancement,
+        // or results at any point - that stays the producer's own manual
+        // process, same established boundary as qualifiesForIncentive.
+        rotationSize: classInput.rotationSize || null,
         status: 'draft'
     };
 
@@ -199,6 +206,9 @@ function validateClassInput(classInput) {
     }
     if (classInput.heelerSubCap != null && (typeof classInput.heelerSubCap !== 'number' || classInput.heelerSubCap <= 0)) {
         throw new Error('heelerSubCap, if set, must be a positive number.');
+    }
+    if (classInput.rotationSize != null && (typeof classInput.rotationSize !== 'number' || classInput.rotationSize <= 0)) {
+        throw new Error('rotationSize, if set, must be a positive number.');
     }
     if (classInput.incentiveCapNumber != null && (typeof classInput.incentiveCapNumber !== 'number' || classInput.incentiveCapNumber <= 0)) {
         throw new Error('incentiveCapNumber, if set, must be a positive number.');
