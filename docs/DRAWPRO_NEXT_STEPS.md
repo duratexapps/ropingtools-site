@@ -69,8 +69,8 @@ neither file exists yet in `roping-tools` (the real repo) — that happens
 via the same git-first process Page 1 went through, once each page is
 created/published in the Editor and its generated filename is provided.
 
-## 0.5. Draw Pro -> Steer Me event continuity (2026-07-22)
-New: `backend/steerMeSync.jsw` cross-posts a lightweight companion listing
+## 0.5. Draw Pro -> Steer Me event continuity (2026-07-22, CONFIRMED WORKING END-TO-END 2026-07-23)
+`backend/steerMeSync.jsw` cross-posts a lightweight companion listing
 into Steer Me's own Supabase database whenever a producer adds a class
 (`createEventClass()`), so entrants there can discover the event, mark
 attending, find a partner, and hand off back into Draw Pro's real entry
@@ -79,16 +79,39 @@ creating the same event twice. Full reasoning in
 `docs/ARCHITECTURE.md`; receiving schema in steer-me-app's migration
 `0029_draw_pro_event_sync.sql`.
 
-**Blocked on two Secrets Manager values that don't exist yet:**
-`steerme-supabase-url` and `steerme-supabase-service-role-key`. Get both
-from the Steer Me Supabase project's dashboard → Project Settings → API
-→ "Project URL" and the **service_role** key specifically (not the anon
-key - the service role key bypasses Row Level Security, which is
-required here since this insert has no Supabase Auth session behind it
-at all, but also means it must never be exposed client-side - Secrets
-Manager only, same handling as `ANTHROPIC_API_KEY`). Until both exist,
-`syncEventToSteerMe()` logs a warning and skips silently - it will never
-throw or block a producer from creating their class either way.
+**Live-tested and confirmed working 2026-07-23**: created a real event
+in Producer Event Setup, added a class, and confirmed the row landed
+correctly in Supabase's `events` table with a real `draw_pro_entry_url`
+link. Getting here required fixing several real, separate bugs found
+live in this session (all documented in `docs/ARCHITECTURE.md`):
+- `#boxAddClass` didn't support `.disable()`/`.collapse()`, crashing all
+  of `$w.onReady()` before any button's click handler ever got wired -
+  every button on the page looked completely dead as a result.
+- `validateEventInput()` never actually required `eventDate`, letting an
+  event get created with it blank - reached `steerMeSync.jsw` as
+  `undefined` and threw downstream instead of failing clearly at the
+  source.
+- The Supabase secret saved as `steerme-supabase-service-role-key` was
+  briefly the wrong key (anon instead of service_role), causing every
+  insert to be rejected by Row Level Security with a 401.
+- `buildEntryUrl()` (and, found in the same pass,
+  `payments.jsw`'s `calculateProducerFee()` in three places) were called
+  across `.jsw` module boundaries without `await` - a real, confirmed
+  Velo behavior where cross-`.jsw` calls always return a Promise
+  regardless of whether the function itself is sync. Silently corrupted
+  `draw_pro_entry_url` (landed as a literal `"{}"`) and would have
+  silently corrupted every entry's fee amount once payments go live.
+- `roping-tools` (the repo actually wired to the site's Git Integration)
+  had fallen behind `ropingtools-site` on backend file changes - several
+  fixes were live in the wrong repo and never reached the Editor at all
+  until this was caught and corrected.
+
+Also added in this session: `location` (the town/city) now has a
+type-ahead against the same ~32,000-town dataset Steer Me's home_area
+autocomplete uses (`backend/locationSearch.jsw`), and a new `eventSite`/
+`eventSiteLink` pair (the actual venue + its booking page/phone) backed
+by a shared, cross-producer `DrawProVenues` collection
+(`backend/venues.jsw`) - see `docs/source/drawpro-build/files/data-model.md`.
 
 Known v1 boundary, not an oversight: sync only fires when a class is
 added, and only for `divisions`/entry-URL purposes - editing an event's
