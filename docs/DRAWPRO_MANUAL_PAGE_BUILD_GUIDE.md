@@ -214,7 +214,7 @@ the manual-entry fallback, built first per established sequencing.
 ### Add a class (repeat this section for each roping — a #7.5, an #8.5, a #9.5, etc.)
 | ID | Type | Notes |
 |---|---|---|
-| `#boxAddClass` | **Container Box** (not a plain Box) | Starts **collapsed** — expands once the event shell is created. Must be a real Container Box element - a plain Box doesn't support `.collapse()`/`.expand()` the same reliable way, and this element does NOT support `.disable()`/`.enable()` at all (confirmed live 2026-07-23 — calling `.disable()` threw a TypeError that silently killed the entire `$w.onReady()` function before it ever reached the click-handler wiring further down, making every button on the page look "dead") |
+| `#boxAddClass` | Container (exact widget type unconfirmed) | Starts **hidden** — shown once the event shell is created. Confirmed live 2026-07-23: this element threw `TypeError: ... is not a function` on BOTH `.disable()` and `.collapse()` in turn - whatever it actually is, it's not a standard Container Box or at least doesn't expose the methods one would. Code now uses `.hide()`/`.show()` wrapped in a `safeCall()` helper, and click-handler wiring in `$w.onReady()` was moved to run before any cosmetic setup, so a future surprise here can log an error instead of silently killing every button on the page (which is what happened twice already) |
 | `#inputClassLabel` | Text input | e.g. `"7.5"` |
 | `#inputClassCap` | Text input | Numeric — combined header+heeler ceiling for this class |
 | `#inputHeelerSubCap` | Text input | Numeric, optional — an *additional* constraint on top of the cap, not instead of it (e.g. a flier's "#11.5 WSTR... #7.5 heeler cap") |

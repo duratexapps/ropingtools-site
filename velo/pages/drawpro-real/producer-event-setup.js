@@ -34,9 +34,13 @@
  *   #btnCreateEvent        (button — creates the SHELL only now, not a full event+cap+price)
  *
  *   -- Add a class (repeatable — one call per roping) --
- *   #boxAddClass           (Container Box — collapsed until the event shell is created. Must be a Container
- *                            Box specifically, not a plain Box - see the .collapse()/.expand() note in the
- *                            code below on why .disable()/.enable() can't be used on this element)
+ *   #boxAddClass           (container of some kind — hidden until the event shell is created. Its exact
+ *                            widget type is unconfirmed: it has thrown "is not a function" on both
+ *                            .disable() AND .collapse(), so whatever it actually is doesn't behave like a
+ *                            standard Container Box. Code below now uses .hide()/.show() and wraps the call
+ *                            in safeCall() so a third surprise here can't take the whole page down again -
+ *                            but if .hide()/.show() also fails, check this element's real widget type in
+ *                            the Editor's Properties panel rather than guessing a 4th method)
  *   #inputClassLabel        (text input, e.g. "7.5")
  *   #inputClassCap          (text input, numeric — combined header+heeler ceiling)
  *   #inputHeelerSubCap      (text input, numeric, optional — additional constraint ON TOP of the cap, not instead of it)
@@ -122,37 +126,52 @@ const PRODUCER_TOUR_STEPS = [
 let currentEventId = null;
 
 $w.onReady(async function () {
-    // #boxAddClass is a Container Box, not a form element - it doesn't
-    // support .disable()/.enable() the way #btnGenerateQr (a real button)
-    // does. Calling .disable() on it threw a TypeError here, which
-    // silently killed the rest of $w.onReady() before it ever reached the
-    // onClick wiring further down - every button on this page looked
-    // "dead" as a result, not just this one. .collapse()/.expand() is
-    // universally supported and was already the pattern used for
-    // #textPayoutWarning/#imageQrCode below.
-    $w('#boxAddClass').collapse();
-    $w('#btnGenerateQr').disable();
-    $w('#imageQrCode').collapse();
-    $w('#textPayoutWarning').collapse();
-    $w('#textEventTitleLocation').collapse();
-    $w('#toggleListOnSteerMe').checked = true; // opt-out, not opt-in - continuity is the intended default
-
-    $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields);
-    toggleClassCloseModeFields();
-
-    $w('#radioPaymentMethod').onChange(checkPayoutReadiness);
-    await checkPayoutReadiness();
-
+    // Click handlers are wired FIRST, before any cosmetic show/hide setup
+    // below. This page has twice now had a cosmetic setup call throw on
+    // #boxAddClass (first .disable(), then .collapse() - both "is not a
+    // function" on whatever element type this actually turned out to be)
+    // which, because $w.onReady() is a single synchronous-until-await
+    // function, silently killed everything after it INCLUDING every
+    // onClick binding below - every button on the page looked completely
+    // dead with zero visible error anywhere on the page itself. Wiring
+    // clicks first means a cosmetic-setup failure can never do that again,
+    // regardless of which element turns out to be the next surprise.
     $w('#btnCreateEvent').onClick(handleCreateEvent);
     $w('#btnAddClass').onClick(handleAddClass);
     $w('#btnGenerateQr').onClick(handleGenerateQr);
     $w('#btnReplayTutorial').onClick(startProducerTour);
+    $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields);
+    $w('#radioPaymentMethod').onChange(checkPayoutReadiness);
+
+    // Cosmetic/starting-state setup - each wrapped in safeCall() so one
+    // element behaving unexpectedly (wrong widget type, unsupported
+    // method, etc.) logs a console error and moves on instead of taking
+    // the rest of onReady() down with it.
+    safeCall(() => $w('#boxAddClass').hide());
+    safeCall(() => $w('#btnGenerateQr').disable());
+    safeCall(() => $w('#imageQrCode').collapse());
+    safeCall(() => $w('#textPayoutWarning').collapse());
+    safeCall(() => $w('#textEventTitleLocation').collapse());
+    safeCall(() => { $w('#toggleListOnSteerMe').checked = true; }); // opt-out, not opt-in - continuity is the intended default
+
+    toggleClassCloseModeFields();
+    await checkPayoutReadiness();
 
     const alreadySeen = await hasSeenTour('producer').catch(() => true); // fail safe: don't force a tour on a signed-out visitor
     if (!alreadySeen) {
         startProducerTour();
     }
 });
+
+// Runs fn() and swallows/logs any error instead of letting it propagate -
+// see the big comment at the top of $w.onReady() for why this exists.
+function safeCall(fn) {
+    try {
+        fn();
+    } catch (err) {
+        console.error(`[producer-event-setup] setup step failed (page keeps working): ${err.message}`);
+    }
+}
 
 function startProducerTour() {
     runTour($w, PRODUCER_TOUR_STEPS, {
@@ -217,10 +236,10 @@ async function handleCreateEvent() {
         const event = await createEvent(eventInput);
         currentEventId = event._id;
         setStatus('Event created. Now add at least one class (roping) below.');
-        $w('#textEventTitleLocation').text = `${event.title} - ${event.location}`;
-        $w('#textEventTitleLocation').expand();
-        $w('#boxAddClass').expand();
-        $w('#btnGenerateQr').enable(); // QR can be generated before any class opens —
+        safeCall(() => { $w('#textEventTitleLocation').text = `${event.title} - ${event.location}`; });
+        safeCall(() => $w('#textEventTitleLocation').expand());
+        safeCall(() => $w('#boxAddClass').show());
+        safeCall(() => $w('#btnGenerateQr').enable()); // QR can be generated before any class opens —
                                         // it goes on fliers ahead of time, and early
                                         // scanners get the "notify me when entries open"
                                         // option instead.

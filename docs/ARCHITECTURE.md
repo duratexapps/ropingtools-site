@@ -797,3 +797,18 @@ is a strong signal `$w.onReady()` itself is throwing before reaching any
 event-handler registration - check the browser's DevTools console on the
 actual Preview window first, before assuming the bug is anywhere in the
 specific feature that seems broken.
+
+**Update, same day**: the `.collapse()`/`.expand()` swap above was *also*
+wrong - `#boxAddClass` threw `TypeError: $w(...).collapse is not a
+function` too, same failure mode, same element, second guess in a row.
+Whatever this element's real widget type is remains unconfirmed. Rather
+than guess a third method, `producer-event-setup.js` was restructured
+properly: all `onClick`/`onChange` handler registrations in
+`$w.onReady()` now run *before* any cosmetic show/hide setup, and every
+cosmetic setup call is wrapped in a local `safeCall()` helper that
+catches and logs instead of throwing. This means a future surprise on any
+element - not just this one - can no longer take down click-handling for
+the whole page. `#boxAddClass` itself now uses `.hide()`/`.show()`
+(the most universally-supported pair across Wix element types) as its
+best-guess third attempt, but the real fix here is the defensive
+restructuring, not finally guessing the right method name.
