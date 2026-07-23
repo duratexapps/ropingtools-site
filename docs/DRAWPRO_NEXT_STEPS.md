@@ -125,13 +125,18 @@ current: `docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`. Suggested build order
 (each gives real data to test the next against): **Producer Event Setup →
 Entrant Entry Form → Producer Draw Sheet Review.**
 
-## 2. Test `elevate()` from Page Code the moment any page goes live
-This project has a known, unresolved question (task #20): `elevate()` is
-*confirmed broken* in HTTP Function context, but whether it also fails when
-called from Page-Code-invoked `.jsw` imports — which is Draw Pro's real
-pattern once pages exist — has never been tested. Almost every Draw Pro
-backend function depends on this working. Test this as soon as the first
-page is live, before assuming the rest of the backend just works.
+## 2. `elevate()` — RESOLVED, this item is moot (2026-07-23)
+Turns out this was never actually a live dependency to test. Checked the
+real backend code directly: `elevate()` is not called anywhere in
+`event-setup.jsw`, `payments.jsw`, `notifications.jsw`, `qr-and-alerts.jsw`,
+`venues.jsw`, or `steerMeSync.jsw` - only mentioned in comments explaining
+why it was avoided (Wix-native Triggered Emails were used instead of an
+external ESP specifically because of this gap, per `payments.jsw`'s
+header comment). Regular `wixData` calls rely on the collections' own
+permission settings for the signed-in member, not `elevate()`. Today's
+live, successful event/class creation - which writes to Wix Data as the
+current member - already proves this path works fine. No further testing
+needed here.
 
 ## 3. PayPal for Platforms
 - Application status: submitted, awaiting approval (external, not on our
