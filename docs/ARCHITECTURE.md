@@ -844,3 +844,45 @@ with no exceptions for "this one probably syncs on its own."** Verify
 via the Editor's Backend & Public panel (for backend files) or the page
 code panel (for page files) if there's ever doubt about whether a change
 actually landed - don't assume.
+
+---
+
+## Wix Velo gotcha: cross-.jsw calls always return a Promise (2026-07-23)
+
+**Confirmed live, real bug found via direct diagnostic logging - not a
+guess.** `qr-and-alerts.jsw`'s `buildEntryUrl(eventId)` is plain,
+ordinary synchronous code - no `async`, no promises, just a template
+string return. Called from *within* `qr-and-alerts.jsw` itself, it
+behaves exactly as written. But `steerMeSync.jsw` imports it from a
+*different* `.jsw` file and called it without `await` - and the value
+that came back was a genuine `Promise` object (confirmed via
+`typeof`/`constructor.name` logging), not the string. That unresolved
+Promise then serialized as a literal `"{}"` all the way into Supabase's
+`draw_pro_entry_url` column, silently, with no error anywhere.
+
+**The actual rule, confirmed empirically**: a function exported from one
+Wix Velo `.jsw` Web Module always comes back wrapped in a Promise when
+called from a *different* `.jsw` file - regardless of whether the
+function itself is declared `async` or not. Same-file calls (e.g.
+`qr-and-alerts.jsw` calling its own `buildEntryUrl` internally) are
+unaffected and behave normally. Only cross-module `.jsw` imports trigger
+this wrapping.
+
+This is easy to miss because nothing throws - the Promise silently flows
+through as if it were the real value, and depending on what happens to
+it downstream (JSON.stringify, string concatenation, arithmetic), the
+failure mode looks completely different each time and rarely points back
+at "forgot to await." Found and fixed the same bug in three more places
+in the same pass once this pattern was understood:
+`event-setup.jsw`'s three calls to `payments.jsw`'s
+`calculateProducerFee()` - all missing `await`, meaning `feeOwed` would
+have silently been a Promise object instead of a real number in every
+entry's fee calculation. Never caught yet since payment-flow testing is
+still blocked on PayPal approval - would have been a much harder bug to
+trace once real money was involved.
+
+**Rule going forward: always `await` a call to a function imported from
+a different `.jsw` file, with no exceptions - even ones whose own source
+code is plainly synchronous.** If a cross-.jsw value's type ever looks
+wrong (a URL that's `{}`, a number that behaves strangely), check for a
+missing `await` before assuming the bug is anywhere else.
