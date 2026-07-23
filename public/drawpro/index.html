@@ -120,6 +120,99 @@
     .waitlist-form { flex-direction: column; }
   }
 
+  /* --- TAKE TOUR --------------------------------------- */
+  /* Marketing-style feature carousel for anonymous visitors, mirroring
+     Steer Me's own "Take Tour" (app/(auth)/tour.tsx) - deliberately named
+     "Take Tour" rather than reusing "tutorial", which already means
+     something different on Draw Pro's producer-facing pages (the
+     in-app, logged-in "Replay Tutorial" step-by-step form walkthrough
+     on Producer Event Setup - see onboarding-engine.js). This one is for
+     visitors who haven't logged in / joined the waitlist yet, so it's a
+     first-choice option right below the fold, not gated behind anything. */
+  .tour-btn {
+    display: block;
+    width: 100%;
+    background: transparent;
+    color: var(--cream);
+    border: 1.5px solid var(--brass-light);
+    border-radius: 5px;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 1.5rem;
+  }
+  .tour-btn:hover { background: rgba(201,165,79,0.12); }
+
+  .tour-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(18,12,8,0.92);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  .tour-overlay.open { display: flex; }
+  .tour-card {
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+    position: relative;
+  }
+  .tour-close {
+    position: absolute;
+    top: -2.5rem;
+    right: 0;
+    background: none;
+    border: none;
+    color: var(--tan);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tour-eyebrow {
+    color: var(--brass-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  .tour-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.7rem;
+    color: var(--cream);
+    margin-bottom: 1rem;
+  }
+  .tour-body {
+    color: var(--tan);
+    font-size: 1rem;
+    line-height: 1.65;
+    margin-bottom: 2rem;
+  }
+  .tour-dots { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1.75rem; }
+  .tour-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--rope); }
+  .tour-dot.active { background: var(--brass-light); width: 20px; }
+  .tour-nav { display: flex; justify-content: space-between; gap: 0.75rem; }
+  .tour-nav button {
+    flex: 1;
+    padding: 0.75rem 1.25rem;
+    border-radius: 5px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+  }
+  .tour-nav .tour-back { background: transparent; color: var(--tan); border: 1.5px solid var(--rope); }
+  .tour-nav .tour-back.hidden { visibility: hidden; }
+  .tour-nav .tour-next { background: var(--rust); color: var(--cream); }
+  .tour-nav .tour-next:hover { background: #8a6a25; }
+
   /* --- LOGO ------------------------------------------- */
   /* Same logo mark as the landing page header. Icon and "Tools" keep
      their specified original colors (#D85A30 / #993C1D) - but "Roping"
@@ -167,6 +260,9 @@
   </div>
   <div class="badge-coming-soon">Coming Soon</div>
   <h1>Draw Pro</h1>
+
+  <button type="button" class="tour-btn" onclick="openTour()">Take a Tour</button>
+
   <p class="drawpro-body">
     The one-stop way to run your draw and notify every entrant - without printing a sheet, cutting a slip, or chasing down contestants by hand. Draw Pro is built to take the draw-day scramble off your plate entirely.
     <br><br>
@@ -182,6 +278,20 @@
   <div class="drawpro-links">
     <a href="https://steerme.ropingtools.com" target="_top" onclick="return topNavigate(event, 'https://steerme.ropingtools.com')">Try Steer Me Now &#8594;</a>
     <a href="/" target="_top" onclick="return topNavigate(event, '/')">Back to RopingTools</a>
+  </div>
+</div>
+
+<div class="tour-overlay" id="tour-overlay" role="dialog" aria-modal="true" aria-label="Draw Pro tour">
+  <div class="tour-card">
+    <button type="button" class="tour-close" onclick="closeTour()" aria-label="Close tour">&times;</button>
+    <div class="tour-eyebrow" id="tour-eyebrow"></div>
+    <div class="tour-title" id="tour-title"></div>
+    <div class="tour-body" id="tour-body"></div>
+    <div class="tour-dots" id="tour-dots"></div>
+    <div class="tour-nav">
+      <button type="button" class="tour-back" id="tour-back-btn" onclick="tourBack()">Back</button>
+      <button type="button" class="tour-next" id="tour-next-btn" onclick="tourNext()">Next</button>
+    </div>
   </div>
 </div>
 
@@ -268,6 +378,95 @@ function joinWaitlist() {
       note.className = 'waitlist-note error';
       note.textContent = 'Something went wrong: ' + (err && err.message ? err.message : 'try again in a moment.');
     });
+}
+
+// =========== TAKE TOUR ===========
+// Marketing-style feature carousel, mirroring Steer Me's own "Take Tour"
+// (app/(auth)/tour.tsx) - see the CSS comment above for why this is named
+// "Take Tour" rather than reusing "tutorial" (already means something
+// different on Draw Pro's producer-facing pages). Plain vanilla JS, no
+// framework, same as the rest of this file - a slide is just an object
+// with a title/body; the last slide swaps its Next button for a CTA that
+// closes the tour and focuses the waitlist email field below.
+const TOUR_SLIDES = [
+  {
+    eyebrow: 'For Producers',
+    title: 'Run Your Whole Draw, In One Place',
+    body: 'No more paper draw sheets or spreadsheets - set up your event once and run the whole thing right here.',
+  },
+  {
+    eyebrow: 'For Producers',
+    title: 'Entrants Do the Work',
+    body: "Ropers browse, find their own partners, and enter themselves. You're not the one manually collecting entries anymore.",
+  },
+  {
+    eyebrow: 'The Draw Pro + Steer Me Connection',
+    title: 'Steer Me Fills Your Draw',
+    body: 'Every event you post shows up on Steer Me automatically, so entrants without a partner yet can still find one and get entered - filling your books instead of stalling your gate.',
+  },
+  {
+    eyebrow: 'For Producers',
+    title: 'Multiple Classes, One Event',
+    body: 'A #7.5, an #8.5, a #9.5 - all under one shared entry link, each with its own cap, price, and rules.',
+  },
+  {
+    eyebrow: "Ready to Try It?",
+    title: 'Join the Waitlist',
+    body: "Draw Pro isn't public yet - get on the list below and we'll email you the moment it launches.",
+    isFinal: true,
+  },
+];
+
+let tourIndex = 0;
+
+function openTour() {
+  tourIndex = 0;
+  renderTourSlide();
+  document.getElementById('tour-overlay').classList.add('open');
+}
+
+function closeTour() {
+  document.getElementById('tour-overlay').classList.remove('open');
+}
+
+function renderTourSlide() {
+  const slide = TOUR_SLIDES[tourIndex];
+  document.getElementById('tour-eyebrow').textContent = slide.eyebrow;
+  document.getElementById('tour-title').textContent = slide.title;
+  document.getElementById('tour-body').textContent = slide.body;
+
+  const dotsEl = document.getElementById('tour-dots');
+  dotsEl.innerHTML = '';
+  TOUR_SLIDES.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'tour-dot' + (i === tourIndex ? ' active' : '');
+    dotsEl.appendChild(dot);
+  });
+
+  const backBtn = document.getElementById('tour-back-btn');
+  backBtn.classList.toggle('hidden', tourIndex === 0);
+
+  const nextBtn = document.getElementById('tour-next-btn');
+  nextBtn.textContent = slide.isFinal ? 'Get Notified' : 'Next';
+}
+
+function tourNext() {
+  const slide = TOUR_SLIDES[tourIndex];
+  if (slide.isFinal) {
+    closeTour();
+    const emailInput = document.getElementById('waitlist-email');
+    emailInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    emailInput.focus();
+    return;
+  }
+  tourIndex += 1;
+  renderTourSlide();
+}
+
+function tourBack() {
+  if (tourIndex === 0) return;
+  tourIndex -= 1;
+  renderTourSlide();
 }
 </script>
 
