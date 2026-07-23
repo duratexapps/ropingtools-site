@@ -391,7 +391,12 @@ export async function submitEntry(classId, personInfo, submission) {
 
     if (drawInCount > 0) {
         const drawInRate = cls.pricePerEntry + (cls.drawInSurchargeFee || 0);
-        const feeOwed = calculateProducerFee(drawInRate, drawInCount);
+        // calculateProducerFee() is plain sync code in payments.jsw, but
+        // calling it here across a .jsw module boundary wraps the call in
+        // a Promise regardless - confirmed live 2026-07-23 via the same
+        // bug in steerMeSync.jsw's buildEntryUrl() call. Must always await
+        // a cross-.jsw call, even ones that "look" synchronous.
+        const feeOwed = await calculateProducerFee(drawInRate, drawInCount);
 
         const record = buildEntrantRecord(cls, personInfo, drawIn.role, 'solo', {
             requestedEntryCount: drawInCount, feeOwed, isFeeResponsible: true,
@@ -445,7 +450,9 @@ async function submitPreformedTeamFull(cls, personInfo, myRole, partnerInput, su
     await enforceGuestCapIfApplicable(partnerInput);
 
     const teamRate = cls.pricePerPreformedTeamEntry || cls.pricePerEntry;
-    const feeOwed = calculateProducerFee(teamRate, 1);
+    // See the comment on the other calculateProducerFee() call in this
+    // file (submitEntry) - cross-.jsw calls always need awaiting.
+    const feeOwed = await calculateProducerFee(teamRate, 1);
 
     const entrantRecord = buildEntrantRecord(cls, personInfo, myRole, 'preformed_team', {
         requestedEntryCount: 1, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus, submissionGroupId
@@ -470,7 +477,9 @@ async function submitPreformedTeamEmailOnly(cls, personInfo, myRole, partnerEmai
     // which already derives the partner's role as the opposite of the
     // original entrant's own stored role, so no change needed there.
     const teamRate = cls.pricePerPreformedTeamEntry || cls.pricePerEntry;
-    const feeOwed = calculateProducerFee(teamRate, 1);
+    // See the comment on the other calculateProducerFee() call in this
+    // file (submitEntry) - cross-.jsw calls always need awaiting.
+    const feeOwed = await calculateProducerFee(teamRate, 1);
 
     const record = buildEntrantRecord(cls, personInfo, myRole, 'preformed_team', {
         requestedEntryCount: 1, feeOwed, isFeeResponsible: true, paymentStatus: initialPaymentStatus,

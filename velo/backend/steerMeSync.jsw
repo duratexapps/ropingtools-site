@@ -64,15 +64,15 @@ export async function syncEventToSteerMe(event, classes) {
             Authorization: `Bearer ${serviceKey}`
         };
 
-        // Temporary diagnostic - draw_pro_entry_url has been landing as a
-        // literal "{}" in Supabase instead of a real URL string, and the
-        // source of buildEntryUrl() itself reads as a plain, correct,
-        // synchronous function in both repos. Logging the raw return value
-        // and its type directly, rather than guessing again, since the
-        // last guess (stale Preview bundle) was confirmed wrong - this
-        // happened on a fresh, successful sync too. Remove once understood.
-        const entryUrlResult = buildEntryUrl(event._id);
-        console.log(`[steerMeSync] buildEntryUrl(${event._id}) returned: typeof=${typeof entryUrlResult}, constructor=${entryUrlResult && entryUrlResult.constructor && entryUrlResult.constructor.name}, value=${JSON.stringify(entryUrlResult)}, raw=${entryUrlResult}`);
+        // Confirmed live 2026-07-23: functions exported from one .jsw Web
+        // Module always come back as a Promise when called from ANOTHER
+        // .jsw file, regardless of whether the function itself is written
+        // as sync or async - buildEntryUrl() is plain sync code in
+        // qr-and-alerts.jsw, but calling it here without awaiting produced
+        // a literal Promise object, which then serialized as "{}" all the
+        // way into Supabase's draw_pro_entry_url column. Must always await
+        // any .jsw-to-.jsw cross-module call, even ones that "look" sync.
+        const entryUrlResult = await buildEntryUrl(event._id);
 
         const payload = {
             name: event.title,
