@@ -56,6 +56,12 @@ const VALID_ENTRY_MODES = ['pick_or_draw', 'pick_only', 'draw_only'];
  * @param {'cash'|'online'} eventInput.paymentMethod
  */
 export async function createEvent(eventInput) {
+    // Temporary diagnostic - the eventDate-required validation added
+    // 2026-07-23 is rejecting dates the producer confirmed were actively
+    // selected (not left blank/placeholder), so something about how this
+    // value crosses the frontend->backend boundary isn't what was
+    // assumed. Remove once this is understood and fixed for real.
+    console.log(`[createEvent] eventDate received: typeof=${typeof eventInput.eventDate}, value=${JSON.stringify(eventInput.eventDate)}`);
     validateEventInput(eventInput);
 
     const member = await currentMember.getMember();
