@@ -18,6 +18,17 @@ function labelFor(entry) {
     return `${entry.city}, ${entry.state}`;
 }
 
+// Precomputed once when this module loads, not on every search call.
+// HOME_AREAS never changes at runtime, so re-lowercasing all ~32,000
+// city names and labels from scratch on every single keystroke-triggered
+// search (as this used to do) was pure repeated waste - a real,
+// confirmed contributor to reported lag on the location type-ahead.
+const SEARCH_INDEX = HOME_AREAS.map((entry) => ({
+    entry,
+    cityLower: entry.city.toLowerCase(),
+    labelLower: `${entry.city}, ${entry.state}`.toLowerCase()
+}));
+
 /**
  * @param {string} query
  * @returns {string[]} up to 8 "City, ST" labels, exact-prefix matches first
@@ -28,11 +39,10 @@ export function searchHomeAreas(query) {
 
     const startsWith = [];
     const contains = [];
-    for (const entry of HOME_AREAS) {
-        const city = entry.city.toLowerCase();
-        if (city.startsWith(q)) {
+    for (const { entry, cityLower, labelLower } of SEARCH_INDEX) {
+        if (cityLower.startsWith(q)) {
             startsWith.push(entry);
-        } else if (labelFor(entry).toLowerCase().includes(q)) {
+        } else if (labelLower.includes(q)) {
             contains.push(entry);
         }
         // Early exit once we have plenty of startsWith matches - no need

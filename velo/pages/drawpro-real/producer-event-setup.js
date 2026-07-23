@@ -110,8 +110,12 @@ import { searchVenues } from 'backend/venues.jsw';
 import { currentMember } from 'wix-members-frontend';
 import { runTour } from 'public/onboarding-engine.js';
 
-const TYPEAHEAD_DEBOUNCE_MS = 200; // small pause after the last keystroke before calling the backend -
-                                    // avoids firing a search on every single character typed
+const TYPEAHEAD_DEBOUNCE_MS = 300; // small pause after the last keystroke before calling the backend -
+                                    // avoids firing a search on every single character typed. Bumped from
+                                    // 200ms to 300ms 2026-07-23 after reported lag on the location
+                                    // type-ahead - fewer redundant backend round trips while typing at
+                                    // normal speed, alongside the stale-response guard and precomputed
+                                    // search index fixes made the same day
 
 const PRODUCER_TOUR_STEPS = [
     {
@@ -251,16 +255,26 @@ function toggleClassCloseModeFields() {
 /* ------------------------------------------------------------------ */
 
 let locationDebounceTimer = null;
+let locationRequestToken = 0;
 
 function handleLocationInput() {
     clearTimeout(locationDebounceTimer);
     const query = $w('#inputEventLocation').value;
     if (!query || query.trim().length < 2) {
+        locationRequestToken += 1; // invalidate any in-flight search
         safeCall(() => $w('#repeaterLocationSuggestions').hide());
         return;
     }
+    // Real, confirmed lag/flicker cause: with no ordering guard, typing
+    // fast enough to have two searches in flight at once meant a slower
+    // (now-stale) response could arrive AFTER a newer one and overwrite
+    // it with outdated suggestions - looks exactly like lag even when
+    // each individual search is fast. myToken must still match the
+    // current token when the response comes back, or it's discarded.
+    const myToken = ++locationRequestToken;
     locationDebounceTimer = setTimeout(async () => {
         const matches = await searchHomeAreas(query).catch(() => []);
+        if (myToken !== locationRequestToken) return; // superseded by a newer search
         if (matches.length === 0) {
             safeCall(() => $w('#repeaterLocationSuggestions').hide());
             return;
@@ -278,6 +292,7 @@ function handleLocationInput() {
 }
 
 let venueDebounceTimer = null;
+let venueRequestToken = 0;
 
 function handleVenueInput() {
     clearTimeout(venueDebounceTimer);
@@ -290,11 +305,15 @@ function handleVenueInput() {
 
     const query = $w('#inputEventSite').value;
     if (!query || query.trim().length < 2) {
+        venueRequestToken += 1; // invalidate any in-flight search
         safeCall(() => $w('#repeaterVenueSuggestions').hide());
         return;
     }
+    // Same stale-response guard as handleLocationInput() above.
+    const myToken = ++venueRequestToken;
     venueDebounceTimer = setTimeout(async () => {
         const matches = await searchVenues(query).catch(() => []);
+        if (myToken !== venueRequestToken) return; // superseded by a newer search
         if (matches.length === 0) {
             safeCall(() => $w('#repeaterVenueSuggestions').hide());
             return;
