@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOCKUP - Producer Profile | Draw Pro</title>
+<style>
+  /* VISUAL MOCKUP ONLY - not functional Wix code, just a layout reference
+     for building the real Producer Profile page in the Editor. Same
+     palette/fonts as the rest of the site (public/drawpro/home-intro.html,
+     docs/source/steer-me.html) for consistency. */
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --brass-light: #C9A54F;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    margin: 0;
+    padding: 2rem 1.5rem;
+    display: flex;
+    justify-content: center;
+  }
+
+  .mockup-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: var(--leather);
+    color: var(--brass-light);
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0.5rem;
+    z-index: 100;
+  }
+
+  .card {
+    max-width: 480px;
+    width: 100%;
+    margin-top: 3rem;
+  }
+
+  .eyebrow {
+    color: var(--rust);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: 2rem;
+    margin: 0 0 0.5rem;
+    color: var(--leather);
+  }
+
+  .subtitle {
+    color: var(--rope);
+    font-size: 0.95rem;
+    margin-bottom: 2rem;
+  }
+
+  .field {
+    margin-bottom: 1.25rem;
+  }
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--rope);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.4rem;
+  }
+
+  label .required {
+    color: var(--rust);
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  .element-id {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--rust);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    border: 1.5px solid var(--rope);
+    border-radius: 5px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: var(--tan-light);
+    color: var(--ink);
+  }
+
+  input::placeholder { color: #A08A6E; }
+
+  .btn-save {
+    width: 100%;
+    background: var(--leather);
+    color: var(--cream);
+    border: none;
+    border-radius: 5px;
+    padding: 0.85rem 1.25rem;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 0.5rem;
+  }
+
+  .status-text {
+    font-size: 0.9rem;
+    color: #2E7D32;
+    font-weight: 600;
+    margin-top: 1rem;
+    min-height: 1.2em;
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP — not functional, layout reference only</div>
+
+<div class="card">
+  <div class="eyebrow">Your Business</div>
+  <h1>Producer Profile</h1>
+  <p class="subtitle">
+    This shows up wherever your events are listed — including your Steer Me cross-posted listings, which
+    currently show a generic fallback until you set this up.
+  </p>
+
+  <div class="field">
+    <label>Organization Name <span class="required">(required)</span> <span class="element-id">#inputOrgName</span></label>
+    <input type="text" placeholder="e.g. Circle T Productions" value="Circle T Productions">
+  </div>
+
+  <div class="field">
+    <label>Contact Email <span class="element-id">#inputContactEmail</span></label>
+    <input type="email" placeholder="e.g. info@circletproductions.com">
+  </div>
+
+  <div class="field">
+    <label>Contact Phone <span class="element-id">#inputContactPhone</span></label>
+    <input type="tel" placeholder="e.g. (555) 123-4567">
+  </div>
+
+  <div class="field">
+    <label>Logo URL <span class="element-id">#inputLogoUrl</span></label>
+    <input type="text" placeholder="Link to a hosted image of your logo (optional)">
+  </div>
+
+  <button class="btn-save">Save Profile</button>
+  <div class="status-text">Profile saved. <span class="element-id" style="color:#2E7D32;">#textStatus</span></div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOCKUP - Draw Pro Home</title>
+<style>
+  /* VISUAL MOCKUP ONLY - not functional Wix code, just a layout reference
+     for building the real Draw Pro Home page in the Editor. This ONE
+     page has two states depending on login status - toggle below shows
+     both, matching how drawpro-home.js actually switches between them. */
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --brass-light: #C9A54F;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    margin: 0;
+    padding: 3rem 1.5rem 2rem;
+  }
+
+  .mockup-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: var(--leather);
+    color: var(--brass-light);
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 0.5rem;
+    z-index: 100;
+  }
+
+  .toggle-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+  .toggle-row button {
+    padding: 0.6rem 1.25rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--rope);
+    background: var(--tan-light);
+    color: var(--rope);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .toggle-row button.active {
+    background: var(--leather);
+    color: var(--cream);
+    border-color: var(--leather);
+  }
+
+  .element-id {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--rust);
+    font-weight: 400;
+  }
+
+  /* --- Embed section (top of the page, always visible in both states) --- */
+  .embed-mock {
+    max-width: 560px;
+    margin: 0 auto 2rem;
+    background: var(--leather);
+    color: var(--cream);
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+  }
+  .embed-mock .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+  }
+  .embed-mock .logo-wordmark {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1rem;
+    text-align: left;
+  }
+  .embed-mock .logo-wordmark span { color: #D85A30; }
+  .embed-mock .logo-tagline {
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: #8a8883;
+  }
+  .embed-mock h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: 1.9rem;
+    margin: 0 0 1rem;
+  }
+  .embed-mock p {
+    color: var(--tan);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.25rem;
+  }
+  .embed-mock .tour-btn {
+    display: inline-block;
+    border: 1.5px solid var(--brass-light);
+    color: var(--cream);
+    background: transparent;
+    padding: 0.65rem 1.5rem;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .embed-mock .embed-label {
+    margin-top: 1.25rem;
+    font-size: 0.7rem;
+    color: var(--brass-light);
+    opacity: 0.7;
+  }
+
+  /* --- Visitor state --- */
+  .visitor-section {
+    max-width: 420px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .visitor-section .btn-primary, .visitor-section .btn-secondary {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.25rem;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: inherit;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary { background: var(--leather); color: var(--cream); }
+  .btn-secondary { background: transparent; color: var(--leather); border: 1.5px solid var(--leather) !important; }
+
+  /* --- Producer dashboard state --- */
+  .dashboard-section { max-width: 640px; margin: 0 auto; }
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .dashboard-header h2 {
+    font-family: 'Playfair Display', serif;
+    color: var(--leather);
+    margin: 0;
+    font-size: 1.4rem;
+  }
+  .dashboard-actions { display: flex; gap: 0.6rem; }
+  .btn-create {
+    background: var(--rust);
+    color: var(--cream);
+    border: none;
+    border-radius: 5px;
+    padding: 0.6rem 1.1rem;
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .btn-profile-link {
+    background: transparent;
+    color: var(--rope);
+    border: 1.5px solid var(--rope);
+    border-radius: 5px;
+    padding: 0.6rem 1.1rem;
+    font-weight: 700;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .section-heading {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    color: var(--leather);
+    font-size: 1.15rem;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .event-row {
+    background: var(--tan-light);
+    border: 1px solid var(--tan);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .event-row .event-info .event-title {
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 0.95rem;
+  }
+  .event-row .event-info .event-meta {
+    font-size: 0.8rem;
+    color: var(--rope);
+  }
+  .event-row .btn-manage {
+    background: transparent;
+    color: var(--rust);
+    border: 1.5px solid var(--rust);
+    border-radius: 5px;
+    padding: 0.4rem 0.8rem;
+    font-weight: 700;
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .empty-note {
+    font-size: 0.85rem;
+    color: var(--rope);
+    font-style: italic;
+    padding: 0.5rem 0;
+  }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP — not functional, layout reference only</div>
+
+<div class="toggle-row">
+  <button class="active" onclick="showState('visitor', this)">View as Visitor</button>
+  <button onclick="showState('producer', this)">View as Signed-In Producer</button>
+</div>
+
+<!-- Embed section - always visible in both states, this is #htmlDrawProIntro -->
+<div class="embed-mock">
+  <div class="logo-row">
+    <svg width="26" height="26" viewBox="0 0 60 60" aria-hidden="true">
+      <path d="M14 34 A18 18 0 1 1 32 52" fill="none" stroke="#D85A30" stroke-width="5" stroke-linecap="round"/>
+      <path d="M32 52 Q46 60 56 40" fill="none" stroke="#D85A30" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="logo-wordmark">Roping<span>Tools</span></div>
+      <div class="logo-tagline">DRAW &middot; COACH &middot; COMPETE</div>
+    </div>
+  </div>
+  <h1>Draw Pro</h1>
+  <p>The one-stop way to run your draw and notify every entrant - without printing a sheet, cutting a
+    slip, or chasing down contestants by hand.</p>
+  <div class="tour-btn">Take a Tour</div>
+  <div class="embed-label">↑ this whole block is #htmlDrawProIntro (HTML embed, content from home-intro.html)</div>
+</div>
+
+<!-- Visitor state -->
+<div id="visitor-view" class="visitor-section">
+  <p class="element-id" style="display:block; text-align:center; margin-bottom:1rem;">#boxVisitorCTA</p>
+  <button class="btn-primary">Sign Up <span class="element-id" style="color:var(--cream);">#btnSignUp</span></button>
+  <button class="btn-secondary">Log In <span class="element-id">#btnLogIn</span></button>
+</div>
+
+<!-- Producer dashboard state -->
+<div id="producer-view" class="dashboard-section hidden">
+  <p class="element-id" style="display:block; margin-bottom:0.5rem;">#boxProducerDashboard</p>
+  <div class="dashboard-header">
+    <h2>Welcome back, Circle T Productions</h2>
+    <div class="dashboard-actions">
+      <button class="btn-create">+ Create Event <span class="element-id" style="color:var(--cream);">#btnCreateEvent</span></button>
+      <button class="btn-profile-link">Edit Profile <span class="element-id">#linkEditProfile</span></button>
+    </div>
+  </div>
+
+  <div class="section-heading">Active Events <span class="element-id">#textActiveEventsHeading</span></div>
+  <div class="element-id" style="display:block; margin-bottom:0.4rem;">#repeaterActiveEvents</div>
+  <div class="event-row">
+    <div class="event-info">
+      <div class="event-title">Saddle Roping</div>
+      <div class="event-meta">7/31/2026 — Hamilton, TX</div>
+    </div>
+    <button class="btn-manage">Manage <span class="element-id">#linkManageEvent</span></button>
+  </div>
+  <div class="event-row">
+    <div class="event-info">
+      <div class="event-title">Fall Qualifier</div>
+      <div class="event-meta">8/09/2026 — Wickenburg, AZ</div>
+    </div>
+    <button class="btn-manage">Manage</button>
+  </div>
+
+  <div class="section-heading">Past Events <span class="element-id">#textPastEventsHeading</span></div>
+  <div class="element-id" style="display:block; margin-bottom:0.4rem;">#repeaterPastEvents</div>
+  <div class="event-row" style="opacity:0.7;">
+    <div class="event-info">
+      <div class="event-title">Cottonwood Summer Jackpot</div>
+      <div class="event-meta">6/27/2026 — Cottonwood, AZ</div>
+    </div>
+    <button class="btn-manage">View <span class="element-id">(reuses #linkManageEvent)</span></button>
+  </div>
+
+  <p class="empty-note">(Empty-state examples — shown instead of a repeater when there's nothing to list)</p>
+  <p class="empty-note">"You don't have any active events yet." <span class="element-id">#textNoActiveEvents</span></p>
+  <p class="empty-note">"No past events yet." <span class="element-id">#textNoPastEvents</span></p>
+</div>
+
+<script>
+  function showState(state, btn) {
+    document.querySelectorAll('.toggle-row button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('visitor-view').classList.toggle('hidden', state !== 'visitor');
+    document.getElementById('producer-view').classList.toggle('hidden', state !== 'producer');
+  }
+</script>
+
+</body>
+</html>
