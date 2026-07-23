@@ -983,3 +983,46 @@ name from a matching Steer Me profile if one exists for the same email -
 a suggestion, not shared identity, and only worth building once real
 usage shows producers actually maintaining separate names across both
 products is a genuine friction point.
+
+---
+
+## Draw Pro home page (2026-07-23)
+
+Confirmed direction: this new page is meant to eventually **replace**
+the current "Coming Soon" waitlist page (`public/drawpro/index.html` /
+`velo/pages/drawpro-page.js`), once Draw Pro is ready to go fully
+public. Built and tested now, ahead of that flip, per explicit
+direction - this does NOT conflict with `DRAWPRO_NEXT_STEPS.md`'s
+"don't flip the landing page prematurely" rule, since building a new
+page alongside the old one isn't the flip itself; actually swapping
+which page is the public `/drawpro` front door is a separate, later
+decision.
+
+Serves two audiences on one page - a signed-in-aware split, not two
+separate pages:
+- **Anonymous visitor**: the marketing/tour content, kept as an HTML
+  embed (`public/drawpro/home-intro.html`) reusing the exact same tour
+  carousel already built and tested on the old Coming Soon page - no
+  reason to rebuild it as native elements. Native sign-up/login buttons
+  sit below the embed, since HTML embeds are sandboxed from Wix Members
+  login state (same confirmed limitation as the course-embed/old
+  Coming Soon embeds).
+- **Signed-in producer**: a personal dashboard instead - their own
+  active and past events, a create-event link, a link to their producer
+  profile. Confirmed scope: THIS producer's own events only, not a
+  platform-wide directory of every producer's events (that's a
+  different, not-yet-built feature if ever wanted).
+
+"Active" vs "past" is judged by `eventDate` alone (>= today vs < today),
+not by aggregating each event's classes' individual statuses - simple,
+not perfectly precise for a multi-day event whose classes finish on
+different days, but consistent with `eventDate` already being the one
+anchor date used elsewhere in this schema for an event as a whole.
+
+Source: `velo/pages/drawpro-real/drawpro-home.js`. Not yet created in
+the Wix Editor as of this writing - staging only in `ropingtools-site`
+until it is, same process as the other Draw Pro pages. Several
+`wixLocation.to()` paths inside it are placeholders (sign-up/login,
+Producer Event Setup, Producer Profile, Producer Draw Sheet Review)
+since the real page URLs aren't known until each page exists - flagged
+directly in the file's own comments, not silently wrong.

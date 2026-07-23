@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro | RopingTools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  /* Adapted from public/drawpro/index.html (the old Coming Soon page) -
+     same palette, same tour carousel, waitlist form removed since real
+     sign up now exists as native Wix elements alongside this embed. See
+     docs/ARCHITECTURE.md's "Draw Pro home page" entry for the full
+     reasoning on why this stays an HTML embed for the marketing/tour
+     portion while sign-up/login/the producer dashboard are native Wix
+     elements built around it - HTML embeds are sandboxed from Wix
+     Members login state, so anything that needs to know who's signed in
+     has to live outside this embed. */
+  :root {
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --green: #4B5A3C;
+    --brass-light: #C9A54F;
+    --oxblood: #5C2430;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -10%, rgba(169,129,46,0.35), transparent 60%);
+    color: var(--cream);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+  }
+  .drawpro-card {
+    max-width: 560px;
+    text-align: center;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    margin-bottom: 1.25rem;
+  }
+  .drawpro-body {
+    color: var(--tan);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 2rem;
+  }
+  .drawpro-body strong { color: var(--cream); }
+
+  .tour-btn {
+    display: block;
+    width: 100%;
+    background: transparent;
+    color: var(--cream);
+    border: 1.5px solid var(--brass-light);
+    border-radius: 5px;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+  }
+  .tour-btn:hover { background: rgba(201,165,79,0.12); }
+
+  .scroll-hint {
+    font-size: 0.85rem;
+    color: var(--brass-light);
+    margin-top: 1.5rem;
+  }
+
+  .tour-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(18,12,8,0.92);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  .tour-overlay.open { display: flex; }
+  .tour-card {
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+    position: relative;
+  }
+  .tour-close {
+    position: absolute;
+    top: -2.5rem;
+    right: 0;
+    background: none;
+    border: none;
+    color: var(--tan);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .tour-eyebrow {
+    color: var(--brass-light);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  .tour-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.7rem;
+    color: var(--cream);
+    margin-bottom: 1rem;
+  }
+  .tour-body {
+    color: var(--tan);
+    font-size: 1rem;
+    line-height: 1.65;
+    margin-bottom: 2rem;
+  }
+  .tour-dots { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1.75rem; }
+  .tour-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--rope); }
+  .tour-dot.active { background: var(--brass-light); width: 20px; }
+  .tour-nav { display: flex; justify-content: space-between; gap: 0.75rem; }
+  .tour-nav button {
+    flex: 1;
+    padding: 0.75rem 1.25rem;
+    border-radius: 5px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+  }
+  .tour-nav .tour-back { background: transparent; color: var(--tan); border: 1.5px solid var(--rope); }
+  .tour-nav .tour-back.hidden { visibility: hidden; }
+  .tour-nav .tour-next { background: var(--rust); color: var(--cream); }
+  .tour-nav .tour-next:hover { background: #8a6a25; }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+  .logo-wordmark {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--cream);
+    line-height: 1.1;
+    text-align: left;
+  }
+  .logo-wordmark span { color: #D85A30; }
+  .logo-tagline {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: #8a8883;
+    margin-top: 0.1rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="drawpro-card">
+  <div class="logo-row">
+    <svg width="30" height="30" viewBox="0 0 60 60" aria-hidden="true">
+      <path d="M14 34 A18 18 0 1 1 32 52" fill="none" stroke="#D85A30" stroke-width="5" stroke-linecap="round"/>
+      <path d="M32 52 Q46 60 56 40" fill="none" stroke="#D85A30" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="logo-wordmark">Roping<span>Tools</span></div>
+      <div class="logo-tagline">DRAW &middot; COACH &middot; COMPETE</div>
+    </div>
+  </div>
+  <h1>Draw Pro</h1>
+  <p class="drawpro-body">
+    The one-stop way to run your draw and notify every entrant - without printing a sheet, cutting a slip, or chasing down contestants by hand.
+  </p>
+
+  <button type="button" class="tour-btn" onclick="openTour()">Take a Tour</button>
+  <p class="scroll-hint">Already know Draw Pro? Sign up or log in below.</p>
+</div>
+
+<div class="tour-overlay" id="tour-overlay" role="dialog" aria-modal="true" aria-label="Draw Pro tour">
+  <div class="tour-card">
+    <button type="button" class="tour-close" onclick="closeTour()" aria-label="Close tour">&times;</button>
+    <div class="tour-eyebrow" id="tour-eyebrow"></div>
+    <div class="tour-title" id="tour-title"></div>
+    <div class="tour-body" id="tour-body"></div>
+    <div class="tour-dots" id="tour-dots"></div>
+    <div class="tour-nav">
+      <button type="button" class="tour-back" id="tour-back-btn" onclick="tourBack()">Back</button>
+      <button type="button" class="tour-next" id="tour-next-btn" onclick="tourNext()">Next</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =========== TAKE TOUR ===========
+// Same carousel as the old Coming Soon page (public/drawpro/index.html) -
+// see that file's matching comment for the full reasoning. Last slide's
+// CTA closes the tour and scrolls down toward the native sign-up/login
+// elements below this embed, instead of a waitlist field (which no
+// longer exists on this page).
+const TOUR_SLIDES = [
+  {
+    eyebrow: 'For Producers',
+    title: 'Run Your Whole Draw, In One Place',
+    body: 'No more paper draw sheets or spreadsheets - set up your event once and run the whole thing right here.',
+  },
+  {
+    eyebrow: 'For Producers',
+    title: 'Entrants Do the Work',
+    body: "Ropers browse, find their own partners, and enter themselves. You're not the one manually collecting entries anymore.",
+  },
+  {
+    eyebrow: 'The Draw Pro + Steer Me Connection',
+    title: 'Steer Me Fills Your Draw',
+    body: 'Every event you post shows up on Steer Me automatically, so entrants without a partner yet can still find one and get entered - filling your books instead of stalling your gate.',
+  },
+  {
+    eyebrow: 'For Producers',
+    title: 'Multiple Classes, One Event',
+    body: 'A #7.5, an #8.5, a #9.5 - all under one shared entry link, each with its own cap, price, and rules.',
+  },
+  {
+    eyebrow: 'Ready to Try It?',
+    title: 'Sign Up Below',
+    body: 'Create an account to set up your first event, or log in if you already have one.',
+    isFinal: true,
+  },
+];
+
+let tourIndex = 0;
+
+function openTour() {
+  tourIndex = 0;
+  renderTourSlide();
+  document.getElementById('tour-overlay').classList.add('open');
+}
+
+function closeTour() {
+  document.getElementById('tour-overlay').classList.remove('open');
+}
+
+function renderTourSlide() {
+  const slide = TOUR_SLIDES[tourIndex];
+  document.getElementById('tour-eyebrow').textContent = slide.eyebrow;
+  document.getElementById('tour-title').textContent = slide.title;
+  document.getElementById('tour-body').textContent = slide.body;
+
+  const dotsEl = document.getElementById('tour-dots');
+  dotsEl.innerHTML = '';
+  TOUR_SLIDES.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'tour-dot' + (i === tourIndex ? ' active' : '');
+    dotsEl.appendChild(dot);
+  });
+
+  const backBtn = document.getElementById('tour-back-btn');
+  backBtn.classList.toggle('hidden', tourIndex === 0);
+
+  const nextBtn = document.getElementById('tour-next-btn');
+  nextBtn.textContent = slide.isFinal ? 'Got it' : 'Next';
+}
+
+function tourNext() {
+  const slide = TOUR_SLIDES[tourIndex];
+  if (slide.isFinal) {
+    closeTour();
+    return;
+  }
+  tourIndex += 1;
+  renderTourSlide();
+}
+
+function tourBack() {
+  if (tourIndex === 0) return;
+  tourIndex -= 1;
+  renderTourSlide();
+}
+</script>
+
+</body>
+</html>

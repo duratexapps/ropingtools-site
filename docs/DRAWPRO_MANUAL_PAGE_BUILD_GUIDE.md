@@ -397,6 +397,48 @@ exact page URL isn't known until it's created.
 
 ---
 
+## Page 5: Draw Pro Home (NEW, added 2026-07-23)
+
+Meant to eventually **replace** the current "Coming Soon" page — see `docs/ARCHITECTURE.md`'s "Draw Pro
+home page" entry for the full reasoning. Serves anonymous visitors (marketing/tour, sign-up/login) and
+signed-in producers (a personal dashboard: their own active/past events, create-event link, profile
+link) on the same page, split by login state.
+
+Source: `velo/pages/drawpro-real/drawpro-home.js`. Not yet created in the Editor as of this writing —
+same process as the other pages: create it, then provide the generated filename.
+
+### Marketing/tour (HTML embed)
+| ID | Type | Notes |
+|---|---|---|
+| `#htmlDrawProIntro` | HTML iframe embed | Paste in the full contents of `public/drawpro/home-intro.html` — the same tour carousel already built and tested on the old Coming Soon page, waitlist form removed |
+
+### Visitor call-to-action (shown when not signed in)
+| ID | Type | Notes |
+|---|---|---|
+| `#boxVisitorCTA` | Container | |
+| `#btnSignUp` | Button | Can be a plain Wix "Member Login"/"Sign Up" widget from the Editor's Members element category instead of a custom button — either works, and the native widget needs no code at all |
+| `#btnLogIn` | Button | Same note as `#btnSignUp` |
+
+### Producer dashboard (shown when signed in)
+| ID | Type | Notes |
+|---|---|---|
+| `#boxProducerDashboard` | Container | |
+| `#btnCreateEvent` | Button | Links to Producer Event Setup |
+| `#linkEditProfile` | Button/Link | Links to the Producer Profile page |
+| `#textActiveEventsHeading` | Text | |
+| `#repeaterActiveEvents` | Repeater | Item template needs `#textEventTitle`, `#textEventDate`, `#textEventLocation`, `#linkManageEvent` inside |
+| `#textNoActiveEvents` | Text | Shown if `#repeaterActiveEvents` is empty |
+| `#textPastEventsHeading` | Text | |
+| `#repeaterPastEvents` | Repeater | Same item template as `#repeaterActiveEvents` |
+| `#textNoPastEvents` | Text | Shown if `#repeaterPastEvents` is empty |
+
+**Note on the code's `wixLocation.to()` calls**: several paths in `drawpro-home.js` (sign-up/login,
+Producer Event Setup, Producer Profile, Producer Draw Sheet Review) are placeholders — the real page
+URLs aren't known until each page exists in the Editor. Flagged directly in the file's own comments.
+Update those paths once you have the real URLs, or send them to me and I'll update the file.
+
+---
+
 ## Suggested build order
 
 1. **Producer Event Setup** first — it's the only one of the three with no
