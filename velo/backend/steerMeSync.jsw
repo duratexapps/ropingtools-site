@@ -64,6 +64,16 @@ export async function syncEventToSteerMe(event, classes) {
             Authorization: `Bearer ${serviceKey}`
         };
 
+        // Temporary diagnostic - draw_pro_entry_url has been landing as a
+        // literal "{}" in Supabase instead of a real URL string, and the
+        // source of buildEntryUrl() itself reads as a plain, correct,
+        // synchronous function in both repos. Logging the raw return value
+        // and its type directly, rather than guessing again, since the
+        // last guess (stale Preview bundle) was confirmed wrong - this
+        // happened on a fresh, successful sync too. Remove once understood.
+        const entryUrlResult = buildEntryUrl(event._id);
+        console.log(`[steerMeSync] buildEntryUrl(${event._id}) returned: typeof=${typeof entryUrlResult}, constructor=${entryUrlResult && entryUrlResult.constructor && entryUrlResult.constructor.name}, value=${JSON.stringify(entryUrlResult)}, raw=${entryUrlResult}`);
+
         const payload = {
             name: event.title,
             event_date: toDateOnly(event.eventDate),
@@ -77,7 +87,7 @@ export async function syncEventToSteerMe(event, classes) {
             divisions: classes.map((c) => c.capNumber),
             status: 'published',
             draw_pro_event_id: event._id,
-            draw_pro_entry_url: buildEntryUrl(event._id),
+            draw_pro_entry_url: entryUrlResult,
             // No verified way to look up the producer's real display name
             // from a bare Wix Member ID here yet - left null rather than
             // guessing at an unconfirmed API. EventCard on the Steer Me
