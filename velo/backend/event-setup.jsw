@@ -93,6 +93,14 @@ function validateEventInput(eventInput) {
     if (eventInput.paymentMethod !== 'cash' && eventInput.paymentMethod !== 'online') {
         throw new Error('paymentMethod must be "cash" or "online".');
     }
+    // Real gap found live 2026-07-23: this never checked eventDate at all,
+    // so an event could be created with it left blank. That undefined
+    // value then made it all the way to steerMeSync.jsw's toDateOnly(),
+    // which threw "Invalid time value" trying to call .toISOString() on
+    // it - not a Steer Me problem, a missing-validation problem here.
+    if (!eventInput.eventDate || isNaN(new Date(eventInput.eventDate).getTime())) {
+        throw new Error('A valid event date is required.');
+    }
 }
 
 /* ------------------------------------------------------------------ */

@@ -122,5 +122,15 @@ export async function syncEventToSteerMe(event, classes) {
 }
 
 function toDateOnly(dateValue) {
-    return new Date(dateValue).toISOString().slice(0, 10);
+    // event-setup.jsw's validateEventInput() now requires a valid
+    // eventDate before an event can even be created, but this stays
+    // defensive anyway - a bad/missing date here should degrade the
+    // Steer Me listing (no date shown), not throw and skip the sync
+    // entirely the way it did before that validation existed.
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) {
+        console.warn(`[steerMeSync] invalid eventDate (${dateValue}), syncing without a date`);
+        return null;
+    }
+    return d.toISOString().slice(0, 10);
 }
