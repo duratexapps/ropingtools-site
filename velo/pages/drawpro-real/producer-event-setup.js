@@ -18,7 +18,24 @@
  *
  *   -- Event basics (create once) --
  *   #inputTitle           (text input)
- *   #inputEventLocation     (text input, e.g. "Hallettsville, TX" - required, same as title)
+ *   #inputEventLocation     (text input, e.g. "Hallettsville, TX" - required, same as title. Has a
+ *                            type-ahead: as the producer types, backend/locationSearch.jsw returns matches
+ *                            from the same ~32,000-town dataset Steer Me's home_area autocomplete uses -
+ *                            see #repeaterLocationSuggestions below)
+ *   #repeaterLocationSuggestions (NEW, added 2026-07-23 - Repeater, hidden by default. Item template needs
+ *                            one #btnLocationSuggestion (Button) inside it. Shown while #inputEventLocation
+ *                            has matches, hidden again once one's picked or the field's cleared)
+ *   #inputEventSite         (NEW, added 2026-07-23 - text input, e.g. "Circle T Arena" - the venue itself,
+ *                            separate from #inputEventLocation (the town/city). Free text, but also has a
+ *                            type-ahead against backend/venues.jsw's shared, cross-producer venue list - see
+ *                            #repeaterVenueSuggestions below)
+ *   #inputEventSiteLink     (NEW, added 2026-07-23 - text input, optional - the venue's booking page (often
+ *                            openstalls.com) or a phone number if that's all a flier has. Auto-fills when a
+ *                            venue suggestion is picked, but stays free-typeable otherwise)
+ *   #repeaterVenueSuggestions (NEW, added 2026-07-23 - Repeater, hidden by default. Item template needs one
+ *                            #btnVenueSuggestion (Button) inside it. Picking a suggestion fills BOTH
+ *                            #inputEventSite and, if the saved venue has one, #inputEventSiteLink - and
+ *                            #inputEventLocation too if it's still empty)
  *   #textEventTitleLocation (text - starts collapsed; expands to e.g. "Saturday Jackpot - Hallettsville, TX"
  *                            once the event shell is created, as an on-page confirmation of which event
  *                            you're configuring below)
@@ -82,8 +99,13 @@ import { createEvent, createEventClass, openClass, closeClass } from 'backend/ev
 import { generateEventQrCode, getAlertSubscriberCount } from 'backend/qr-and-alerts.jsw';
 import { getPayoutProfile } from 'backend/payments.jsw';
 import { hasSeenTour, markTourCompleted, markTourDismissed } from 'backend/onboarding.jsw';
+import { searchHomeAreas } from 'backend/locationSearch.jsw';
+import { searchVenues } from 'backend/venues.jsw';
 import { currentMember } from 'wix-members-frontend';
 import { runTour } from 'public/onboarding-engine.js';
+
+const TYPEAHEAD_DEBOUNCE_MS = 200; // small pause after the last keystroke before calling the backend -
+                                    // avoids firing a search on every single character typed
 
 const PRODUCER_TOUR_STEPS = [
     {
@@ -142,6 +164,8 @@ $w.onReady(async function () {
     $w('#btnReplayTutorial').onClick(startProducerTour);
     $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields);
     $w('#radioPaymentMethod').onChange(checkPayoutReadiness);
+    $w('#inputEventLocation').onInput(handleLocationInput);
+    $w('#inputEventSite').onInput(handleVenueInput);
 
     // Cosmetic/starting-state setup - each wrapped in safeCall() so one
     // element behaving unexpectedly (wrong widget type, unsupported
@@ -152,6 +176,8 @@ $w.onReady(async function () {
     safeCall(() => $w('#imageQrCode').collapse());
     safeCall(() => $w('#textPayoutWarning').collapse());
     safeCall(() => $w('#textEventTitleLocation').collapse());
+    safeCall(() => $w('#repeaterLocationSuggestions').hide());
+    safeCall(() => $w('#repeaterVenueSuggestions').hide());
     safeCall(() => { $w('#toggleListOnSteerMe').checked = true; }); // opt-out, not opt-in - continuity is the intended default
 
     toggleClassCloseModeFields();
@@ -215,6 +241,84 @@ function toggleClassCloseModeFields() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Type-ahead: event location (city) and event site (venue)            */
+/* ------------------------------------------------------------------ */
+
+let locationDebounceTimer = null;
+
+function handleLocationInput() {
+    clearTimeout(locationDebounceTimer);
+    const query = $w('#inputEventLocation').value;
+    if (!query || query.trim().length < 2) {
+        safeCall(() => $w('#repeaterLocationSuggestions').hide());
+        return;
+    }
+    locationDebounceTimer = setTimeout(async () => {
+        const matches = await searchHomeAreas(query).catch(() => []);
+        if (matches.length === 0) {
+            safeCall(() => $w('#repeaterLocationSuggestions').hide());
+            return;
+        }
+        $w('#repeaterLocationSuggestions').data = matches.map((label, i) => ({ _id: String(i), label }));
+        $w('#repeaterLocationSuggestions').onItemReady(($item, item) => {
+            $item('#btnLocationSuggestion').label = item.label;
+            $item('#btnLocationSuggestion').onClick(() => {
+                $w('#inputEventLocation').value = item.label;
+                safeCall(() => $w('#repeaterLocationSuggestions').hide());
+            });
+        });
+        safeCall(() => $w('#repeaterLocationSuggestions').show());
+    }, TYPEAHEAD_DEBOUNCE_MS);
+}
+
+let venueDebounceTimer = null;
+
+function handleVenueInput() {
+    clearTimeout(venueDebounceTimer);
+    // Typing again after a suggestion was picked invalidates the
+    // auto-filled link until a suggestion is picked again - same
+    // "unconfirmed edits don't count" rule Steer Me's own home_area
+    // autocomplete uses, just applied to the derived link field here
+    // instead of the field being typed into.
+    $w('#inputEventSiteLink').value = '';
+
+    const query = $w('#inputEventSite').value;
+    if (!query || query.trim().length < 2) {
+        safeCall(() => $w('#repeaterVenueSuggestions').hide());
+        return;
+    }
+    venueDebounceTimer = setTimeout(async () => {
+        const matches = await searchVenues(query).catch(() => []);
+        if (matches.length === 0) {
+            safeCall(() => $w('#repeaterVenueSuggestions').hide());
+            return;
+        }
+        $w('#repeaterVenueSuggestions').data = matches.map((v, i) => ({
+            _id: String(i),
+            name: v.name,
+            location: v.location,
+            link: v.link
+        }));
+        $w('#repeaterVenueSuggestions').onItemReady(($item, item) => {
+            $item('#btnVenueSuggestion').label = item.location ? `${item.name} (${item.location})` : item.name;
+            $item('#btnVenueSuggestion').onClick(() => {
+                $w('#inputEventSite').value = item.name;
+                if (item.link) {
+                    $w('#inputEventSiteLink').value = item.link;
+                }
+                // Only fills the town/city if the producer hasn't already
+                // typed one - never overwrites an in-progress entry.
+                if (item.location && !$w('#inputEventLocation').value) {
+                    $w('#inputEventLocation').value = item.location;
+                }
+                safeCall(() => $w('#repeaterVenueSuggestions').hide());
+            });
+        });
+        safeCall(() => $w('#repeaterVenueSuggestions').show());
+    }, TYPEAHEAD_DEBOUNCE_MS);
+}
+
+/* ------------------------------------------------------------------ */
 /* Event shell creation                                                */
 /* ------------------------------------------------------------------ */
 
@@ -224,6 +328,8 @@ async function handleCreateEvent() {
     const eventInput = {
         title: $w('#inputTitle').value,
         location: $w('#inputEventLocation').value,
+        eventSite: $w('#inputEventSite').value || null,
+        eventSiteLink: $w('#inputEventSiteLink').value || null,
         eventDate: $w('#inputEventDate').value,
         preEntryEnabled: $w('#togglePreEntry').checked,
         listOnSteerMe: $w('#toggleListOnSteerMe').checked,

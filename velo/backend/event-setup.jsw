@@ -28,6 +28,7 @@ import { currentMember } from 'wix-members-backend';
 import { sendEntryOpenAlerts } from 'backend/qr-and-alerts.jsw';
 import { calculateProducerFee, sendPartnerInvite } from 'backend/payments.jsw';
 import { syncEventToSteerMe } from 'backend/steerMeSync.jsw';
+import { recordVenueUsage } from 'backend/venues.jsw';
 
 const EVENTS = 'DrawProEvents';
 const CLASSES = 'DrawProEventClasses';
@@ -65,6 +66,12 @@ export async function createEvent(eventInput) {
     const record = {
         title: eventInput.title,
         location: eventInput.location,
+        // NEW, added 2026-07-23: the actual venue (e.g. "Circle T Arena"),
+        // separate from `location` (the town/city). See backend/venues.jsw
+        // - eventSite feeds a shared, cross-producer suggestion list so a
+        // venue's booking link only ever has to be found and saved once.
+        eventSite: eventInput.eventSite || null,
+        eventSiteLink: eventInput.eventSiteLink || null,
         producerId: member._id,
         eventDate: eventInput.eventDate,
         preEntryEnabled: !!eventInput.preEntryEnabled,
@@ -80,7 +87,15 @@ export async function createEvent(eventInput) {
         sourceFlierImageUrl: eventInput.sourceFlierImageUrl || null
     };
 
-    return wixData.insert(EVENTS, record);
+    const created = await wixData.insert(EVENTS, record);
+
+    // Fire-and-forget, same rationale as syncEventToSteerMe() - a venue
+    // tracking failure should never block a producer from creating their
+    // event.
+    recordVenueUsage(eventInput.eventSite, eventInput.location, eventInput.eventSiteLink)
+        .catch((err) => console.error(`[event-setup] recordVenueUsage failed: ${err.message}`));
+
+    return created;
 }
 
 function validateEventInput(eventInput) {

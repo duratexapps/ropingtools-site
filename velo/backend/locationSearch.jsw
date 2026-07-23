@@ -1,0 +1,44 @@
+// backend/locationSearch.jsw
+//
+// City/town autocomplete for Producer Event Setup's #inputEventLocation,
+// backed by the same ~32,000-place US Census dataset Steer Me's
+// home_area autocomplete uses (see backend/data/homeAreas.js). Search
+// logic is a direct port of steer-me-app's AutocompleteField.tsx
+// search() function, kept identical on purpose so both products surface
+// the same results for the same query.
+//
+// Runs server-side rather than shipping the 1.2MB dataset to the browser
+// - the page calls searchHomeAreas(query) as the producer types
+// (debounced client-side, not on every keystroke) and gets back at most
+// 8 matches.
+
+import { HOME_AREAS } from 'backend/data/homeAreas.js';
+
+function labelFor(entry) {
+    return `${entry.city}, ${entry.state}`;
+}
+
+/**
+ * @param {string} query
+ * @returns {string[]} up to 8 "City, ST" labels, exact-prefix matches first
+ */
+export function searchHomeAreas(query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return [];
+
+    const startsWith = [];
+    const contains = [];
+    for (const entry of HOME_AREAS) {
+        const city = entry.city.toLowerCase();
+        if (city.startsWith(q)) {
+            startsWith.push(entry);
+        } else if (labelFor(entry).toLowerCase().includes(q)) {
+            contains.push(entry);
+        }
+        // Early exit once we have plenty of startsWith matches - no need
+        // to keep scanning all 32,000 rows every keystroke.
+        if (startsWith.length >= 8) break;
+    }
+
+    return [...startsWith, ...contains].slice(0, 8).map(labelFor);
+}

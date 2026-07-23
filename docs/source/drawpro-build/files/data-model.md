@@ -42,7 +42,9 @@ producer's own words, "one event" with one shared entry link.
 |---|---|---|
 | `_id` | auto | |
 | `title` | text | |
-| `location` | text | Town/venue, e.g. "Hallettsville, TX" — free text, same single-string convention as Steer Me's home_area rather than split town/state fields. Required, same as title (every real flier lists a venue). Combines with title for the on-page confirmation display, e.g. "Saturday Jackpot - Hallettsville, TX" |
+| `location` | text | Town/city, e.g. "Hallettsville, TX" — free text but backed by a type-ahead against the same ~32,000-town dataset Steer Me's home_area autocomplete uses (see `backend/locationSearch.jsw`). Required, same as title. Combines with title for the on-page confirmation display, e.g. "Saturday Jackpot - Hallettsville, TX". **Distinct from `eventSite` below** — this is the town, not the venue itself; the two were conflated in this field's original description until the split was added 2026-07-23 |
+| `eventSite` | text (nullable) | **NEW, added 2026-07-23.** The actual venue, e.g. "Circle T Arena" — separate from `location` (the town). Free text, backed by a type-ahead against `DrawProVenues` (see below), a shared cross-producer venue list. Not yet hard-required, though in practice every real event has one |
+| `eventSiteLink` | text (nullable) | **NEW, added 2026-07-23.** The venue's booking page (often an openstalls.com listing) or a phone number if that's all a flier has — lets an entrant reserve RV/stall spots without leaving Draw Pro. Auto-fills when a venue suggestion from `DrawProVenues` is picked, but stays independently free-typeable |
 | `producerId` | reference → Wix Members | Owner of the event |
 | `eventDate` | date/time | Start date of the event/weekend — individual classes carry their own more precise timing |
 | `preEntryEnabled` | boolean | |
@@ -66,6 +68,28 @@ already used for scanned entrant cards (`scanVerified`, `rawOcrText`,
 `ocrConfidence` below) — AI drafts, a human confirms, never auto-published
 unreviewed. Not yet built — this is a design commitment for when Page 2 starts,
 not implemented code.
+
+---
+
+## 1.5. `DrawProVenues`
+
+**NEW, added 2026-07-23.** Shared, cross-producer list of physical venues,
+populated automatically (not hand-seeded) via `backend/venues.jsw`'s
+`recordVenueUsage()`, called fire-and-forget from `createEvent()` every
+time an event is created. Deliberately shared across every producer, not
+scoped per-producer — venue names and booking links aren't private, and
+the whole point is that the second producer who ever runs something at a
+given arena benefits from the first producer having already found and
+saved its booking link. Confirmed decision 2026-07-23.
+
+| Field | Type | Notes |
+|---|---|---|
+| `_id` | auto | |
+| `name` | text | e.g. "Circle T Arena" — matched case-insensitively by `recordVenueUsage()` so "circle t arena" and "Circle T Arena" collapse to one record |
+| `location` | text (nullable) | Town/city this venue is in — copied from whichever event most recently referenced it |
+| `link` | text (nullable) | Booking page (often openstalls.com) or phone number. Once set, later events referencing this venue without a link do NOT blank it out — see `recordVenueUsage()`'s merge logic |
+| `timesUsed` | number | Incremented each time an event references this venue. Suggestions are ranked by this, most-used first |
+| `lastUsedDate` | date/time | |
 
 ---
 

@@ -1,0 +1,85 @@
+// backend/venues.jsw
+//
+// Shared, cross-producer venue suggestions for #inputEventSite on Producer
+// Event Setup. Deliberately NOT scoped per-producer - a venue name and its
+// booking link/phone aren't private information, and the whole point is
+// that the second producer who's ever run something at, say, "Circle T
+// Arena" benefits from the first producer having already found and saved
+// that venue's booking link. Confirmed decision 2026-07-23.
+//
+// Backs a typeahead: as a producer types #inputEventSite, the page calls
+// searchVenues(query) (debounced, not per-keystroke) and shows matches;
+// picking one also auto-fills #inputEventSiteLink from the saved record.
+// recordVenueUsage() is called fire-and-forget from createEvent() so this
+// list grows organically with real usage instead of needing to be
+// seeded/maintained by hand.
+//
+// Needs the DrawProVenues collection: name (text), location (text,
+// nullable), link (text, nullable), timesUsed (number), lastUsedDate
+// (date/time). See docs/DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md for the exact
+// field table if this hasn't been created in the Wix Editor yet.
+
+import wixData from 'wix-data';
+
+const VENUES = 'DrawProVenues';
+
+/**
+ * @param {string} query
+ * @returns {Promise<{name: string, location: string|null, link: string|null}[]>} up to 8 matches
+ */
+export async function searchVenues(query) {
+    const q = (query || '').trim();
+    if (!q) return [];
+
+    const result = await wixData.query(VENUES)
+        .contains('name', q)
+        .descending('timesUsed')
+        .limit(8)
+        .find();
+
+    return result.items.map((v) => ({ name: v.name, location: v.location || null, link: v.link || null }));
+}
+
+/**
+ * Fire-and-forget from createEvent() - never throws past its own boundary,
+ * matching steerMeSync.jsw's pattern. A venue-tracking failure should
+ * never block a producer from actually creating their event.
+ *
+ * Matches on name case-insensitively (Wix Data's default string
+ * comparisons are case-sensitive, so this does an explicit lowercase
+ * compare after a broad contains() query rather than relying on eq()).
+ * Existing link is only ever REPLACED if the new one is non-empty - a
+ * later event created without a link shouldn't blank out a good link an
+ * earlier producer already saved.
+ */
+export async function recordVenueUsage(name, location, link) {
+    const trimmedName = (name || '').trim();
+    if (!trimmedName) return;
+
+    try {
+        const existing = await wixData.query(VENUES)
+            .contains('name', trimmedName)
+            .find();
+        const match = existing.items.find((v) => (v.name || '').trim().toLowerCase() === trimmedName.toLowerCase());
+
+        if (match) {
+            await wixData.update(VENUES, {
+                ...match,
+                location: location || match.location || null,
+                link: link || match.link || null,
+                timesUsed: (match.timesUsed || 0) + 1,
+                lastUsedDate: new Date()
+            });
+        } else {
+            await wixData.insert(VENUES, {
+                name: trimmedName,
+                location: location || null,
+                link: link || null,
+                timesUsed: 1,
+                lastUsedDate: new Date()
+            });
+        }
+    } catch (err) {
+        console.error(`[venues] recordVenueUsage failed for "${trimmedName}": ${err.message}`);
+    }
+}
