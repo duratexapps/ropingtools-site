@@ -15,6 +15,9 @@
  *
  * Expected Editor elements:
  *   #dropdownClass            (NEW — which class within the event to review/draw. Only classes with status 'closed' or beyond are meaningful choices here, since a still-'open' class isn't ready to finalize)
+ *   #textEntrantsHeading      (NEW, added 2026-07-22 — e.g. "Entrants — Class 8.5", updates on every dropdown change)
+ *   #textEntrantsStatus        (NEW — the selected class's raw status, uppercased, e.g. "DRAWN")
+ *   #textEntrantsCaption       (NEW — "Locked once finalized." once finalized/drawn/notified, otherwise "Still open - entries can change until you finalize.")
  *   #repeaterEntrants        (repeater listing all entrants pre-draw for the SELECTED class, with #textEntrantName, #textEntrantRole, #textEntrantClass inside)
  *   #btnFinalize              (locks entries, moves to pending_signoff)
  *   #btnSignOff               (triggers the actual draw — requires confirm)
@@ -58,6 +61,12 @@ let eventId;
 let currentClassId = null;
 let selectedForSwap = []; // holds up to 2 team _ids
 let teamPendingAck = null;
+// Cached from loadClassDropdown() so handleClassChanged() can look up the
+// selected class's label/status without a second query on every dropdown
+// change - added 2026-07-22 for the Entrants panel heading (mirrors the
+// desktop mockup's "Entrants — Class 8.5 / Locked once finalized" header,
+// which wasn't wired up to real data before this).
+let allClasses = [];
 
 $w.onReady(async function () {
     eventId = wixLocation.query.event;
@@ -91,6 +100,7 @@ function wireButtons() {
  */
 async function loadClassDropdown() {
     const result = await wixData.query('DrawProEventClasses').eq('eventId', eventId).find();
+    allClasses = result.items;
     $w('#dropdownClass').options = result.items.map(cls => ({
         label: `${cls.label} (${cls.status})`,
         value: cls._id
@@ -102,11 +112,30 @@ async function loadClassDropdown() {
     }
 }
 
+// Status values, per data-model.md's DrawProEventClasses enum: draft |
+// open | closed | finalized | drawn | notified. draft/open/closed are
+// still editable states (entries aren't locked yet); finalized and
+// beyond mean the entrant list is locked and a draw has run or is about
+// to. Wording here is a first pass, not a locked-in decision - easy to
+// adjust if it doesn't read right once you see it live.
+function updateEntrantsHeading(cls) {
+    $w('#textEntrantsHeading').text = `Entrants — Class ${cls.label}`;
+    $w('#textEntrantsStatus').text = cls.status.toUpperCase();
+    const isLocked = cls.status === 'finalized' || cls.status === 'drawn' || cls.status === 'notified';
+    $w('#textEntrantsCaption').text = isLocked
+        ? 'Locked once finalized.'
+        : 'Still open - entries can change until you finalize.';
+}
+
 async function handleClassChanged() {
     currentClassId = $w('#dropdownClass').value;
     setStatus('');
     selectedForSwap = [];
     $w('#btnSwapSelected').disable();
+
+    const cls = allClasses.find((c) => c._id === currentClassId);
+    if (cls) updateEntrantsHeading(cls);
+
     await loadEntrantList();
 }
 

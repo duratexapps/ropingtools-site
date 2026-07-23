@@ -279,6 +279,18 @@ two repeaters with sub-elements, plus two confirmation modals.
 |---|---|---|
 | `#dropdownClass` | Dropdown | Which class within this event to review/draw. Populated from every class in the event (not just ones ready to finalize) — showing a still-`open` class too, rather than hiding it, lets the producer see at a glance which of their classes aren't ready yet |
 
+### Entrants panel heading (NEW, added 2026-07-22)
+Not in the original spec — added after noticing the desktop mockup
+(`docs/mockups/drawpro-producer-review-desktop-mockup.html`) showed a
+heading treatment here that was never actually wired to real data. All
+three update together, every time `#dropdownClass` changes.
+
+| ID | Type | Notes |
+|---|---|---|
+| `#textEntrantsHeading` | Text | e.g. "Entrants — Class 8.5" |
+| `#textEntrantsStatus` | Text | The selected class's raw status, uppercased - e.g. "DRAWN". Pairs well with a small pill/badge style, matching the mockup |
+| `#textEntrantsCaption` | Text | "Locked once finalized." once the class is `finalized`/`drawn`/`notified`; otherwise "Still open - entries can change until you finalize." First-pass wording, not locked in - adjust once you see it live |
+
 ### Pre-draw entrant list
 | ID | Type | Notes |
 |---|---|---|
