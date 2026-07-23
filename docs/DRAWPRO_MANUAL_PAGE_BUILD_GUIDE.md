@@ -214,7 +214,7 @@ the manual-entry fallback, built first per established sequencing.
 ### Add a class (repeat this section for each roping — a #7.5, an #8.5, a #9.5, etc.)
 | ID | Type | Notes |
 |---|---|---|
-| `#boxAddClass` | Container | Starts **disabled** — enables once the event shell is created |
+| `#boxAddClass` | **Container Box** (not a plain Box) | Starts **collapsed** — expands once the event shell is created. Must be a real Container Box element - a plain Box doesn't support `.collapse()`/`.expand()` the same reliable way, and this element does NOT support `.disable()`/`.enable()` at all (confirmed live 2026-07-23 — calling `.disable()` threw a TypeError that silently killed the entire `$w.onReady()` function before it ever reached the click-handler wiring further down, making every button on the page look "dead") |
 | `#inputClassLabel` | Text input | e.g. `"7.5"` |
 | `#inputClassCap` | Text input | Numeric — combined header+heeler ceiling for this class |
 | `#inputHeelerSubCap` | Text input | Numeric, optional — an *additional* constraint on top of the cap, not instead of it (e.g. a flier's "#11.5 WSTR... #7.5 heeler cap") |

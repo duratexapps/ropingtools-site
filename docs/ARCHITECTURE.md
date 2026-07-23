@@ -761,3 +761,39 @@ partner first.
 - `listOnSteerMe` defaults to `true` (opt-out, not opt-in) - continuity is
   the intended default, not something a producer has to remember to turn
   on.
+
+---
+
+## Wix bug: Container Box doesn't support .disable()/.enable() (2026-07-23)
+
+**Confirmed live, real production bug, not a guess.** `producer-event-setup.js`
+called `$w('#boxAddClass').disable()` on page load - `#boxAddClass` is a
+Container Box. That threw `TypeError: $w(...).disable is not a function`,
+which is significant beyond just that one line: since it's a synchronous
+throw inside `$w.onReady(async function () {...})`, it halted the entire
+function right there, before execution ever reached the `onClick` wiring
+further down for every button on the page - Add Class, Create Event, all
+of it. From the producer's side this looked like total, silent button
+failure: clicking anything did nothing, no error text shown anywhere on
+the page itself.
+
+Diagnosing this took several steps, in order, each of which was necessary
+to actually find it: confirmed the Secrets Manager values and their
+names were correct; confirmed the backend sync code was genuinely
+deployed (not stale); confirmed Element IDs matched exactly; then finally
+opened the browser's own DevTools console on the actual Preview window
+(not Wix's separate Logging Tools panel, which only surfaces backend
+logs, not this kind of frontend crash) and found the real error there.
+
+**Fix**: use `.collapse()`/`.expand()` on Container Box elements instead
+of `.disable()`/`.enable()` - universally supported across element types,
+unlike disable/enable which is a form/button-specific API that some
+container variants don't implement at all.
+
+**General lesson for future pages**: if every button on a page appears to
+do nothing at all (no success message, no error message, literally zero
+visible reaction beyond the button's own built-in press animation), that
+is a strong signal `$w.onReady()` itself is throwing before reaching any
+event-handler registration - check the browser's DevTools console on the
+actual Preview window first, before assuming the bug is anywhere in the
+specific feature that seems broken.

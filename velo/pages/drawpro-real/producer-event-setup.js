@@ -34,7 +34,9 @@
  *   #btnCreateEvent        (button — creates the SHELL only now, not a full event+cap+price)
  *
  *   -- Add a class (repeatable — one call per roping) --
- *   #boxAddClass           (container — disabled/collapsed until the event shell is created)
+ *   #boxAddClass           (Container Box — collapsed until the event shell is created. Must be a Container
+ *                            Box specifically, not a plain Box - see the .collapse()/.expand() note in the
+ *                            code below on why .disable()/.enable() can't be used on this element)
  *   #inputClassLabel        (text input, e.g. "7.5")
  *   #inputClassCap          (text input, numeric — combined header+heeler ceiling)
  *   #inputHeelerSubCap      (text input, numeric, optional — additional constraint ON TOP of the cap, not instead of it)
@@ -120,7 +122,15 @@ const PRODUCER_TOUR_STEPS = [
 let currentEventId = null;
 
 $w.onReady(async function () {
-    $w('#boxAddClass').disable();
+    // #boxAddClass is a Container Box, not a form element - it doesn't
+    // support .disable()/.enable() the way #btnGenerateQr (a real button)
+    // does. Calling .disable() on it threw a TypeError here, which
+    // silently killed the rest of $w.onReady() before it ever reached the
+    // onClick wiring further down - every button on this page looked
+    // "dead" as a result, not just this one. .collapse()/.expand() is
+    // universally supported and was already the pattern used for
+    // #textPayoutWarning/#imageQrCode below.
+    $w('#boxAddClass').collapse();
     $w('#btnGenerateQr').disable();
     $w('#imageQrCode').collapse();
     $w('#textPayoutWarning').collapse();
@@ -209,7 +219,7 @@ async function handleCreateEvent() {
         setStatus('Event created. Now add at least one class (roping) below.');
         $w('#textEventTitleLocation').text = `${event.title} - ${event.location}`;
         $w('#textEventTitleLocation').expand();
-        $w('#boxAddClass').enable();
+        $w('#boxAddClass').expand();
         $w('#btnGenerateQr').enable(); // QR can be generated before any class opens —
                                         // it goes on fliers ahead of time, and early
                                         // scanners get the "notify me when entries open"
