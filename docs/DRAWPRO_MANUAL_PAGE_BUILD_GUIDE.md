@@ -234,7 +234,7 @@ the manual-entry fallback, built first per established sequencing.
 | `#radioClassCloseMode` | Radio button group | Values: `time`, `teamCount`, `manual`. Manual close is always available regardless of mode — this just controls whether there's also an automatic trigger |
 | `#inputClassCloseDate` | Date/time picker | Shown when close mode = `time` |
 | `#inputClassCloseCount` | Text input | Shown when close mode = `teamCount` |
-| `#inputRotationSize` | Text input | **NEW**, added 2026-07-23. Numeric, optional - e.g. "100." Only relevant for large fields split across rotations/multiple arenas. Purely a display/pacing label on the draw sheet - Draw Pro doesn't track catches, advancement, or results at any point; that stays the producer's own manual process. Leave blank for no rotation grouping |
+| `#inputRotationThreshold` | Text input | **NEW**, added 2026-07-23. Numeric, optional - e.g. "300." NOT the rotation size itself - that's decided later on Producer Draw Sheet Review once the real entrant count is known (see `#boxRotationSuggestion` in that page's build guide section). This is just "how big a field should nudge me about splitting at all" - a judgment call a producer can make in advance. Defaults to 300 if left blank |
 | `#btnAddClass` | Button | Adds this class, then clears the form so you can immediately add the next one |
 
 ### Classes added so far (repeater)
@@ -306,6 +306,21 @@ three update together, every time `#dropdownClass` changes.
 | `#textEntrantClass` | Text (inside repeater item) | |
 | `#btnFinalize` | Button | |
 
+### Rotation suggestion (NEW, added 2026-07-23)
+Shown once entries are closed (real entrant count known) if the count exceeds the class's rotation
+threshold (set on Producer Event Setup, defaults to 300) and no rotation size is set yet. The actual
+rotation **size** is deliberately decided here, not at class creation — only now is the real field size
+known. Purely a display/pacing concept; see `docs/ARCHITECTURE.md`'s "Draw scaling for 200-500+ team
+classes" entry for the full reasoning on why Draw Pro doesn't track anything beyond this static label.
+
+| ID | Type | Notes |
+|---|---|---|
+| `#boxRotationSuggestion` | Container | Starts collapsed |
+| `#textRotationSuggestionMessage` | Text | e.g. "347 entrants — consider splitting into rotations for pacing." |
+| `#inputRotationSizeToApply` | Text input | Numeric — pre-filled with a default of 100 when the box appears |
+| `#btnApplyRotationSize` | Button | Saves the chosen size; refreshes the draw sheet display below if teams are already drawn |
+| `#btnDismissRotationSuggestion` | Button | Hides the box for this session without setting anything — reappears next time this class loads if still above threshold |
+
 ### Sign-off confirmation
 | ID | Type | Notes |
 |---|---|---|
@@ -323,7 +338,7 @@ three update together, every time `#dropdownClass` changes.
 | `#textHeeler` | Text (inside repeater item) | |
 | `#iconSpacingFlag` | Icon/image (inside repeater item) | Has a `.tooltip` set programmatically — use an element type that supports a tooltip property |
 | `#iconIncentiveFlag` | Icon/image (inside repeater item) | **NEW.** Shown only if this team's combined number qualifies for the class's incentive/slide (if the class offers one) — display-only, lets the producer visually pick out incentive-qualifying teams for their own manual time-bonus tracking. Doesn't affect anything else here |
-| `#textRotationLabel` | Text (inside repeater item) | **NEW**, added 2026-07-23. Shows "Rotation N" if the class has a rotation size set (`#inputRotationSize` on Producer Event Setup), hidden otherwise. Purely a pacing/display label over the same draw order — Draw Pro doesn't track catches, advancement, or results, same as `#iconIncentiveFlag` above |
+| `#textRotationLabel` | Text (inside repeater item) | **NEW**, added 2026-07-23. Shows "Rotation N" if the class has a rotation size set (see `#boxRotationSuggestion` below for how that gets set), hidden otherwise. Purely a pacing/display label over the same draw order — Draw Pro doesn't track catches, advancement, or results, same as `#iconIncentiveFlag` above |
 | `#checkboxSwapSelect` | Checkbox (inside repeater item) | |
 | `#btnAcknowledgeConflict` | Button (inside repeater item) | Shown only for flagged-unacknowledged rows |
 

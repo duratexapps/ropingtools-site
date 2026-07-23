@@ -41,6 +41,17 @@
  *                             over the SAME draw order — Draw Pro doesn't track catches, advancement, or
  *                             results at any point; that stays the producer's own manual process, same
  *                             established boundary as qualifiesForIncentive. See assignRotations() below.)
+ *   #boxRotationSuggestion    (NEW, added 2026-07-23 — hidden by default. Shown once entries are closed (real
+ *                             count known) if the entrant count exceeds the class's rotationSuggestionThreshold
+ *                             (or 300 if the producer didn't set one on Producer Event Setup) and no
+ *                             rotationSize is set yet. The actual rotation SIZE is deliberately decided here,
+ *                             not at class creation, since only now is the real field size known.)
+ *   #textRotationSuggestionMessage (NEW — e.g. "347 entrants — consider splitting into rotations for pacing.")
+ *   #inputRotationSizeToApply (NEW — numeric text input, pre-filled with a sensible default)
+ *   #btnApplyRotationSize     (NEW — saves the chosen size via setClassRotationSize(), refreshes the draw
+ *                             sheet display if teams are already drawn)
+ *   #btnDismissRotationSuggestion (NEW — hides the box for this session without setting anything; will
+ *                             reappear next time this class loads if still above threshold with no size set)
  *   #btnSwapSelected          (swaps the two currently-checked teams)
  *   #btnAcknowledgeConflict   (shown per flagged row, opens the ack box)
  *   #boxAcknowledgeConfirm    (confirmation container with a note field)
@@ -61,6 +72,9 @@ import {
     swapTeamPositions, acknowledgeSpacingConflict, getUnresolvedSpacingConflicts
 } from 'backend/matching-engine.jsw';
 import { sendDrawNotifications, getManualContactList } from 'backend/notifications.jsw';
+import { setClassRotationSize } from 'backend/event-setup.jsw';
+
+const DEFAULT_ROTATION_SUGGESTION_THRESHOLD = 300;
 
 let eventId;
 let currentClassId = null;
@@ -94,6 +108,8 @@ function wireButtons() {
     $w('#btnSendNotifications').onClick(handleSendNotifications);
     $w('#btnSwapSelected').onClick(handleSwapSelected);
     $w('#btnConfirmAcknowledge').onClick(handleConfirmAcknowledge);
+    $w('#btnApplyRotationSize').onClick(handleApplyRotationSize);
+    $w('#btnDismissRotationSuggestion').onClick(() => $w('#boxRotationSuggestion').collapse());
     $w('#btnSwapSelected').disable();
 }
 
@@ -152,6 +168,60 @@ async function loadEntrantList() {
         $item('#textEntrantRole').text = entrant.role;
         $item('#textEntrantClass').text = String(entrant.classificationNumber);
     });
+
+    const cls = allClasses.find((c) => c._id === currentClassId);
+    if (cls) checkRotationSuggestion(cls, result.items.length);
+}
+
+/**
+ * Shows a one-time-per-visit nudge to split into rotations, ONLY once
+ * entries are closed (real count known, per data-model.md's status
+ * lifecycle - 'closed' is when no more entries can arrive, even though
+ * 'finalized' is the stricter locked-for-review state further downstream).
+ * Deliberately NOT shown at class-creation time - see
+ * rotationSuggestionThreshold's doc comment in producer-event-setup.js
+ * for why the actual rotation SIZE can't be sensibly judged before
+ * entries even open, only the threshold that triggers this nudge can be.
+ */
+function checkRotationSuggestion(cls, entrantCount) {
+    const countIsFinal = ['closed', 'finalized', 'drawn', 'notified'].includes(cls.status);
+    const threshold = cls.rotationSuggestionThreshold || DEFAULT_ROTATION_SUGGESTION_THRESHOLD;
+
+    if (!countIsFinal || cls.rotationSize || entrantCount <= threshold) {
+        $w('#boxRotationSuggestion').collapse();
+        return;
+    }
+
+    $w('#textRotationSuggestionMessage').text =
+        `${entrantCount} entrants — consider splitting into rotations for pacing.`;
+    $w('#inputRotationSizeToApply').value = '100';
+    $w('#boxRotationSuggestion').expand();
+}
+
+async function handleApplyRotationSize() {
+    const size = parseInt($w('#inputRotationSizeToApply').value, 10);
+    if (!size || size <= 0) {
+        setStatus('Enter a valid rotation size.', true);
+        return;
+    }
+
+    try {
+        const updatedClass = await setClassRotationSize(currentClassId, size);
+        // Keep the local cache in sync so assignRotations() and any
+        // future checkRotationSuggestion() call see the new value right
+        // away, without needing a full page reload.
+        const idx = allClasses.findIndex((c) => c._id === currentClassId);
+        if (idx !== -1) allClasses[idx] = updatedClass;
+
+        $w('#boxRotationSuggestion').collapse();
+        setStatus(`Rotation size set to ${size}. Teams will be labeled by rotation below.`);
+
+        if (['drawn', 'notified'].includes(updatedClass.status)) {
+            await loadDrawnTeams();
+        }
+    } catch (err) {
+        setStatus(err.message, true);
+    }
 }
 
 async function handleFinalize() {

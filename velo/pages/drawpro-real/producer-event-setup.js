@@ -73,12 +73,15 @@
  *   #radioClassCloseMode    (radio group: 'time' | 'teamCount' | 'manual')
  *   #inputClassCloseDate    (date/time picker, shown when close mode = 'time')
  *   #inputClassCloseCount   (text input, shown when close mode = 'teamCount')
- *   #inputRotationSize      (NEW, added 2026-07-23 - text input, numeric, optional. e.g. "100" - only
- *                            relevant for large fields split across rotations/multiple arenas. Purely a
- *                            display/pacing label on the SAME draw order Draw Pro already produces - it
- *                            does not track catches, advancement, or results, which stay the producer's
- *                            own manual process (same established boundary as qualifiesForIncentive).
- *                            Leave blank for no rotation grouping at all)
+ *   #inputRotationThreshold (NEW, added 2026-07-23 - text input, numeric, optional, e.g. "300". NOT the
+ *                            rotation size itself - the actual rotation size can't be sensibly judged
+ *                            before entries even open, so that decision happens later, on Producer Draw
+ *                            Sheet Review, once the real entrant count is known. This is just "how big a
+ *                            field should nudge me about splitting at all" - a judgment call a producer
+ *                            CAN reasonably make in advance from their own venue/experience. Defaults to
+ *                            300 if left blank. Purely a pacing/display concept - Draw Pro doesn't track
+ *                            catches, advancement, or results, same established boundary as
+ *                            qualifiesForIncentive)
  *   #btnAddClass           (button — adds this class, then clears the form for the next one)
  *
  *   -- Classes added so far (repeater) --
@@ -430,7 +433,7 @@ async function handleAddClass() {
         entryCloseMode: closeMode,
         entryCloseDateTime: closeMode === 'time' ? $w('#inputClassCloseDate').value : null,
         entryCloseTeamCount: closeMode === 'teamCount' ? parseInt($w('#inputClassCloseCount').value, 10) : null,
-        rotationSize: parseOptionalNumber($w('#inputRotationSize').value)
+        rotationSuggestionThreshold: parseOptionalNumber($w('#inputRotationThreshold').value)
     };
 
     $w('#btnAddClass').disable();

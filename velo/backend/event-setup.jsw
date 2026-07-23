@@ -173,13 +173,16 @@ export async function createEventClass(eventId, classInput) {
         entryCloseMode: classInput.entryCloseMode,
         entryCloseDateTime: classInput.entryCloseDateTime || null,
         entryCloseTeamCount: classInput.entryCloseTeamCount || null,
-        // NEW, added 2026-07-23: purely a display/pacing grouping over the
-        // SAME draw order this class already produces - see
-        // producer-draw-sheet-review.js's assignRotations() for where this
-        // actually gets used. Draw Pro doesn't track catches, advancement,
-        // or results at any point - that stays the producer's own manual
-        // process, same established boundary as qualifiesForIncentive.
-        rotationSize: classInput.rotationSize || null,
+        // rotationSuggestionThreshold: set now (a producer CAN reasonably
+        // judge "how big a field nudges me" in advance). rotationSize
+        // itself is NOT set here - that's decided later, on Producer Draw
+        // Sheet Review, once the real entrant count is known; see
+        // setClassRotationSize() below. Both are purely display/pacing
+        // concepts over the SAME draw order Draw Pro already produces -
+        // it doesn't track catches, advancement, or results at any point,
+        // same established boundary as qualifiesForIncentive.
+        rotationSuggestionThreshold: classInput.rotationSuggestionThreshold || null,
+        rotationSize: null,
         status: 'draft'
     };
 
@@ -207,8 +210,8 @@ function validateClassInput(classInput) {
     if (classInput.heelerSubCap != null && (typeof classInput.heelerSubCap !== 'number' || classInput.heelerSubCap <= 0)) {
         throw new Error('heelerSubCap, if set, must be a positive number.');
     }
-    if (classInput.rotationSize != null && (typeof classInput.rotationSize !== 'number' || classInput.rotationSize <= 0)) {
-        throw new Error('rotationSize, if set, must be a positive number.');
+    if (classInput.rotationSuggestionThreshold != null && (typeof classInput.rotationSuggestionThreshold !== 'number' || classInput.rotationSuggestionThreshold <= 0)) {
+        throw new Error('rotationSuggestionThreshold, if set, must be a positive number.');
     }
     if (classInput.incentiveCapNumber != null && (typeof classInput.incentiveCapNumber !== 'number' || classInput.incentiveCapNumber <= 0)) {
         throw new Error('incentiveCapNumber, if set, must be a positive number.');
@@ -228,6 +231,27 @@ function validateClassInput(classInput) {
     if (classInput.entryCloseMode === 'teamCount' && !classInput.entryCloseTeamCount) {
         throw new Error('entryCloseTeamCount is required when entryCloseMode is "teamCount".');
     }
+}
+
+/**
+ * Sets (or changes) a class's rotation size - called from Producer Draw
+ * Sheet Review once entries are closed/finalized and the real field size
+ * is known, not at class-creation time (see rotationSuggestionThreshold
+ * above for why). Purely a display/pacing label consumed by
+ * producer-draw-sheet-review.js's assignRotations() - doesn't affect the
+ * draw itself, doesn't require re-running anything, just changes how the
+ * already-drawn (or not-yet-drawn) order gets grouped on screen.
+ */
+export async function setClassRotationSize(classId, rotationSize) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+
+    if (rotationSize != null && (typeof rotationSize !== 'number' || rotationSize <= 0)) {
+        throw new Error('Rotation size must be a positive number.');
+    }
+
+    const cls = await wixData.get(CLASSES, classId);
+    return wixData.update(CLASSES, { ...cls, rotationSize: rotationSize || null });
 }
 
 /**
