@@ -812,3 +812,35 @@ the whole page. `#boxAddClass` itself now uses `.hide()`/`.show()`
 (the most universally-supported pair across Wix element types) as its
 best-guess third attempt, but the real fix here is the defensive
 restructuring, not finally guessing the right method name.
+
+---
+
+## IMPORTANT: two separate repos exist - only one is actually live (2026-07-23)
+
+**Real mistake made and caught live this session, costing real debugging
+time - worth flagging prominently so it isn't repeated.** This project
+has two git repos: `ropingtools-site` (this one - working repo, docs,
+full history) and `roping-tools` (bare mirror, but the ONLY one actually
+wired to the site's Wix Git Integration). Nothing syncs between them
+automatically - they're independent repos that happen to share a lot of
+the same file contents because changes get manually copied over.
+
+Page-code files (`velo/pages/**` here → `src/pages/*.<pageId>.js` there)
+were being copied correctly every time this session, since the Wix
+Editor's page-code panel being read-only forces a conscious "go copy this
+over" step every time. **Backend `.jsw` files got missed** - several
+edits (eventDate validation, a defensive fix in `steerMeSync.jsw`, two
+brand-new files for a type-ahead feature) were committed here and
+believed to be live, based on old assumptions from earlier in the
+project that backend files "sync automatically." They didn't, this time.
+The live Editor's Backend & Public panel was still showing stale code,
+and two new files threw `Cannot find module` at runtime - both confirmed
+directly in the panel before the real cause was understood.
+
+**Going forward: every file change in `velo/backend/**` or
+`velo/pages/**` needs a matching copy into the corresponding path under
+`roping-tools/src/` and a separate commit+push there, every single time,
+with no exceptions for "this one probably syncs on its own."** Verify
+via the Editor's Backend & Public panel (for backend files) or the page
+code panel (for page files) if there's ever doubt about whether a change
+actually landed - don't assume.
