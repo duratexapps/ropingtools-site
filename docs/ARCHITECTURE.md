@@ -708,3 +708,56 @@ using both products needs two separate logins. Not fixed here; recorded as
 a known limitation, not a bug, since building real cross-platform SSO
 between two different auth vendors is a substantial separate effort, not
 something to bolt on incidentally while fixing the disclaimer logging gap.
+
+---
+
+## Draw Pro -> Steer Me event continuity (2026-07-22)
+
+**The gap this closes**: Steer Me already let producers post events (with
+fliers), let entrants browse them, mark attending, and find a partner for
+one — but nothing let an entrant actually *enter* the event. That dead-end
+made the whole producer-facing side of Steer Me close to pointless: a
+producer could post an event and never get an actual entry out of it.
+
+**Confirmed direction**: Draw Pro is a tool to fix problems with the
+status quo while pushing people toward Steer Me - the long-term goal is
+Steer Me being the full experience, even though eliminating Draw Pro
+entirely isn't realistic near-term. Given that, entering should hand off
+to Draw Pro's real entry/cap/payment system rather than Steer Me building
+a second, duplicate entry system of its own. `DrawProEvents.steerMeEventId`
+already existed as a placeholder field for exactly this, with no code
+behind it until now.
+
+**What's built**: Draw Pro stays the single source of truth for the real
+event data (classes, caps, pricing - Steer Me's schema doesn't have any
+of that, deliberately). `backend/steerMeSync.jsw` cross-posts a
+lightweight companion listing into Steer Me's own Supabase database via
+its REST API, authenticated with a service-role key in Secrets Manager
+(not added yet - see DRAWPRO_NEXT_STEPS.md). Sync fires from
+`createEventClass()`, not `createEvent()`, since Steer Me's `events` table
+requires at least one division/cap value on insert, which doesn't exist
+until the first class is added.
+
+On the Steer Me side: `producer_id` on `events` is now nullable (a Draw
+Pro producer authenticates via Wix Members, with no guaranteed Supabase
+account behind them at all), plus `draw_pro_event_id`,
+`draw_pro_entry_url`, and `external_producer_name` for synced rows.
+`EventCard` shows a new "Enter the Draw" button whenever
+`draw_pro_entry_url` is present - deliberately independent of the
+existing per-division "Partners" button, since a solo/draw-in entrant
+(no partner needed at all, a real and previously entirely unsupported
+path in Steer Me) needs the exact same way in as someone who found a
+partner first.
+
+**Accepted v1 boundaries, not oversights**:
+- Sync happens once real data exists to sync (first class added), and
+  only keeps `divisions`/the entry URL current after that - editing an
+  event's title/date/location in Draw Pro afterward does not re-sync
+  those fields to Steer Me. Revisit if that turns out to matter.
+- No producer display name lookup from a bare Wix Member ID - there's no
+  verified API for that here yet, so `external_producer_name` stays null
+  and Steer Me's EventCard falls back to "Posted via Draw Pro" instead of
+  guessing at an unconfirmed API.
+- `listOnSteerMe` defaults to `true` (opt-out, not opt-in) - continuity is
+  the intended default, not something a producer has to remember to turn
+  on.

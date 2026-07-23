@@ -24,6 +24,10 @@
  *                            you're configuring below)
  *   #inputEventDate        (date picker)
  *   #togglePreEntry        (toggle/checkbox)
+ *   #toggleListOnSteerMe    (NEW, added 2026-07-22 — checkbox, checked by default. Cross-posts this event
+ *                            to Steer Me so entrants there can discover it, find partners, and hand off
+ *                            back here to actually enter — see backend/steerMeSync.jsw. Sync only actually
+ *                            fires once at least one class exists, not at shell creation)
  *   #radioPaymentMethod    (radio group: 'cash' | 'online' — applies to the WHOLE event, not per class)
  *   #textPayoutWarning      (shown if 'online' selected but payout profile isn't complete)
  *   #linkPayoutSetup        (link to the producer payout profile page — not built yet, see note below)
@@ -121,6 +125,7 @@ $w.onReady(async function () {
     $w('#imageQrCode').collapse();
     $w('#textPayoutWarning').collapse();
     $w('#textEventTitleLocation').collapse();
+    $w('#toggleListOnSteerMe').checked = true; // opt-out, not opt-in - continuity is the intended default
 
     $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields);
     toggleClassCloseModeFields();
@@ -192,6 +197,7 @@ async function handleCreateEvent() {
         location: $w('#inputEventLocation').value,
         eventDate: $w('#inputEventDate').value,
         preEntryEnabled: $w('#togglePreEntry').checked,
+        listOnSteerMe: $w('#toggleListOnSteerMe').checked,
         paymentMethod: $w('#radioPaymentMethod').value
     };
 

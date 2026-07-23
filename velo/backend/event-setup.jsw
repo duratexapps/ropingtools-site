@@ -27,6 +27,7 @@ import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { sendEntryOpenAlerts } from 'backend/qr-and-alerts.jsw';
 import { calculateProducerFee, sendPartnerInvite } from 'backend/payments.jsw';
+import { syncEventToSteerMe } from 'backend/steerMeSync.jsw';
 
 const EVENTS = 'DrawProEvents';
 const CLASSES = 'DrawProEventClasses';
@@ -50,7 +51,7 @@ const VALID_ENTRY_MODES = ['pick_or_draw', 'pick_only', 'draw_only'];
  * @param {Date} eventInput.eventDate
  * @param {boolean} eventInput.preEntryEnabled
  * @param {string[]} [eventInput.requiredEntryFields]
- * @param {string} [eventInput.steerMeEventId]
+ * @param {boolean} [eventInput.listOnSteerMe] - opts into the cross-posted Steer Me listing (see steerMeSync.jsw). Defaults true - continuity is the desired default, not something a producer has to remember to turn on.
  * @param {'cash'|'online'} eventInput.paymentMethod
  */
 export async function createEvent(eventInput) {
@@ -68,7 +69,11 @@ export async function createEvent(eventInput) {
         eventDate: eventInput.eventDate,
         preEntryEnabled: !!eventInput.preEntryEnabled,
         requiredEntryFields: eventInput.requiredEntryFields || [],
-        steerMeEventId: eventInput.steerMeEventId || null,
+        // Set once a real sync succeeds (see createEventClass() below) -
+        // never accepted as caller input, since nobody creating an event
+        // would already know a Steer Me event id to provide.
+        steerMeEventId: null,
+        listOnSteerMe: eventInput.listOnSteerMe !== false,
         paymentMethod: eventInput.paymentMethod,
         qrCodeUrl: null,
         qrCodeGeneratedDate: null,
@@ -142,7 +147,18 @@ export async function createEventClass(eventId, classInput) {
         status: 'draft'
     };
 
-    return wixData.insert(CLASSES, record);
+    const created = await wixData.insert(CLASSES, record);
+
+    // Fire-and-forget from the caller's perspective - syncEventToSteerMe()
+    // never throws past its own boundary, so a Steer Me outage or missing
+    // Secrets Manager credentials can't block a producer from actually
+    // creating their class, which is the real action here. Re-fetches
+    // every class for the event (not just this new one) since Steer Me's
+    // divisions field needs the full current list, not just what changed.
+    const allClasses = await wixData.query(CLASSES).eq('eventId', eventId).find();
+    await syncEventToSteerMe(event, allClasses.items);
+
+    return created;
 }
 
 function validateClassInput(classInput) {

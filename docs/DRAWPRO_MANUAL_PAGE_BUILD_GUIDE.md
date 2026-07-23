@@ -205,6 +205,7 @@ the manual-entry fallback, built first per established sequencing.
 | `#textEventTitleLocation` | Text | **NEW**, added 2026-07-22. Starts collapsed; expands once the event shell is created, showing e.g. "Saturday Jackpot - Hallettsville, TX" as a persistent on-page confirmation of which event you're configuring below — useful since a producer managing several events could otherwise lose track while scrolling through the class-adding section |
 | `#inputEventDate` | Date picker | |
 | `#togglePreEntry` | Toggle/checkbox | |
+| `#toggleListOnSteerMe` | Toggle/checkbox | **NEW**, added 2026-07-22. Checked by default (opt-out, not opt-in) — cross-posts this event to Steer Me so entrants there can discover it, mark attending, find a partner, and hand off back here to actually enter via the "Enter the Draw" link on their side. Sync only actually fires once at least one class exists (Steer Me requires a division/cap on insert), not at shell creation — see `backend/steerMeSync.jsw` |
 | `#radioPaymentMethod` | Radio button group | Values: `cash`, `online`. Applies to the **whole event**, not per class — no evidence a producer splits payment method by roping |
 | `#textPayoutWarning` | Text | Starts collapsed; shown if online selected but payout setup incomplete |
 | `#linkPayoutSetup` | Link/button | Links to the producer's payout-profile page (not yet built as its own page — see note below) |

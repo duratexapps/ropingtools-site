@@ -47,7 +47,8 @@ producer's own words, "one event" with one shared entry link.
 | `eventDate` | date/time | Start date of the event/weekend — individual classes carry their own more precise timing |
 | `preEntryEnabled` | boolean | |
 | `requiredEntryFields` | array of text | Producer-configurable fields beyond the mandatory set. Kept at the event (not class) level — no evidence from real fliers that extra fields vary by class, revisit if that turns out wrong |
-| `steerMeEventId` | text (nullable) | Set only if producer opted into export |
+| `listOnSteerMe` | boolean | **NEW, added 2026-07-22.** Defaults `true` (opt-out, not opt-in) — whether this event cross-posts a companion listing to Steer Me. See `backend/steerMeSync.jsw` |
+| `steerMeEventId` | text (nullable) | Set only if producer opted into export — not yet actually populated by real sync code (steerMeSync.jsw doesn't read back Steer Me's generated id yet), but the field is real and ready for that |
 | `paymentMethod` | text (enum) | `cash` \| `online` — assumed to apply to the whole event, not per class (no evidence a producer splits payment method by roping). See `DrawProProducerPayoutProfiles` for the `online` path |
 | `qrCodeUrl` | text (nullable) | Cached QR image URL pointing at this event's **shared** entry page (one link for the whole event; entrant picks which class from a dropdown — see `DrawProEventClasses`) — generated once, reused on fliers |
 | `qrCodeGeneratedDate` | date/time (nullable) | |

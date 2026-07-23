@@ -69,6 +69,32 @@ neither file exists yet in `roping-tools` (the real repo) — that happens
 via the same git-first process Page 1 went through, once each page is
 created/published in the Editor and its generated filename is provided.
 
+## 0.5. Draw Pro -> Steer Me event continuity (2026-07-22)
+New: `backend/steerMeSync.jsw` cross-posts a lightweight companion listing
+into Steer Me's own Supabase database whenever a producer adds a class
+(`createEventClass()`), so entrants there can discover the event, mark
+attending, find a partner, and hand off back into Draw Pro's real entry
+flow via a new "Enter the Draw" button - all without the producer
+creating the same event twice. Full reasoning in
+`docs/ARCHITECTURE.md`; receiving schema in steer-me-app's migration
+`0029_draw_pro_event_sync.sql`.
+
+**Blocked on two Secrets Manager values that don't exist yet:**
+`steerme-supabase-url` and `steerme-supabase-service-role-key`. Get both
+from the Steer Me Supabase project's dashboard → Project Settings → API
+→ "Project URL" and the **service_role** key specifically (not the anon
+key - the service role key bypasses Row Level Security, which is
+required here since this insert has no Supabase Auth session behind it
+at all, but also means it must never be exposed client-side - Secrets
+Manager only, same handling as `ANTHROPIC_API_KEY`). Until both exist,
+`syncEventToSteerMe()` logs a warning and skips silently - it will never
+throw or block a producer from creating their class either way.
+
+Known v1 boundary, not an oversight: sync only fires when a class is
+added, and only for `divisions`/entry-URL purposes - editing an event's
+title/date/location afterward does not re-sync those fields. Revisit if
+that turns out to matter in practice.
+
 ## 1. Build the 3 real pages in the Wix Editor
 **The single biggest remaining blocker.** No API exists for this — has to be
 done by hand. Full element-by-element instructions already written and

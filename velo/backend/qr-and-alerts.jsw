@@ -62,7 +62,11 @@ export async function generateEventQrCode(eventId) {
     return { entryUrl, qrImageUrl };
 }
 
-function buildEntryUrl(eventId) {
+// Exported so steerMeSync.jsw can build the identical entry URL without
+// needing a QR code to have been generated first - the URL is fully
+// deterministic from eventId alone, nothing about it depends on
+// generateEventQrCode() having run.
+export function buildEntryUrl(eventId) {
     return `${ENTRY_BASE_URL}?event=${eventId}`;
 }
 

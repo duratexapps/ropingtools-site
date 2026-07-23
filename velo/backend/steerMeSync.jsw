@@ -1,0 +1,105 @@
+// backend/steerMeSync.jsw
+//
+// One-directional sync: Draw Pro is the source of truth for the real event
+// data (classes, caps, pricing); this creates/updates a lightweight
+// companion listing in Steer Me's own Supabase database, so entrants there
+// can discover the event, mark attending, find partners, and hand off into
+// this same Draw Pro entry flow - without the producer re-creating the
+// same event a second time in a separate app. See steer-me-app's migration
+// 0029_draw_pro_event_sync.sql for the receiving schema.
+//
+// Called from createEventClass() (not createEvent()) - Steer Me's events
+// table requires at least one division/cap value on insert, which doesn't
+// exist until the first class is added. Re-syncs (find-then-update, or
+// insert if not found yet) every time a class is added, so divisions
+// stays current as an event grows - everything else (title, date,
+// location, pricing summary) is captured once and not kept continuously
+// live-synced after that; a known, accepted v1 boundary, not an
+// oversight.
+//
+// Does an explicit find-then-write instead of relying on Supabase's
+// on_conflict upsert query param, since draw_pro_event_id is enforced by
+// a PARTIAL unique index (only non-null values), and PostgREST's simple
+// on_conflict=column form may not reliably target that - untested,
+// safer to not depend on it working a specific way.
+//
+// Deliberately never throws past its own boundary - a Steer Me sync
+// failure should never block a producer from actually creating their
+// class in Draw Pro, which is the real, primary action here.
+
+import { getSecret } from 'wix-secrets-backend';
+import { buildEntryUrl } from 'backend/qr-and-alerts.jsw';
+
+const STEERME_SUPABASE_URL_SECRET = 'steerme-supabase-url';
+const STEERME_SUPABASE_SERVICE_KEY_SECRET = 'steerme-supabase-service-role-key';
+
+/**
+ * @param {Object} event - the DrawProEvents record (must have listOnSteerMe truthy to sync)
+ * @param {Object[]} classes - every DrawProEventClasses record for this event so far
+ */
+export async function syncEventToSteerMe(event, classes) {
+    if (!event.listOnSteerMe) return;
+    if (!classes || classes.length === 0) return; // Steer Me requires >=1 division on insert
+
+    try {
+        const supabaseUrl = await getSecret(STEERME_SUPABASE_URL_SECRET);
+        const serviceKey = await getSecret(STEERME_SUPABASE_SERVICE_KEY_SECRET);
+        if (!supabaseUrl || !serviceKey) {
+            console.warn('Steer Me sync skipped - Supabase credentials not yet added to Secrets Manager.');
+            return;
+        }
+
+        const headers = {
+            'Content-Type': 'application/json',
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`
+        };
+
+        const payload = {
+            name: event.title,
+            event_date: toDateOnly(event.eventDate),
+            location: event.location,
+            // Draw Pro classes can each price differently - not worth
+            // trying to compress that into one accurate summary string
+            // here when the real, correct pricing is one tap away via the
+            // entry link itself.
+            entry_fee: 'See Draw Pro listing for pricing',
+            description: null,
+            divisions: classes.map((c) => c.capNumber),
+            status: 'published',
+            draw_pro_event_id: event._id,
+            draw_pro_entry_url: buildEntryUrl(event._id),
+            // No verified way to look up the producer's real display name
+            // from a bare Wix Member ID here yet - left null rather than
+            // guessing at an unconfirmed API. EventCard on the Steer Me
+            // side already falls back to "Posted via Draw Pro" for this.
+            external_producer_name: null
+        };
+
+        const existing = await fetch(
+            `${supabaseUrl}/rest/v1/events?draw_pro_event_id=eq.${event._id}&select=id`,
+            { headers }
+        );
+        const existingRows = existing.ok ? await existing.json() : [];
+
+        if (existingRows.length > 0) {
+            await fetch(`${supabaseUrl}/rest/v1/events?draw_pro_event_id=eq.${event._id}`, {
+                method: 'PATCH',
+                headers: { ...headers, Prefer: 'return=minimal' },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            await fetch(`${supabaseUrl}/rest/v1/events`, {
+                method: 'POST',
+                headers: { ...headers, Prefer: 'return=minimal' },
+                body: JSON.stringify(payload)
+            });
+        }
+    } catch (err) {
+        console.error(`Steer Me sync failed for event ${event._id}: ${err.message}`);
+    }
+}
+
+function toDateOnly(dateValue) {
+    return new Date(dateValue).toISOString().slice(0, 10);
+}
