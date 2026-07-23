@@ -886,3 +886,53 @@ a different `.jsw` file, with no exceptions - even ones whose own source
 code is plainly synchronous.** If a cross-.jsw value's type ever looks
 wrong (a URL that's `{}`, a number that behaves strangely), check for a
 missing `await` before assuming the bug is anywhere else.
+
+---
+
+## Draw scaling for 200-500+ team classes (2026-07-23)
+
+**Real, confirmed scenario, not a hypothetical edge case**: producers
+have reported single-class fields (one roping, not one whole multi-class
+event) with 200-500+ teams. `matching-engine.jsw`'s draw is designed to
+run per class, but `executeDraw()` and `recomputeSpacingFlags()` both had
+two real problems at that scale, found via direct code review before
+either one ever caused a live failure:
+
+1. **Sequential writes.** Every team got persisted with its own
+   individual `wixData.insert()` call, in a loop - one network round trip
+   per team. Total draw time scaled linearly with team count: fine at
+   20-50 teams, likely tens of seconds at 100-250, and likely to exceed a
+   platform execution timeout well before 500. `recomputeSpacingFlags()`
+   had the same problem for `wixData.update()`, *plus* an individual
+   `wixData.get()` per conflicted team just to look up names for the
+   conflict message - and this function runs after every single manual
+   swap a producer makes, not just once per draw.
+
+   **Fix**: both now build the full array of records first, then persist
+   everything in one `wixData.bulkInsert()` / `wixData.bulkUpdate()` call.
+   `recomputeSpacingFlags()` also now pre-fetches every entrant it might
+   need a name for in one query up front, instead of one-at-a-time inside
+   the loop.
+
+2. **Silent truncation at 1000 rows.** Both functions queried with a
+   single `.limit(1000)` call - Wix Data's actual maximum page size. A
+   class that ever exceeded 1000 entrant records (headers + heelers
+   counted separately, so plausible at a large enough single-class field)
+   would have silently excluded everyone past the first 1000 from the
+   draw, with no error surfaced anywhere.
+
+   **Fix**: a new `queryAllPages()` helper walks every page via
+   `.next()` until exhausted, used everywhere this file previously
+   capped at 1000.
+
+**Not yet done, and only worth doing if a real load test shows it's
+still needed**: decoupling the draw's actual execution from the
+synchronous sign-off request entirely (mark the sheet "processing," run
+the real work as a background job, producer sees a live status update).
+This would remove timeout risk regardless of how large events ever get,
+but it's a real architecture change - the bulk-write fix above should
+already get a 500-team draw down to a handful of API calls total, likely
+sufficient on its own. Revisit only if an actual load test at 300-500
+teams says otherwise. No load test has been run yet - the numbers above
+are reasoned estimates from the code's actual before/after shape, not
+measured.

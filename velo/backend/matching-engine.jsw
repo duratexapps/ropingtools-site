@@ -57,6 +57,26 @@ const AUDIT_LOG = 'DrawProAuditLog';
 
 const MIN_SPACING = 10; // minimum teams between a repeat entrant's runs
 
+/**
+ * Fetches every matching item across all pages, instead of the single
+ * .limit(1000) calls this file used to make. 1000 is Wix Data's own max
+ * page size - a single .find() call silently truncates at that point
+ * with no error, which would have meant a class with 200-500+ real teams
+ * (confirmed real event sizes, not a hypothetical) could exceed 1000
+ * ENTRANT records (headers + heelers counted separately) and silently
+ * drop people from their own draw. This walks every page via .next()
+ * until exhausted.
+ */
+async function queryAllPages(query) {
+    let results = await query.find();
+    const items = [...results.items];
+    while (results.hasNext()) {
+        results = await results.next();
+        items.push(...results.items);
+    }
+    return items;
+}
+
 /* ------------------------------------------------------------------ */
 /* Finalize — lock entries, prep draw sheet for producer review        */
 /* ------------------------------------------------------------------ */
@@ -113,8 +133,13 @@ export async function signOffDrawSheet(classId) {
 
 async function executeDraw(classId) {
     const cls = await wixData.get(CLASSES, classId);
-    const entrantsResult = await wixData.query(ENTRANTS).eq('classId', classId).limit(1000).find();
-    const entrants = entrantsResult.items;
+    // Full pagination, not a single .limit(1000) call - a class that ever
+    // exceeds 1000 entrant records (Wix Data's max page size) would
+    // otherwise silently drop everyone past the first 1000 from the draw,
+    // with no error at all. Confirmed real risk once producers started
+    // reporting single classes with 200-500+ teams - see ARCHITECTURE.md's
+    // "Draw scaling for 200-500+ team classes" entry for the full reasoning.
+    const entrants = await queryAllPages(wixData.query(ENTRANTS).eq('classId', classId));
 
     const preFormedTeams = extractPreFormedTeams(entrants);
     const preFormedIds = new Set();
@@ -134,9 +159,17 @@ async function executeDraw(classId) {
     const allTeams = [...preFormedTeams, ...drawnTeams];
     const sequenced = sequenceWithSpacing(allTeams, MIN_SPACING);
 
-    // Persist teams
-    const savedTeams = [];
-    for (const team of sequenced.teams) {
+    // Persist teams - a single bulkInsert() instead of one wixData.insert()
+    // per team. Real, confirmed scaling problem: at 100-500+ teams (real
+    // single-class fields producers have reported), inserting one at a
+    // time meant total draw time scaled linearly with team count -
+    // realistically tens of seconds to well over a minute for a large
+    // field, risking a platform execution timeout on what should be one
+    // atomic operation. bulkInsert() does this in one round trip
+    // regardless of team count (up to Wix Data's own bulk-operation
+    // limits, which comfortably cover the 200-500 team range this was
+    // built for).
+    const teamRecords = sequenced.teams.map((team) => {
         // qualifiesForIncentive: display/tracking only, never affects the
         // draw itself — confirmed real mechanic ("9.5 event w/ an 8.5
         // incentive"): capNumber stays the only actual entry-eligibility
@@ -148,7 +181,7 @@ async function executeDraw(classId) {
         const combined = team.header.classificationNumber + team.heeler.classificationNumber;
         const qualifiesForIncentive = cls.incentiveCapNumber != null ? combined <= cls.incentiveCapNumber : null;
 
-        const saved = await wixData.insert(TEAMS, {
+        return {
             eventId: cls.eventId,
             classId,
             teamNumber: team.teamNumber,
@@ -164,9 +197,15 @@ async function executeDraw(classId) {
             spacingAcknowledged: false,
             spacingAcknowledgedBy: null,
             spacingAcknowledgedTimestamp: null
-        });
-        savedTeams.push(saved);
-    }
+        };
+    });
+
+    // bulkInsert() returns insertedItemIds in the same order as the input
+    // array (documented Wix Data behavior) - zip them back onto the
+    // records to reconstruct the saved-with-_id shape the rest of this
+    // function (and its caller) expects.
+    const bulkResult = await wixData.bulkInsert(TEAMS, teamRecords);
+    const savedTeams = teamRecords.map((record, i) => ({ ...record, _id: bulkResult.insertedItemIds[i] }));
 
     // Update draw sheet with results
     const sheet = await getDrawSheet(classId);
@@ -389,18 +428,19 @@ function buildConflictDetail(team, lastSlotForEntrant, minSpacing) {
 }
 
 async function logSpacingConflicts(eventId, classId, conflictTeams) {
-    for (const team of conflictTeams) {
-        await wixData.insert(AUDIT_LOG, {
-            eventId,
-            classId,
-            actionType: 'spacing_conflict_flagged',
-            performedByUserId: null,
-            timestamp: new Date(),
-            detail: `Team (header: ${team.header.firstName} ${team.header.lastName}, ` +
-                     `heeler: ${team.heeler.firstName} ${team.heeler.lastName}) could not satisfy ` +
-                     `${MIN_SPACING}-team minimum spacing. ${team.spacingConflictDetail || ''}`
-        });
-    }
+    // Same bulkInsert() fix as the teams themselves - one round trip
+    // regardless of how many teams got flagged, instead of one per team.
+    const records = conflictTeams.map((team) => ({
+        eventId,
+        classId,
+        actionType: 'spacing_conflict_flagged',
+        performedByUserId: null,
+        timestamp: new Date(),
+        detail: `Team (header: ${team.header.firstName} ${team.header.lastName}, ` +
+                 `heeler: ${team.heeler.firstName} ${team.heeler.lastName}) could not satisfy ` +
+                 `${MIN_SPACING}-team minimum spacing. ${team.spacingConflictDetail || ''}`
+    }));
+    await wixData.bulkInsert(AUDIT_LOG, records);
 }
 
 /* ------------------------------------------------------------------ */
@@ -545,8 +585,12 @@ export async function swapTeamPositions(classId, teamIdA, teamIdB) {
  * "whatever this team's flag says in the future."
  */
 async function recomputeSpacingFlags(classId) {
-    const teamsResult = await wixData.query(TEAMS).eq('classId', classId).ascending('teamNumber').limit(1000).find();
-    const teams = teamsResult.items;
+    // Full pagination + a single bulkUpdate() at the end, same reasoning
+    // as executeDraw() - this used to do one wixData.update() PLUS one
+    // wixData.get() per conflicted team, both in a loop. A single manual
+    // swap on a large field (200-500 teams) could have been as slow as
+    // the original draw itself, since this runs after every swap.
+    const teams = await queryAllPages(wixData.query(TEAMS).eq('classId', classId).ascending('teamNumber'));
 
     // Build entrantId -> sorted list of slot numbers (teamNumber) they appear in.
     const slotsByEntrant = new Map();
@@ -558,6 +602,13 @@ async function recomputeSpacingFlags(classId) {
     }
     for (const slots of slotsByEntrant.values()) slots.sort((a, b) => a - b);
 
+    // Pre-fetch every entrant this class could possibly need a name for,
+    // in one query, instead of a wixData.get() per conflicted team inside
+    // the loop below.
+    const entrantsById = new Map(
+        (await queryAllPages(wixData.query(ENTRANTS).eq('classId', classId))).map((e) => [e._id, e])
+    );
+
     const updatedTeams = [];
     for (const team of teams) {
         const conflictNotes = [];
@@ -565,7 +616,7 @@ async function recomputeSpacingFlags(classId) {
             const slots = slotsByEntrant.get(entrantId);
             const hasTooCloseNeighbor = slots.some(s => s !== team.teamNumber && Math.abs(s - team.teamNumber) < MIN_SPACING);
             if (hasTooCloseNeighbor) {
-                const entrant = await wixData.get(ENTRANTS, entrantId);
+                const entrant = entrantsById.get(entrantId);
                 conflictNotes.push(`${entrant.firstName} ${entrant.lastName} (${role}) has another run closer than ${MIN_SPACING} teams away.`);
             }
         }
@@ -573,7 +624,7 @@ async function recomputeSpacingFlags(classId) {
         const nowFlagged = conflictNotes.length > 0;
         const detailChanged = team.spacingConflictDetail !== (conflictNotes.join(' ') || null);
 
-        const updated = {
+        updatedTeams.push({
             ...team,
             spacingFlagged: nowFlagged,
             spacingConflictDetail: nowFlagged ? conflictNotes.join(' ') : null,
@@ -582,12 +633,10 @@ async function recomputeSpacingFlags(classId) {
             spacingAcknowledged: nowFlagged && !detailChanged ? team.spacingAcknowledged : false,
             spacingAcknowledgedBy: nowFlagged && !detailChanged ? team.spacingAcknowledgedBy : null,
             spacingAcknowledgedTimestamp: nowFlagged && !detailChanged ? team.spacingAcknowledgedTimestamp : null
-        };
-
-        await wixData.update(TEAMS, updated);
-        updatedTeams.push(updated);
+        });
     }
 
+    await wixData.bulkUpdate(TEAMS, updatedTeams);
     return updatedTeams;
 }
 
