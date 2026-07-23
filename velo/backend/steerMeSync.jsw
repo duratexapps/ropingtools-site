@@ -38,16 +38,25 @@ const STEERME_SUPABASE_SERVICE_KEY_SECRET = 'steerme-supabase-service-role-key';
  * @param {Object[]} classes - every DrawProEventClasses record for this event so far
  */
 export async function syncEventToSteerMe(event, classes) {
-    if (!event.listOnSteerMe) return;
-    if (!classes || classes.length === 0) return; // Steer Me requires >=1 division on insert
+    console.log(`[steerMeSync] called for event ${event._id} ("${event.title}"), listOnSteerMe=${event.listOnSteerMe}, classCount=${classes ? classes.length : 0}`);
+
+    if (!event.listOnSteerMe) {
+        console.log('[steerMeSync] skipped - listOnSteerMe is not true on this event.');
+        return;
+    }
+    if (!classes || classes.length === 0) {
+        console.log('[steerMeSync] skipped - no classes yet (Steer Me requires >=1 division on insert).');
+        return;
+    }
 
     try {
         const supabaseUrl = await getSecret(STEERME_SUPABASE_URL_SECRET);
         const serviceKey = await getSecret(STEERME_SUPABASE_SERVICE_KEY_SECRET);
         if (!supabaseUrl || !serviceKey) {
-            console.warn('Steer Me sync skipped - Supabase credentials not yet added to Secrets Manager.');
+            console.warn('[steerMeSync] skipped - Supabase credentials not found in Secrets Manager (steerme-supabase-url / steerme-supabase-service-role-key).');
             return;
         }
+        console.log(`[steerMeSync] credentials found. URL secret length=${supabaseUrl.length}, key secret length=${serviceKey.length}`);
 
         const headers = {
             'Content-Type': 'application/json',
@@ -75,28 +84,40 @@ export async function syncEventToSteerMe(event, classes) {
             // side already falls back to "Posted via Draw Pro" for this.
             external_producer_name: null
         };
+        console.log(`[steerMeSync] payload: ${JSON.stringify(payload)}`);
 
-        const existing = await fetch(
-            `${supabaseUrl}/rest/v1/events?draw_pro_event_id=eq.${event._id}&select=id`,
-            { headers }
-        );
-        const existingRows = existing.ok ? await existing.json() : [];
+        const lookupUrl = `${supabaseUrl}/rest/v1/events?draw_pro_event_id=eq.${event._id}&select=id`;
+        const existing = await fetch(lookupUrl, { headers });
+        const existingBody = await existing.text();
+        console.log(`[steerMeSync] lookup GET ${lookupUrl} -> ${existing.status} ${existingBody}`);
+
+        if (!existing.ok) {
+            console.error(`[steerMeSync] lookup failed with status ${existing.status}: ${existingBody}`);
+            return;
+        }
+        const existingRows = JSON.parse(existingBody);
 
         if (existingRows.length > 0) {
-            await fetch(`${supabaseUrl}/rest/v1/events?draw_pro_event_id=eq.${event._id}`, {
+            const patchRes = await fetch(`${supabaseUrl}/rest/v1/events?draw_pro_event_id=eq.${event._id}`, {
                 method: 'PATCH',
                 headers: { ...headers, Prefer: 'return=minimal' },
                 body: JSON.stringify(payload)
             });
+            const patchBody = await patchRes.text();
+            console.log(`[steerMeSync] PATCH -> ${patchRes.status} ${patchBody}`);
+            if (!patchRes.ok) console.error(`[steerMeSync] PATCH failed with status ${patchRes.status}: ${patchBody}`);
         } else {
-            await fetch(`${supabaseUrl}/rest/v1/events`, {
+            const postRes = await fetch(`${supabaseUrl}/rest/v1/events`, {
                 method: 'POST',
                 headers: { ...headers, Prefer: 'return=minimal' },
                 body: JSON.stringify(payload)
             });
+            const postBody = await postRes.text();
+            console.log(`[steerMeSync] POST -> ${postRes.status} ${postBody}`);
+            if (!postRes.ok) console.error(`[steerMeSync] POST failed with status ${postRes.status}: ${postBody}`);
         }
     } catch (err) {
-        console.error(`Steer Me sync failed for event ${event._id}: ${err.message}`);
+        console.error(`[steerMeSync] threw for event ${event._id}: ${err.message}`);
     }
 }
 
