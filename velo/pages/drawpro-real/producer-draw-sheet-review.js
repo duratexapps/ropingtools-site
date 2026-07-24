@@ -18,12 +18,19 @@
  *   #textEntrantsHeading      (NEW, added 2026-07-22 — e.g. "Entrants — Class 8.5", updates on every dropdown change)
  *   #textEntrantsStatus        (NEW — the selected class's raw status, uppercased, e.g. "DRAWN")
  *   #textEntrantsCaption       (NEW — "Locked once finalized." once finalized/drawn/notified, otherwise "Still open - entries can change until you finalize.")
+ *   #textEntrantsCount        (NEW, added 2026-07-23 — e.g. sitting in the bottom corner of the Entrants
+ *                             box. Count of individual entrant records for the selected class - each
+ *                             DrawProEntrants record is one individual, so this is literally "how many
+ *                             individuals have entered." Updates every time the entrant list reloads.)
  *   #repeaterEntrants        (repeater listing all entrants pre-draw for the SELECTED class, with #textEntrantName, #textEntrantRole, #textEntrantClass inside)
  *   #btnFinalize              (locks entries, moves to pending_signoff)
  *   #btnSignOff               (triggers the actual draw — requires confirm)
  *   #boxSignOffConfirm         (confirmation modal/container)
  *   #btnConfirmSignOff
  *   #btnCancelSignOff
+ *   #textTeamsCount           (NEW, added 2026-07-23 — e.g. sitting in the bottom corner of the Drawn
+ *                             Teams section. Count of drawn TEAMS (pairs), not individuals - updates
+ *                             every time the team list reloads.)
  *   #repeaterTeams            (post-draw: shows drawn teams, with
  *                             #textTeamNumber, #textHeader, #textHeeler,
  *                             #iconSpacingFlag (shown if spacingFlagged and
@@ -98,6 +105,21 @@ $w.onReady(async function () {
     wireButtons();
 });
 
+// Runs fn() and swallows/logs any error instead of letting it propagate -
+// same pattern established in producer-event-setup.js after #boxAddClass
+// crashed that whole page's $w.onReady() over a single unexpected element
+// type. Used here for #textEntrantsCount/#textTeamsCount specifically,
+// since those are brand-new elements not yet built as of this writing -
+// a typo'd ID or wrong widget type on either one should log an error and
+// move on, not take down entrant/team list loading for the whole page.
+function safeCall(fn) {
+    try {
+        fn();
+    } catch (err) {
+        console.error(`[producer-draw-sheet-review] setup step failed (page keeps working): ${err.message}`);
+    }
+}
+
 function wireButtons() {
     $w('#dropdownClass').onChange(handleClassChanged);
     $w('#btnFinalize').onClick(handleFinalize);
@@ -168,6 +190,13 @@ async function loadEntrantList() {
         $item('#textEntrantRole').text = entrant.role;
         $item('#textEntrantClass').text = String(entrant.classificationNumber);
     });
+
+    // At-a-glance count, e.g. sitting in the bottom corner of the
+    // Entrants box - each DrawProEntrants record is one individual
+    // (a header and heeler in a pre-formed team are two separate
+    // records), so this count is literally "how many individuals have
+    // entered," same as requested.
+    safeCall(() => { $w('#textEntrantsCount').text = String(result.items.length); });
 
     const cls = allClasses.find((c) => c._id === currentClassId);
     if (cls) checkRotationSuggestion(cls, result.items.length);
@@ -271,6 +300,11 @@ async function loadDrawnTeams() {
     // class up front, looked up locally from there.
     const result = await wixData.query('DrawProTeams').eq('classId', currentClassId).ascending('teamNumber').find();
     const teams = result.items;
+
+    // At-a-glance count, e.g. sitting in the bottom corner of the Drawn
+    // Teams section - number of TEAMS (pairs), not individuals, unlike
+    // #textEntrantsCount above in loadEntrantList().
+    safeCall(() => { $w('#textTeamsCount').text = String(teams.length); });
 
     const entrantsResult = await wixData.query('DrawProEntrants').eq('classId', currentClassId).find();
     const entrantsById = new Map(entrantsResult.items.map((e) => [e._id, e]));

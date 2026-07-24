@@ -296,6 +296,7 @@ three update together, every time `#dropdownClass` changes.
 | `#textEntrantsHeading` | Text | e.g. "Entrants — Class 8.5" |
 | `#textEntrantsStatus` | Text | The selected class's raw status, uppercased - e.g. "DRAWN". Pairs well with a small pill/badge style, matching the mockup |
 | `#textEntrantsCaption` | Text | "Locked once finalized." once the class is `finalized`/`drawn`/`notified`; otherwise "Still open - entries can change until you finalize." First-pass wording, not locked in - adjust once you see it live |
+| `#textEntrantsCount` | Text | **NEW, added 2026-07-23.** At-a-glance count of individual entrants for the selected class - sits well in the bottom corner of the Entrants box. Each `DrawProEntrants` record is one individual, so this is literally "how many individuals have entered" |
 
 ### Pre-draw entrant list
 | ID | Type | Notes |
@@ -332,6 +333,7 @@ classes" entry for the full reasoning on why Draw Pro doesn't track anything bey
 ### Post-draw team list (repeater)
 | ID | Type | Notes |
 |---|---|---|
+| `#textTeamsCount` | Text | **NEW, added 2026-07-23.** At-a-glance count of drawn TEAMS (pairs, not individuals) - sits well in the bottom corner of the Drawn Teams section |
 | `#repeaterTeams` | Repeater | Item template needs the elements below inside it |
 | `#textTeamNumber` | Text (inside repeater item) | |
 | `#textHeader` | Text (inside repeater item) | |
