@@ -380,9 +380,9 @@ gated behind any other Draw Pro page. Once set up, the organization name flows i
 this page itself. See `docs/ARCHITECTURE.md`'s "Draw Pro producer profiles" entry for the full
 reasoning on why this is a separate, standalone Draw Pro concept rather than shared with Steer Me.
 
-Source: `velo/pages/drawpro-real/producer-profile.js`. Not yet created in the Editor as of this
-writing — same process as the other 3 pages: create it, then provide the generated filename so the
-code can be mirrored into `roping-tools`.
+Source: `velo/pages/drawpro-real/producer-profile.js`, deployed to `roping-tools` as
+`src/pages/Producer Profile.ewnbn.js`. Created and code-synced 2026-07-24 — placing elements is in
+progress.
 
 | ID | Type | Notes |
 |---|---|---|
@@ -399,15 +399,17 @@ exact page URL isn't known until it's created.
 
 ---
 
-## Page 5: Draw Pro Home (NEW, added 2026-07-23)
+## Page 5: Producer Dashboard (NEW, added 2026-07-23)
 
 Meant to eventually **replace** the current "Coming Soon" page — see `docs/ARCHITECTURE.md`'s "Draw Pro
 home page" entry for the full reasoning. Serves anonymous visitors (marketing/tour, sign-up/login) and
 signed-in producers (a personal dashboard: their own active/past events, create-event link, profile
 link) on the same page, split by login state.
 
-Source: `velo/pages/drawpro-real/drawpro-home.js`. Not yet created in the Editor as of this writing —
-same process as the other pages: create it, then provide the generated filename.
+Source: `velo/pages/drawpro-real/drawpro-home.js`, deployed to `roping-tools` as
+`src/pages/Producer Dashboard.tvcdn.js`. Created and code-synced 2026-07-24 — placing elements is in
+progress. Real page URL not yet confirmed; the `wixLocation.to()` navigation paths inside this file are
+still placeholders until then (see the note at the bottom of this section).
 
 ### Marketing/tour (HTML embed)
 | ID | Type | Notes |
