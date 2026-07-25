@@ -1056,3 +1056,74 @@ reuse item-template Element IDs across two different repeaters, even
 if they display the same shape of data. Give each repeater its own
 distinctly-named set from the start, rather than discovering the
 conflict live once one repeater's already built.
+
+---
+
+## PayPal Subscriptions for Draw Pro producer plans (2026-07-25)
+
+**A genuinely different PayPal product than the entry-fee flow.** Entry
+fees use PayPal for Platforms (Orders API + Partner Referrals) since
+RopingTools is facilitating a payment between two other parties (the
+entrant and the producer) and taking a cut - a true marketplace
+relationship. Producer subscriptions are the opposite: RopingTools is
+the direct merchant, the producer is the direct customer, no third
+party involved. That's PayPal's plain **Subscriptions API**
+(`/v1/billing/plans`, `/v1/billing/subscriptions`), which is a simpler,
+more standard integration and - importantly - does **not** require the
+pending PayPal for Platforms application to be approved first. The two
+integrations share the same `getPayPalAccessToken()` OAuth helper and
+the same `drawpro-paypal-client-id`/`drawpro-paypal-client-secret`
+secrets, but hit entirely different PayPal endpoints.
+
+**Price**: $149/year, a researched estimate rather than an arbitrary
+number - see `docs/DRAWPRO_NEXT_STEPS.md`'s resolved placeholder entry
+for the actual comparable-pricing research (Rodeo Producer $100/yr +
+$50/event without online payment; Carlsen's Roping Management Program
+$189/yr; Roping Assistant Professional $750 one-time as the premium
+ceiling). Positioned above the bare-bones baseline given Draw Pro's
+stronger feature set (multi-class events, automated draw/spacing,
+Steer Me cross-posting), while staying accessible to the small/
+mom-and-pop producer audience this whole project targets.
+
+**Competitive differentiation, researched the same session**: beyond
+partner-matching (which nothing found in that research comes close to),
+the real additional value is the *ecosystem effect* - a cross-producer
+event discovery directory (every competitor found is a single
+producer's isolated registration form, not a browsable directory
+spanning many producers), modern cloud/mobile access (competitor
+pricing language reads like legacy desktop software - "licensed for a
+single computer," "10-day usage license"), and the Enter-the-Draw
+hand-off mechanic itself, which no competitor could replicate without
+building the same two-product ecosystem. Deliberately NOT claiming the
+draw/spacing algorithm itself is unique - no evidence competitors lack
+equivalent logic, and overclaiming that would be dishonest marketing,
+not confident positioning.
+
+**Structure**: `createSubscriptionProduct()` and `createSubscriptionPlan()`
+are one-time admin setup calls (not exposed in any UI) - run once,
+after PayPal for Platforms approval lands and real credentials exist,
+to get a plan id, which then gets stored as the
+`drawpro-paypal-subscription-plan-id` secret. Every producer's
+subscription attaches to that one shared plan via
+`startProducerSubscription()`, which returns a PayPal-hosted approval
+URL. `checkSubscriptionStatus()` is a polling fallback (same
+established pattern as `checkPayoutOnboardingStatus()`) since no
+webhook for subscription lifecycle events is built yet - acceptable
+for now, same "built but not urgent" boundary already accepted
+elsewhere in this codebase. `cancelSubscription()` now actually calls
+PayPal's cancel endpoint, not just our own status flag - a real
+correctness fix over the prior stub, which only ever updated our own
+record and never touched PayPal at all.
+
+The old `subscribeToAnnualPlan(producerId, annualFee)` stays, but
+repurposed as an explicit manual/admin-override path only (comping an
+early adopter, an offline payment arrangement) - not what a producer
+uses to subscribe themselves anymore.
+
+**Not yet built**: the actual producer-facing "Subscribe" UI (a natural
+fit on the new Producer Dashboard page), and the two one-time admin
+setup calls haven't been run yet since they need real PayPal credentials,
+which don't exist until the pending Platforms application is approved -
+though note the Subscriptions API itself doesn't strictly require that
+approval, so this could in principle be tested earlier via PayPal's
+sandbox if there's appetite to get ahead of it.

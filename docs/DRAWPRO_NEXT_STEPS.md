@@ -180,7 +180,21 @@ not a confirmed choice.
   `PER_TEAM_EXECUTION_RATE = 0.50`)
 - Processor fee rate in `payments.jsw` — currently mirrors Stripe's
   published rate as a stand-in, not PayPal's actual negotiated rate
-- Producer annual subscription fee — no number set yet
+- ~~Producer annual subscription fee — no number set yet~~ **RESOLVED
+  2026-07-25**: set to $149/year (`PRODUCER_ANNUAL_SUBSCRIPTION_FEE` in
+  `payments.jsw`), a researched estimate against comparable roping/rodeo
+  software (Rodeo Producer $100/yr, Carlsen's Roping Management Program
+  $189/yr) — trivially adjustable if it needs to change. Real PayPal
+  Subscriptions API integration is now built (`createSubscriptionProduct()`,
+  `createSubscriptionPlan()`, `startProducerSubscription()`,
+  `checkSubscriptionStatus()`, and a corrected `cancelSubscription()` that
+  now actually cancels on PayPal's side) — see `docs/ARCHITECTURE.md`'s
+  entry on this for the full design. **Still needed before this is live**:
+  run `createSubscriptionProduct()`/`createSubscriptionPlan()` once (after
+  PayPal for Platforms approval lands, since these need real credentials),
+  store the returned plan id as the `drawpro-paypal-subscription-plan-id`
+  secret, and build the actual "Subscribe" UI (a natural fit on the new
+  Producer Dashboard page) — none of that frontend work exists yet.
 
 ## 7. Legal drafts — DRAFT status, not counsel-reviewed
 Four documents exist (ToS, Privacy Policy, Minor & Parental Consent
