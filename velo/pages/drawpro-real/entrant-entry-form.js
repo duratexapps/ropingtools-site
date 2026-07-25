@@ -153,9 +153,24 @@ $w.onReady(async function () {
     eventId = wixLocation.query.event;
     if (!eventId) {
         setStatus('No event specified.', true);
-        $w('#btnSubmitEntry').disable();
+        safeCall(() => $w('#btnSubmitEntry').disable());
         return;
     }
+
+    // Click/change handlers wired FIRST, each individually defensive -
+    // same lesson learned live this same week on Producer Event Setup
+    // (#boxAddClass) and Producer Dashboard (duplicate repeater IDs): a
+    // single bad element anywhere in a long, unguarded $w.onReady()
+    // silently kills everything after it. This page has dozens of
+    // referenced elements and had never been tested live before now, so
+    // treating that as a real risk rather than a hypothetical.
+    safeCall(() => $w('#dropdownClass').onChange(onClassChanged));
+    safeCall(() => $w('#checkboxAddPartner').onChange(() => { togglePartnerFields(); updateFeePreview(); }));
+    safeCall(() => $w('#checkboxUpAndBack').onChange(updateFeePreview));
+    safeCall(() => $w('#radioPartnerMode').onChange(togglePartnerMode));
+    safeCall(() => $w('#inputEntryCount').onInput(() => { toggleDrawInRoleVisibility(); updateFeePreview(); }));
+    safeCall(() => $w('#btnSubmitEntry').onClick(handleSubmit));
+    safeCall(() => $w('#btnReplayTutorial').onClick(startEntrantTour));
 
     currentEvent = await loadEventSummary();
     openClasses = await loadOpenClasses();
@@ -167,26 +182,30 @@ $w.onReady(async function () {
 
     populateClassDropdown(openClasses);
     currentClass = openClasses[0];
-    $w('#dropdownClass').value = currentClass._id;
-    onClassChanged();
+    safeCall(() => { $w('#dropdownClass').value = currentClass._id; });
+    safeCall(() => onClassChanged());
 
-    $w('#dropdownClass').onChange(onClassChanged);
     await setGuestVisibility();
-    $w('#checkboxAddPartner').onChange(() => { togglePartnerFields(); updateFeePreview(); });
-    togglePartnerFields();
-    $w('#checkboxUpAndBack').onChange(updateFeePreview);
-    $w('#radioPartnerMode').onChange(togglePartnerMode);
-    togglePartnerMode();
-    $w('#inputEntryCount').onInput(() => { toggleDrawInRoleVisibility(); updateFeePreview(); });
-    toggleDrawInRoleVisibility();
-    updateFeePreview();
-    $w('#btnSubmitEntry').onClick(handleSubmit);
-    $w('#btnReplayTutorial').onClick(startEntrantTour);
+    safeCall(() => togglePartnerFields());
+    safeCall(() => togglePartnerMode());
+    safeCall(() => toggleDrawInRoleVisibility());
+    await updateFeePreview();
 
     if (!(await hasSeenEntrantTour())) {
         startEntrantTour();
     }
 });
+
+// Runs fn() and swallows/logs any error instead of letting it propagate -
+// same pattern established in producer-event-setup.js after #boxAddClass
+// crashed that whole page over a single unexpected element type.
+function safeCall(fn) {
+    try {
+        fn();
+    } catch (err) {
+        console.error(`[entrant-entry-form] setup step failed (page keeps working): ${err.message}`);
+    }
+}
 
 function startEntrantTour() {
     runTour($w, ENTRANT_TOUR_STEPS, {
@@ -393,7 +412,11 @@ function setAlertStatus(message, isError) {
 
 async function loadEventSummary() {
     const event = await wixData.get('DrawProEvents', eventId);
-    $w('#textEventTitle').text = event.title;
+    // Defensive: the actual event data must load and return regardless
+    // of whether displaying it succeeds - a bad #textEventTitle element
+    // shouldn't be able to block currentEvent from ever getting set,
+    // which the rest of this page depends on entirely.
+    safeCall(() => { $w('#textEventTitle').text = event.title; });
     return event;
 }
 
