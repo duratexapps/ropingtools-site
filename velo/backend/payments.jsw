@@ -92,6 +92,25 @@ const PROCESSOR_FEE_FLAT = 0.30;
 const FREE_TEAM_THRESHOLD = 50; // teams per event before any charge applies
 const PER_TEAM_EXECUTION_RATE = 0.50;
 
+// Researched estimate, 2026-07-25, not a placeholder blocking anything -
+// comparable products range ~$100-300/year for a basic-to-mid tier
+// annual license (Rodeo Producer $100/yr + $50/event without online
+// payment; Carlsen's Roping Management Program $189/yr). Positioned
+// above the bare-bones end given Draw Pro's stronger feature set
+// (multi-class events, automated draw/spacing, Steer Me cross-posting),
+// while staying accessible to the small/mom-and-pop producer audience
+// this whole project targets. Trivially adjustable - a plain constant,
+// not wired into anything that would need a data migration to change.
+const PRODUCER_ANNUAL_SUBSCRIPTION_FEE = 149;
+
+// Set once, after createSubscriptionProduct()/createSubscriptionPlan()
+// are each run one time by an admin (see their own doc comments below) -
+// every producer's subscription attaches to this same plan id.
+const PAYPAL_SUBSCRIPTION_PLAN_ID_SECRET_NAME = 'drawpro-paypal-subscription-plan-id';
+
+const SUBSCRIPTION_RETURN_URL = 'https://www.ropingtools.com/drawpro/subscription-complete';
+const SUBSCRIPTION_CANCEL_URL = 'https://www.ropingtools.com/drawpro/subscription-cancelled';
+
 // SWITCH to https://api-m.sandbox.paypal.com while testing against a
 // PayPal sandbox account, before the real application is approved.
 const PAYPAL_API_BASE = 'https://api-m.paypal.com';
@@ -632,10 +651,14 @@ async function hasActiveSubscription(producerId) {
 }
 
 /**
- * Starts (or renews) a producer's annual subscription. annualFee is
- * passed in explicitly rather than hardcoded here — real pricing isn't
- * finalized, so the caller (an admin tool or a future pricing page)
- * supplies whatever the current published rate is.
+ * Manual/admin-override path only — grants a subscription record
+ * directly without going through PayPal (e.g. comping an early adopter,
+ * or an offline payment arrangement). NOT the path a producer uses to
+ * subscribe themselves; see startProducerSubscription() below for the
+ * real PayPal-backed flow. annualFee is still passed in explicitly here
+ * rather than defaulting to PRODUCER_ANNUAL_SUBSCRIPTION_FEE, since an
+ * admin override is exactly the situation where the real published rate
+ * might deliberately NOT apply.
  */
 export async function subscribeToAnnualPlan(producerId, annualFee) {
     const existing = await getSubscription(producerId);
@@ -657,10 +680,195 @@ export async function subscribeToAnnualPlan(producerId, annualFee) {
     return wixData.insert(SUBSCRIPTIONS, record);
 }
 
+/**
+ * Cancels a producer's real PayPal-backed subscription (not just our own
+ * status flag) - actually stops future billing on PayPal's side, not
+ * only in our own records. Safe to call even for a subscription created
+ * via the manual subscribeToAnnualPlan() override above, which has no
+ * paypalSubscriptionId - in that case this just updates our own status,
+ * same as before, since there's nothing on PayPal's side to cancel.
+ */
 export async function cancelSubscription(producerId) {
     const existing = await getSubscription(producerId);
     if (!existing) return null;
+
+    if (existing.paypalSubscriptionId) {
+        const accessToken = await getPayPalAccessToken();
+        const response = await fetch(
+            `${PAYPAL_API_BASE}/v1/billing/subscriptions/${existing.paypalSubscriptionId}/cancel`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reason: 'Producer requested cancellation.' })
+            }
+        );
+        // PayPal returns 204 No Content on success - no body to parse.
+        if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`PayPal cancellation failed: ${response.status} ${body}`);
+        }
+    }
+
     return wixData.update(SUBSCRIPTIONS, { ...existing, status: 'expired' });
+}
+
+/**
+ * ONE-TIME ADMIN SETUP - run once, not per-producer. Creates the PayPal
+ * "Product" this subscription plan attaches to. Returns the product id;
+ * pass it into createSubscriptionPlan() next. Not exposed anywhere in
+ * the UI on purpose - run it directly (e.g. from a temporary test call)
+ * when first setting this up.
+ */
+export async function createSubscriptionProduct() {
+    const accessToken = await getPayPalAccessToken();
+    const response = await fetch(`${PAYPAL_API_BASE}/v1/catalogs/products`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: 'Draw Pro Producer Annual Subscription',
+            description: 'Annual subscription covering cash-event execution charges for Draw Pro producers.',
+            type: 'SERVICE',
+            category: 'SOFTWARE'
+        })
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(`PayPal product creation failed: ${response.status} ${body}`);
+    return JSON.parse(body).id;
+}
+
+/**
+ * ONE-TIME ADMIN SETUP - run once, after createSubscriptionProduct().
+ * Creates the actual annual Billing Plan at PRODUCER_ANNUAL_SUBSCRIPTION_FEE.
+ * Returns the plan id — store it as the drawpro-paypal-subscription-plan-id
+ * secret afterward; every producer's subscription attaches to this one plan.
+ */
+export async function createSubscriptionPlan(productId) {
+    const accessToken = await getPayPalAccessToken();
+    const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            product_id: productId,
+            name: 'Draw Pro Producer Annual Plan',
+            description: `$${PRODUCER_ANNUAL_SUBSCRIPTION_FEE}/year, billed annually.`,
+            billing_cycles: [{
+                frequency: { interval_unit: 'YEAR', interval_count: 1 },
+                tenure_type: 'REGULAR',
+                sequence: 1,
+                total_cycles: 0, // 0 = infinite - renews every year until cancelled
+                pricing_scheme: {
+                    fixed_price: { value: PRODUCER_ANNUAL_SUBSCRIPTION_FEE.toFixed(2), currency_code: 'USD' }
+                }
+            }],
+            payment_preferences: {
+                auto_bill_outstanding: true,
+                payment_failure_threshold: 3
+            }
+        })
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(`PayPal plan creation failed: ${response.status} ${body}`);
+    return JSON.parse(body).id;
+}
+
+/**
+ * The real, producer-facing way to subscribe. Creates a PayPal
+ * Subscription against the stored plan and returns the approval URL to
+ * redirect the producer to (PayPal's own hosted checkout) - nothing is
+ * charged or active until they approve there. Records a
+ * 'pending_approval' row immediately so checkSubscriptionStatus() has
+ * something to update once they return.
+ */
+export async function startProducerSubscription(producerId) {
+    const planId = await getSecret(PAYPAL_SUBSCRIPTION_PLAN_ID_SECRET_NAME);
+    if (!planId) {
+        throw new Error('Subscription plan not set up yet — run createSubscriptionProduct() then createSubscriptionPlan() once, then store the returned plan id as the drawpro-paypal-subscription-plan-id secret.');
+    }
+
+    const accessToken = await getPayPalAccessToken();
+    const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            plan_id: planId,
+            custom_id: producerId, // ties the PayPal subscription back to our own producerId
+            application_context: {
+                return_url: SUBSCRIPTION_RETURN_URL,
+                cancel_url: SUBSCRIPTION_CANCEL_URL,
+                user_action: 'SUBSCRIBE_NOW'
+            }
+        })
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(`PayPal subscription creation failed: ${response.status} ${body}`);
+    const data = JSON.parse(body);
+
+    const existing = await getSubscription(producerId);
+    const record = {
+        producerId,
+        status: 'pending_approval',
+        annualFee: PRODUCER_ANNUAL_SUBSCRIPTION_FEE,
+        paypalSubscriptionId: data.id
+    };
+    if (existing) {
+        await wixData.update(SUBSCRIPTIONS, { ...existing, ...record });
+    } else {
+        await wixData.insert(SUBSCRIPTIONS, record);
+    }
+
+    const approvalLink = (data.links || []).find((l) => l.rel === 'approve');
+    if (!approvalLink) throw new Error('PayPal did not return an approval link.');
+    return approvalLink.href;
+}
+
+/**
+ * Polling fallback, matching checkPayoutOnboardingStatus()'s established
+ * pattern elsewhere in this file — no webhook built yet for subscription
+ * lifecycle events (BILLING.SUBSCRIPTION.ACTIVATED/CANCELLED etc.), same
+ * "built but not urgent yet" boundary already accepted for
+ * MERCHANT.ONBOARDING.COMPLETED. Call this from the page a producer
+ * lands on after returning from PayPal's approval flow (SUBSCRIPTION_RETURN_URL).
+ */
+export async function checkSubscriptionStatus(producerId) {
+    const sub = await getSubscription(producerId);
+    if (!sub || !sub.paypalSubscriptionId) {
+        throw new Error('No PayPal-backed subscription found for this producer.');
+    }
+
+    const accessToken = await getPayPalAccessToken();
+    const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${sub.paypalSubscriptionId}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    const body = await response.text();
+    if (!response.ok) throw new Error(`PayPal subscription lookup failed: ${response.status} ${body}`);
+    const data = JSON.parse(body);
+
+    // PayPal's own status values: APPROVAL_PENDING, APPROVED, ACTIVE,
+    // SUSPENDED, CANCELLED, EXPIRED - mapped onto our own simpler
+    // active/pending_approval/expired status field.
+    const isActive = data.status === 'ACTIVE';
+    const isEnded = data.status === 'CANCELLED' || data.status === 'EXPIRED';
+    const renewalDate = data.billing_info && data.billing_info.next_billing_time
+        ? new Date(data.billing_info.next_billing_time)
+        : null;
+
+    return wixData.update(SUBSCRIPTIONS, {
+        ...sub,
+        status: isActive ? 'active' : (isEnded ? 'expired' : 'pending_approval'),
+        renewalDate
+    });
 }
 
 /* ------------------------------------------------------------------ */
