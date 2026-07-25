@@ -1026,3 +1026,33 @@ until it is, same process as the other Draw Pro pages. Several
 Producer Event Setup, Producer Profile, Producer Draw Sheet Review)
 since the real page URLs aren't known until each page exists - flagged
 directly in the file's own comments, not silently wrong.
+
+---
+
+## Wix gotcha: Element IDs can't repeat across different repeaters on one page (2026-07-25)
+
+**Confirmed live, real bug in the original spec, not a Wix quirk to work
+around.** `drawpro-home.js`'s original doc comment told the builder to
+give `#repeaterPastEvents`'s item template "the same item template as
+`#repeaterActiveEvents`" - i.e., reuse `#textEventTitle`,
+`#textEventDate`, etc. That's wrong: Wix's classic Editor allows the
+same Element ID to repeat across *items within one repeater* (that's
+the whole point of a repeater item template), but does **not** allow
+the same ID to be reused across *two different repeaters* on the same
+page - it's rejected as a duplicate, with no indication of where the
+"existing" one actually is if the two repeaters aren't visually near
+each other.
+
+**Fix**: `renderEventRepeater()` (shared by both the active and past
+events repeaters) now takes the item-template element IDs as a
+parameter instead of hardcoding them, so each repeater gets its own
+distinct set: `#repeaterActiveEvents` keeps `#textEventTitle`/
+`#textEventDate`/`#textEventLocation`/`#linkManageEvent`;
+`#repeaterPastEvents` uses `#textPastEventTitle`/`#textPastEventDate`/
+`#textPastEventLocation`/`#linkPastManageEvent` instead.
+
+**General lesson for future pages with more than one repeater**: never
+reuse item-template Element IDs across two different repeaters, even
+if they display the same shape of data. Give each repeater its own
+distinctly-named set from the start, rather than discovering the
+conflict live once one repeater's already built.

@@ -433,7 +433,7 @@ still placeholders until then (see the note at the bottom of this section).
 | `#repeaterActiveEvents` | Repeater | Item template needs `#textEventTitle`, `#textEventDate`, `#textEventLocation`, `#linkManageEvent` inside |
 | `#textNoActiveEvents` | Text | Shown if `#repeaterActiveEvents` is empty |
 | `#textPastEventsHeading` | Text | |
-| `#repeaterPastEvents` | Repeater | Same item template as `#repeaterActiveEvents` |
+| `#repeaterPastEvents` | Repeater | **CONFIRMED LIVE 2026-07-25**: this can NOT reuse `#repeaterActiveEvents`'s item template IDs — Wix's classic Editor rejects the same Element ID reused across two different repeaters on one page (only reuse within items of the SAME repeater is allowed). Give this repeater's item template its own distinct IDs: `#textPastEventTitle`, `#textPastEventDate`, `#textPastEventLocation`, `#linkPastManageEvent` |
 | `#textNoPastEvents` | Text | Shown if `#repeaterPastEvents` is empty |
 
 **Note on the code's `wixLocation.to()` calls**: several paths in `drawpro-home.js` (sign-up/login,

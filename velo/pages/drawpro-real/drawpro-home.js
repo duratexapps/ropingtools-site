@@ -55,8 +55,13 @@
  *   #textNoActiveEvents   (Text, inside #boxProducerDashboard — shown if
  *                          #repeaterActiveEvents is empty)
  *   #textPastEventsHeading (Text, inside #boxProducerDashboard)
- *   #repeaterPastEvents   (Repeater, inside #boxProducerDashboard — same
- *                          item template as #repeaterActiveEvents)
+ *   #repeaterPastEvents   (Repeater, inside #boxProducerDashboard — CONFIRMED LIVE 2026-07-25: Wix's
+ *                          classic Editor does not allow the same Element ID to be reused across two
+ *                          DIFFERENT repeaters on one page (only within items of the SAME repeater) -
+ *                          the original spec here said "same item template as #repeaterActiveEvents,"
+ *                          which is wrong and caused a real "duplicate ID" error live. This repeater's
+ *                          item template needs its OWN distinct IDs instead: #textPastEventTitle,
+ *                          #textPastEventDate, #textPastEventLocation, #linkPastManageEvent)
  *   #textNoPastEvents     (Text, inside #boxProducerDashboard — shown if
  *                          #repeaterPastEvents is empty)
  */
@@ -117,11 +122,20 @@ async function loadProducerEvents(producerId) {
         wixData.query('DrawProEvents').eq('producerId', producerId).lt('eventDate', today).descending('eventDate').find()
     ]);
 
-    renderEventRepeater('#repeaterActiveEvents', '#textNoActiveEvents', activeResult.items);
-    renderEventRepeater('#repeaterPastEvents', '#textNoPastEvents', pastResult.items);
+    renderEventRepeater('#repeaterActiveEvents', '#textNoActiveEvents', activeResult.items, {
+        title: '#textEventTitle', date: '#textEventDate', location: '#textEventLocation', manage: '#linkManageEvent'
+    });
+    renderEventRepeater('#repeaterPastEvents', '#textNoPastEvents', pastResult.items, {
+        title: '#textPastEventTitle', date: '#textPastEventDate', location: '#textPastEventLocation', manage: '#linkPastManageEvent'
+    });
 }
 
-function renderEventRepeater(repeaterId, emptyTextId, events) {
+// itemIds is a set of item-template element IDs, not hardcoded - see the
+// big comment on #repeaterPastEvents above. Wix doesn't allow the same
+// Element ID reused across two DIFFERENT repeaters on one page (only
+// within items of the SAME repeater), confirmed live 2026-07-25 - each
+// repeater on this page needs its own distinct set of item-template IDs.
+function renderEventRepeater(repeaterId, emptyTextId, events, itemIds) {
     if (events.length === 0) {
         safeCall(() => $w(repeaterId).collapse());
         safeCall(() => $w(emptyTextId).expand());
@@ -132,10 +146,10 @@ function renderEventRepeater(repeaterId, emptyTextId, events) {
     safeCall(() => $w(repeaterId).expand());
     $w(repeaterId).data = events;
     $w(repeaterId).onItemReady(($item, event) => {
-        $item('#textEventTitle').text = event.title;
-        $item('#textEventDate').text = new Date(event.eventDate).toLocaleDateString();
-        $item('#textEventLocation').text = event.location;
-        $item('#linkManageEvent').onClick(() =>
+        $item(itemIds.title).text = event.title;
+        $item(itemIds.date).text = new Date(event.eventDate).toLocaleDateString();
+        $item(itemIds.location).text = event.location;
+        $item(itemIds.manage).onClick(() =>
             wixLocation.to(`/producer-draw-sheet-review?event=${event._id}`)
         );
         // Adjust this path once the real Producer Draw Sheet Review page
