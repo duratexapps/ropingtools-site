@@ -454,6 +454,23 @@
     cursor: pointer;
   }
   .chapter-unlock-btn:disabled { opacity: 0.6; cursor: default; }
+  /* Real bug found live 2026-07-25: a locked chapter's teaser text often
+     said "log in to unlock this chapter," but there was no actual login
+     button anywhere near it - only "Unlock This Chapter," which checks
+     access but can't itself open the login lightbox. This button does
+     that specifically. See promptLoginForChapter() in the script below. */
+  .chapter-login-btn {
+    background: transparent;
+    color: var(--text-mid);
+    border: 1.5px solid var(--gold);
+    border-radius: 6px;
+    padding: 0.65rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 0.6rem;
+  }
+  .chapter-login-btn:disabled { opacity: 0.6; cursor: default; }
   .chapter-unlock-btn:hover:not(:disabled) { background: #C2410C; }
 
   .mistake-box {
@@ -1025,6 +1042,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="1-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('1-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('1-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-1-2"></div>
       <!-- QUIZ 1.2 -->
@@ -1109,6 +1127,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="1-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('1-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('1-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-1-3"></div>
       <!-- QUIZ 1.3 -->
@@ -1193,6 +1212,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="1-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('1-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('1-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-1-4"></div>
       <!-- QUIZ 1.4 -->
@@ -1290,6 +1310,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="2-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('2-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('2-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-2-1"></div>
       <!-- QUIZ 2.1 -->
@@ -1371,6 +1392,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="2-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('2-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('2-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-2-2"></div>
       <!-- QUIZ 2.2 -->
@@ -1452,6 +1474,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="2-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('2-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('2-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-2-3"></div>
       <!-- QUIZ 2.3 -->
@@ -1533,6 +1556,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="2-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('2-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('2-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-2-4"></div>
       <!-- QUIZ 2.4 -->
@@ -1627,6 +1651,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="3-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('3-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('3-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-3-1"></div>
       <!-- QUIZ 3.1 -->
@@ -1708,6 +1733,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="3-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('3-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('3-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-3-2"></div>
       <!-- QUIZ 3.2 -->
@@ -1789,6 +1815,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="3-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('3-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('3-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-3-3"></div>
       <!-- QUIZ 3.3 -->
@@ -1870,6 +1897,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="3-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('3-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('3-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-3-4"></div>
       <!-- QUIZ 3.4 -->
@@ -1964,6 +1992,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="4-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('4-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('4-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-4-1"></div>
       <!-- QUIZ 4.1 -->
@@ -2000,6 +2029,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="4-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('4-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('4-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-4-2"></div>
       <!-- QUIZ 4.2 -->
@@ -2036,6 +2066,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="4-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('4-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('4-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-4-3"></div>
       <!-- QUIZ 4.3 -->
@@ -2072,6 +2103,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="4-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('4-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('4-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-4-4"></div>
       <!-- QUIZ 4.4 -->
@@ -2119,6 +2151,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="5-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('5-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('5-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-5-1"></div>
       <!-- QUIZ 5.1 -->
@@ -2155,6 +2188,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="5-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('5-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('5-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-5-2"></div>
       <!-- QUIZ 5.2 -->
@@ -2191,6 +2225,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="5-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('5-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('5-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-5-3"></div>
       <!-- QUIZ 5.3 -->
@@ -2227,6 +2262,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="5-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('5-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('5-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-5-4"></div>
       <!-- QUIZ 5.4 -->
@@ -2276,6 +2312,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="6-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('6-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('6-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-6-1"></div>
       <!-- QUIZ 6.1 -->
@@ -2312,6 +2349,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="6-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('6-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('6-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-6-2"></div>
       <!-- QUIZ 6.2 -->
@@ -2348,6 +2386,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="6-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('6-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('6-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-6-3"></div>
       <!-- QUIZ 6.3 -->
@@ -2384,6 +2423,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="6-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('6-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('6-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-6-4"></div>
       <!-- QUIZ 6.4 -->
@@ -2433,6 +2473,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="7-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('7-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('7-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-7-1"></div>
       <!-- QUIZ 7.1 -->
@@ -2469,6 +2510,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="7-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('7-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('7-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-7-2"></div>
       <!-- QUIZ 7.2 -->
@@ -2505,6 +2547,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="7-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('7-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('7-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-7-3"></div>
       <!-- QUIZ 7.3 -->
@@ -2541,6 +2584,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="7-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('7-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('7-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-7-4"></div>
       <!-- QUIZ 7.4 -->
@@ -2590,6 +2634,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="8-1">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('8-1', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('8-1', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-8-1"></div>
       <!-- QUIZ 8.1 -->
@@ -2626,6 +2671,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="8-2">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('8-2', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('8-2', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-8-2"></div>
       <!-- QUIZ 8.2 -->
@@ -2662,6 +2708,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="8-3">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('8-3', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('8-3', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-8-3"></div>
       <!-- QUIZ 8.3 -->
@@ -2698,6 +2745,7 @@
     <div class="chapter-body"><div class="chapter-locked" data-chapter-id="8-4">
         <p class="chapter-locked-teaser">This chapter is part of the full course. Purchase the course or an active subscription to unlock it.</p>
         <button class="chapter-unlock-btn" type="button" onclick="unlockChapter('8-4', this)">Unlock This Chapter</button>
+        <button class="chapter-login-btn" type="button" onclick="promptLoginForChapter('8-4', this)">Log In</button>
       </div>
       <div class="chapter-content-mount" id="content-mount-8-4"></div>
       <!-- QUIZ 8.4 -->
@@ -3240,6 +3288,39 @@ function unlockChapter(chapterId, btn) {
     });
 }
 
+// Real bug found live 2026-07-25: unlockChapter()'s error/locked messages
+// above both tell the visitor to "log in," but nothing on this page could
+// actually DO that for a locked chapter beyond 1.1 - startLoginGate()
+// (below) only ever ran for the free-preview chapter's initial gate, not
+// this one. Wired to the new .chapter-login-btn added next to every
+// "Unlock This Chapter" button. Opens the same Wix-hosted login lightbox
+// (via the promptLogin bridge action already used by startLoginGate()),
+// then automatically re-checks access via unlockChapter() once the
+// visitor's actually signed in - no need for them to separately click
+// "Unlock This Chapter" again themselves after logging in.
+function promptLoginForChapter(chapterId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Opening login...'; }
+
+  wixBridge.call('promptLogin', {}, 300000)
+    .then((isLoggedIn) => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Log In'; }
+      if (isLoggedIn) {
+        // Find the matching "Unlock This Chapter" button for this same
+        // chapter so its own checking-state UI updates correctly too,
+        // rather than calling unlockChapter() with no button reference.
+        const unlockBtn = btn && btn.previousElementSibling;
+        unlockChapter(chapterId, unlockBtn);
+      }
+    })
+    .catch(err => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Log In'; }
+      const mount = document.getElementById('content-mount-' + chapterId);
+      const lockedDiv = mount ? mount.previousElementSibling : null;
+      const teaser = lockedDiv ? lockedDiv.querySelector('.chapter-locked-teaser') : null;
+      if (teaser) teaser.textContent = 'Could not open the login screen - try again. (' + (err && err.message ? err.message : '') + ')';
+    });
+}
+
 // Init all quizzes
 Object.keys(quizData).forEach(id => {
   window['answers_'+id] = null;
@@ -3616,7 +3697,7 @@ async function analyzeRoping(id) {
 
     if (!result || !result.text) throw new Error('No feedback came back - try again in a moment.');
 
-    resultBox.innerHTML = '<div class="vc-result-label">Hondo's Feedback &middot; ' + tier.name + ' &middot; ' + tier.credits + ' credit' + (tier.credits === 1 ? '' : 's') +
+    resultBox.innerHTML = '<div class="vc-result-label">Hondo&#39;s Feedback &middot; ' + tier.name + ' &middot; ' + tier.credits + ' credit' + (tier.credits === 1 ? '' : 's') +
       (typeof result.creditsRemaining === 'number' ? ' &middot; ' + result.creditsRemaining + ' credits left' : '') +
       '</div><div class="vc-coach-response">' + formatCoachResponse(result.text) + '</div>';
     recordVideoAnalysis(id, tier);
@@ -3625,7 +3706,7 @@ async function analyzeRoping(id) {
     const isCreditError = /credit/i.test(message);
     const isAuthError = /log ?in|not authenticated|member/i.test(message);
     let hint = 'A clip under 60 seconds in a common format like MP4 usually works best - try again.';
-    if (isCreditError) hint = 'Buy more credits or check your plan to continue getting Hondo's feedback.';
+    if (isCreditError) hint = "Buy more credits or check your plan to continue getting Hondo's feedback.";
     if (isAuthError) hint = 'Log in to your account to use Hondo.';
     resultBox.innerHTML = '<p class="vc-error">Something went wrong analyzing this video: ' + message + '. ' + hint + '</p>';
   } finally {

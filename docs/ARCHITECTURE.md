@@ -1127,3 +1127,44 @@ which don't exist until the pending Platforms application is approved -
 though note the Subscriptions API itself doesn't strictly require that
 approval, so this could in principle be tested earlier via PayPal's
 sandbox if there's appetite to get ahead of it.
+
+---
+
+## Course: entire page's JavaScript was broken by two unescaped apostrophes (2026-07-25)
+
+**Far more severe than the reported symptom.** Reported bug: a locked
+chapter's teaser text said "log in to unlock this chapter," but there
+was no actual login button anywhere to do that with - `unlockChapter()`
+only ever checks access, it never had a way to open Wix's login lightbox
+itself. Real, confirmed gap, fixed by adding a `.chapter-login-btn` next
+to every "Unlock This Chapter" button (31 of them), wired to a new
+`promptLoginForChapter()` function that opens the login lightbox via the
+same `promptLogin` bridge action `startLoginGate()` already used
+elsewhere, then automatically re-checks access once the visitor is
+actually signed in.
+
+**While verifying that fix, found something much bigger**: `course-embed.html`
+is one single inline `<script>` tag for the entire page (confirmed - not
+split into multiple script blocks). Two apostrophes inside single-quoted
+JS string literals (`'...Hondo's Feedback...'` and `'...Hondo's
+feedback.'`) were never escaped, both introduced in the "Name the coach:
+Hondo" commit. A syntax error ANYWHERE in a single script tag prevents
+the ENTIRE tag from parsing - meaning since that commit, **every piece
+of JavaScript on this page was completely non-functional**: quizzes,
+chapter unlocking, the Hondo AI-coach video-analysis feature, progress
+tracking, all of it - not just the login button gap that was actually
+reported. Confirmed via `node --check` against the extracted script
+block, which failed at the first unescaped apostrophe; fixing both and
+re-running confirmed the whole block now parses cleanly.
+
+**Lesson for this file specifically going forward**: it's one giant
+script tag with no build step, no linter, and no bundler catching syntax
+errors before they ship - a single unescaped character anywhere in it
+can silently take down the entire page's interactivity with no error
+visible to anyone except someone who opens the browser console (or, as
+happened here, runs the raw JS through a syntax checker directly).
+Worth a deliberate pre-paste syntax check (`node --check` against the
+extracted `<script>` contents, same as done here) before any future
+edit to this file gets pasted into the live Wix embed, given how easy
+this specific mistake is to make with any string containing a
+contraction or possessive apostrophe.
