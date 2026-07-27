@@ -274,7 +274,11 @@ why that matters).
 - All backend logic written and syntax-checked: `event-setup.jsw`,
   `matching-engine.jsw`, `payments.jsw`, `notifications.jsw`,
   `qr-and-alerts.jsw`, `onboarding.jsw`
-- All 12 real-product Data Collections created and verified live in Wix
+- All 13 real-product Data Collections created and verified live in Wix
+  (`DrawProAccountUsers` added 2026-07-27 via the REST API directly -
+  `POST /wix-data/v2/collections`, ADMIN-only permissions on all 4
+  operations, same pattern documented in `data-collections/SCHEMA.md`'s
+  "Creating/managing collections via the REST API" section)
 - `DrawProWaitlist` (coming-soon signup) fully working end-to-end, tested live
 - Fee-calculation math confirmed (4% + $1.50 flat platform fee)
 - `canPair()`-equivalent cap logic, spacing algorithm, manual-override
