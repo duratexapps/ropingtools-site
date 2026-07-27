@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Steer Me — Events (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  /* NEW, added 2026-07-27, for the Steer Me tour screenshot redesign -
+     static mockup of the REAL Events screen (app/events.tsx +
+     EventCard.tsx), built for screenshotting rather than the live Expo
+     app, per explicit direction. Used for TWO tour slides: the full
+     page for "See What's Coming Up," and a cropped/zoomed region
+     (#zoomTarget) for "Enter the Draw, Right From Here," since the real
+     EventCard already puts both concerns on one card - no need for a
+     near-duplicate second mockup file. */
+
+  :root {
+    --tan: #E4DAC6; --tanLight: #FBF8F1; --espresso: #1E140F;
+    --brass: #A9812E; --saddle: #7C6448; --ink: #2A2420;
+    --bone: #F4EFE4; --green: #4B5A3C;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Work Sans', sans-serif; background: var(--bone); width: 390px; }
+  .topbar { background: var(--espresso); padding: 18px 16px 14px; color: var(--bone); }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 20px; }
+  .topbar .subtitle { font-size: 12px; color: var(--tan); margin-top: 2px; }
+  .content { padding: 16px; }
+  .card { background: var(--tanLight); border: 1px solid var(--saddle); border-radius: 6px; padding: 14px; margin-bottom: 14px; }
+  .ev-name { font-weight: 700; font-size: 15px; color: var(--espresso); }
+  .producer-line { font-weight: 600; font-size: 11.5px; color: var(--brass); margin-top: 1px; }
+  .meta { font-size: 12px; color: var(--saddle); margin-top: 4px; }
+  .rating { font-weight: 700; font-size: 12.5px; color: var(--brass); margin-top: 6px; }
+  .division-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .division-pill {
+    display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--saddle);
+    border-radius: 999px; padding: 5px 6px 5px 10px; background: var(--bone);
+  }
+  .check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--saddle); background: var(--bone);
+    display: flex; align-items: center; justify-content: center; }
+  .check.on { background: var(--green); border-color: var(--green); color: var(--bone); font-size: 10px; }
+  .division-text { font-weight: 600; font-size: 12px; color: var(--espresso); }
+  .division-count { font-size: 10px; color: var(--brass); font-weight: 700; }
+  .partners-btn { background: var(--espresso); color: var(--bone); border-radius: 6px; padding: 4px 8px;
+    font-weight: 600; font-size: 10.5px; }
+
+  #zoomTarget { position: relative; }
+  .enter-draw-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--brass); color: var(--bone); border-radius: 6px; padding: 9px;
+    margin-top: 10px; font-weight: 600; font-size: 12.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Events</h1>
+  <div class="subtitle">Posted by real producers - mark your plans to attend</div>
+</div>
+
+<div class="content">
+  <div class="card" id="zoomTarget">
+    <div class="ev-name">Saturday Jackpot</div>
+    <div class="producer-line">Circle T Ropings · Aug 1, 2026</div>
+    <div class="meta">Hallettsville, TX · $200/entry</div>
+    <div class="rating">★ 4.8 (12 ratings)</div>
+
+    <div class="division-row">
+      <div class="division-pill">
+        <div class="check on">✓</div>
+        <div class="division-text">7.5 <span class="division-count">18 attending</span></div>
+        <div class="partners-btn">Partners</div>
+      </div>
+      <div class="division-pill">
+        <div class="check"></div>
+        <div class="division-text">9.5 <span class="division-count">9 attending</span></div>
+        <div class="partners-btn">Partners</div>
+      </div>
+    </div>
+
+    <div class="enter-draw-btn">↗ Enter the Draw</div>
+  </div>
+
+  <div class="card">
+    <div class="ev-name">Labor Day Ropin'</div>
+    <div class="producer-line">Posted via Draw Pro · Sep 5, 2026</div>
+    <div class="meta">Gonzales, TX · See listing</div>
+    <div class="division-row">
+      <div class="division-pill">
+        <div class="check"></div>
+        <div class="division-text">8.5 <span class="division-count">4 attending</span></div>
+        <div class="partners-btn">Partners</div>
+      </div>
+    </div>
+    <div class="enter-draw-btn">↗ Enter the Draw</div>
+  </div>
+</div>
+
+</body>
+</html>

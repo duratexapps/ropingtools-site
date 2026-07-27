@@ -1351,3 +1351,34 @@ real backend access but would see an EMPTY dashboard, not the events
 they're supposed to help with - it needs to query across
 `getAccessibleProducerIds(member._id)` instead. All three are listed in
 `DRAWPRO_NEXT_STEPS.md`.
+
+---
+
+## Steer Me's own tour got the same screenshot treatment (2026-07-27)
+
+Follow-up question after the Draw Pro tour work above: Steer Me
+(separate repo, `steer-me-app`) has its own, completely independent
+"How Steer Me Works" tour (`app/(auth)/tour.tsx`) with the exact same
+underlying problem - icon + text only, no screen previews.
+
+Different tech stack than Draw Pro's HTML-embed tours, so the mechanism
+is different: no base64-inlining (Expo has a real static-asset pipeline
+via `require()`, so the 4 screenshots live as real PNG files under
+`assets/tour/` instead). Per explicit direction, images are static HTML
+mockups of the app's real screens/components (`docs/mockups/steer-me/`
+in *this* repo - `steerme-browse-mockup.html`, `-events-mockup.html`,
+`-post-mockup.html`, faithfully copying colors/fonts from
+`src/theme/theme.ts` and layout from `PartnerCard.tsx`/`EventCard.tsx`/
+`NeedPostCard.tsx`), screenshotted headlessly the same way as Draw Pro's,
+rather than capturing the actual running Expo app - chosen specifically
+to avoid getting blocked on app-boot/env/seed-data issues, at the cost
+of being a faithful reproduction rather than a literal capture. The
+`events` mockup does double duty for two slides (full page for "See
+What's Coming Up," a cropped/zoomed region for "Enter the Draw, Right
+From Here") since the real `EventCard` already puts both concerns on one
+card - avoided a near-duplicate second mockup file.
+
+Same overflow lesson applied preemptively rather than waited for: the
+slide content switched from a plain centered `View` to a `ScrollView`,
+since a taller slide (image + hints) risks the identical small-phone
+overflow bug found and fixed on Draw Pro's tour earlier the same day.

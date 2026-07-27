@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Steer Me — Browse (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  /* NEW, added 2026-07-27, for the Steer Me tour screenshot redesign
+     (see docs/ARCHITECTURE.md's entry that day) - a static mockup of
+     the REAL Browse screen (app/(tabs)/browse.tsx + PartnerCard.tsx),
+     built for screenshotting rather than the live Expo app, per
+     explicit direction. Colors/fonts copied from src/theme/theme.ts
+     verbatim, not approximated. */
+
+  :root {
+    --tan: #E4DAC6; --tanLight: #FBF8F1; --espresso: #1E140F; --espressoDark: #120C08;
+    --brass: #A9812E; --brassLight: #C9A54F; --saddle: #7C6448; --ink: #2A2420;
+    --bone: #F4EFE4; --green: #4B5A3C; --oxblood: #5C2430;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Work Sans', sans-serif; background: var(--bone); width: 390px; }
+  .topbar {
+    background: var(--espresso);
+    padding: 18px 16px 14px;
+    color: var(--bone);
+  }
+  .topbar-row { display: flex; align-items: center; justify-content: space-between; }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 20px; }
+  .help-btn { width: 22px; height: 22px; border-radius: 999px; background: var(--brass); color: var(--espresso);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+  .content { padding: 16px; }
+  .cap-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .cap-pill {
+    background: var(--tanLight); border: 1.5px solid var(--saddle); border-radius: 999px;
+    padding: 6px 14px; font-weight: 700; font-size: 13px; color: var(--espresso);
+  }
+  .loc-toggle { font-size: 12px; color: var(--saddle); font-weight: 600; }
+  .card {
+    display: flex; gap: 14px; align-items: flex-start; background: var(--tanLight);
+    border: 1px solid var(--saddle); border-left: 4px solid var(--brass); border-radius: 6px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .tag {
+    background: var(--espresso); color: var(--bone); font-family: 'Playfair Display', serif; font-weight: 900;
+    font-size: 15px; border-radius: 6px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .info { flex: 1; }
+  .name-row { display: flex; align-items: center; gap: 8px; }
+  .name { font-weight: 700; font-size: 15px; color: var(--ink); }
+  .star { color: var(--brass); font-size: 15px; }
+  .meta { font-size: 12px; color: var(--espresso); margin-top: 2px; }
+  .badge-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .badge { font-weight: 700; font-size: 10px; text-transform: uppercase; color: var(--bone);
+    background: var(--green); padding: 2px 7px; border-radius: 4px; }
+  .badge.brass { background: var(--brass); }
+  .link-row { display: flex; gap: 12px; margin-top: 8px; font-size: 11px; }
+  .link-row a { color: var(--saddle); text-decoration: underline; }
+  .req-btn { background: var(--espresso); color: var(--bone); border-radius: 6px; padding: 8px 12px;
+    font-weight: 600; font-size: 12px; white-space: nowrap; align-self: center; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-row">
+    <h1>Browse</h1>
+    <div class="help-btn">?</div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="cap-row">
+    <div class="cap-pill">10.5 &amp; under</div>
+    <div class="loc-toggle">📍 Use my location</div>
+  </div>
+
+  <div class="card">
+    <div class="tag">4.5</div>
+    <div class="info">
+      <div class="name-row"><div class="name">Jake Alvarez</div><div class="star">★</div></div>
+      <div class="meta">Hallettsville, TX</div>
+      <div class="badge-row"><div class="badge">Heeler</div></div>
+      <div class="link-row"><a>Report</a><a>Block</a></div>
+    </div>
+    <div class="req-btn">Request</div>
+  </div>
+
+  <div class="card">
+    <div class="tag">6.0</div>
+    <div class="info">
+      <div class="name-row"><div class="name">Casey Trent</div></div>
+      <div class="meta">Gonzales, TX</div>
+      <div class="badge-row"><div class="badge">Header</div><div class="badge brass">Nearby now</div></div>
+      <div class="link-row"><a>Report</a><a>Block</a></div>
+    </div>
+    <div class="req-btn">Request</div>
+  </div>
+
+  <div class="card">
+    <div class="tag">5.5</div>
+    <div class="info">
+      <div class="name-row"><div class="name">Maria Ortiz</div></div>
+      <div class="meta">Yoakum, TX</div>
+      <div class="badge-row"><div class="badge">Heeler</div></div>
+      <div class="link-row"><a>Report</a><a>Block</a></div>
+    </div>
+    <div class="req-btn">Sent</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Steer Me — Post a Need (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  /* NEW, added 2026-07-27, for the Steer Me tour screenshot redesign -
+     static mockup of the REAL Post screen (app/(tabs)/post.tsx +
+     NeedPostCard.tsx), built for screenshotting rather than the live
+     Expo app, per explicit direction. */
+
+  :root {
+    --tan: #E4DAC6; --tanLight: #FBF8F1; --espresso: #1E140F;
+    --brass: #A9812E; --saddle: #7C6448; --ink: #2A2420;
+    --bone: #F4EFE4; --green: #4B5A3C;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Work Sans', sans-serif; background: var(--bone); width: 390px; }
+  .topbar { background: var(--espresso); padding: 18px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .topbar h1 { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 20px; color: var(--bone); }
+  .post-btn { background: var(--brass); color: var(--espresso); border-radius: 6px; padding: 7px 14px; font-weight: 700; font-size: 12.5px; }
+  .content { padding: 16px; }
+  .card { display: flex; flex-direction: column; gap: 10px; background: var(--tanLight); border: 1px solid var(--saddle);
+    border-radius: 6px; padding: 14px; margin-bottom: 14px; }
+  .head-row { display: flex; gap: 12px; }
+  .tag { background: var(--espresso); color: var(--bone); font-family: 'Playfair Display', serif; font-weight: 900;
+    font-size: 15px; border-radius: 6px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; }
+  .ev-name { font-weight: 700; font-size: 14.5px; color: var(--espresso); }
+  .meta { font-size: 12px; color: var(--saddle); margin-top: 2px; }
+  .poster-line { font-size: 11.5px; color: var(--ink); margin-top: 4px; }
+  .badge-row { display: flex; gap: 6px; margin-top: 6px; }
+  .badge { font-weight: 700; font-size: 10px; text-transform: uppercase; color: var(--bone); background: var(--green);
+    padding: 2px 7px; border-radius: 4px; }
+  .listed-badge { font-weight: 700; font-size: 10px; color: var(--brass); }
+  .req-btn { align-self: flex-start; background: var(--espresso); color: var(--bone); border-radius: 6px;
+    padding: 8px 14px; font-weight: 600; font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Post a Need</h1>
+  <div class="post-btn">+ Post</div>
+</div>
+
+<div class="content">
+  <div class="card">
+    <div class="head-row">
+      <div class="tag">5.0</div>
+      <div>
+        <div class="ev-name">Saturday Jackpot</div>
+        <div class="meta">Aug 1, 2026 · Circle T Ropings</div>
+        <div class="meta">Hallettsville, TX</div>
+        <div class="poster-line">Posted by Dana Reyes · Header · Yoakum, TX</div>
+        <div class="badge-row">
+          <div class="badge">9.5</div>
+          <div class="listed-badge">✓ Listed event</div>
+        </div>
+      </div>
+    </div>
+    <div class="req-btn">Request</div>
+  </div>
+
+  <div class="card">
+    <div class="head-row">
+      <div class="tag">4.0</div>
+      <div>
+        <div class="ev-name">Fall Classic Roping</div>
+        <div class="meta">Oct 12, 2026 · Rocking H Arena</div>
+        <div class="poster-line">Posted by Tyler Mabry · Heeler · Cuero, TX</div>
+        <div class="badge-row">
+          <div class="badge">7.5</div>
+        </div>
+      </div>
+    </div>
+    <div class="req-btn">Request</div>
+  </div>
+</div>
+
+</body>
+</html>
