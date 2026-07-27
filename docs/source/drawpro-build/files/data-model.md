@@ -122,6 +122,7 @@ manually-closed books.
 | `entryCloseTeamCount` | number (nullable) | Used if `entryCloseMode = teamCount` |
 | `rotationSuggestionThreshold` (nullable) | number | **NEW, added 2026-07-23.** Set at class creation (Producer Event Setup) — "how big a field should nudge me about splitting into rotations at all," defaults to 300 if not set. Deliberately NOT the rotation size itself, which can't be sensibly judged before entries even open — see `rotationSize` below |
 | `rotationSize` (nullable) | number | **NEW, added 2026-07-23.** The actual teams-per-rotation, set later via `setClassRotationSize()` on Producer Draw Sheet Review once entries are closed and the real field size is known (real confirmed scenario: single classes with 200-500+ teams, sometimes run across multiple arenas). Purely a display/pacing label computed at read time over the SAME static draw order (`matching-engine.jsw`'s output) — not stored per-team, not dynamic, and does not track catches, advancement, buy-backs, or results. That stays the producer's own manual, in-arena process, same established boundary as `incentiveCapNumber` above. See `producer-draw-sheet-review.js`'s `assignRotations()` |
+| `sequenceMode` | text (enum) | **NEW, added 2026-07-27.** `random` (default) \| `entry_order`. "First to enter, last to rope" — a real, long-standing jackpot incentive to get entries in early. Opt-in per class via `#checkboxFirstToEnterLastToRope` on Producer Event Setup, not a global default. When `entry_order`, `matching-engine.jsw`'s `sequenceWithSpacing()` orders run slots by each team's entry timestamp instead of a random shuffle (earliest entry -> highest/last team number), still fully respecting the 10-team minimum spacing rule on top. Uses `DrawProEntrants.entryTimestamp`, already captured at submission time — no new field needed there |
 | `status` | text (enum) | `draft` \| `open` \| `closed` \| `finalized` \| `drawn` \| `notified` — moved from the event level; each class runs its own draw independently |
 | `createdDate` / `updatedDate` | date/time | Wix-managed |
 
@@ -182,7 +183,7 @@ for the other two). Both scanned-card and self-entry paths write here.
 | `isFeeResponsible` | boolean | For `preformed_team` entries: true for whichever entrant submitted/owns payment, false for their partner. Always true for `solo` entries — see "Fee responsibility" below |
 | `paymentStatus` | text (enum) | `unpaid` \| `pending_cash` \| `paid` |
 | `paymentReferenceNumber` | text (nullable) | Shown to the entrant once paid — set for both cash (producer-confirmed) and online (provider-confirmed) payments |
-| `entryTimestamp` | date/time | |
+| `entryTimestamp` | date/time | Set once at submission (`buildEntrantRecord()`). Was previously informational only; as of 2026-07-27 also actively read by `matching-engine.jsw` when a class's `sequenceMode` is `entry_order` ("first to enter, last to rope") and by `csv-export.jsw`'s draw-sheet export |
 
 **Guest cap enforcement:** query `guestContactHash` across all events within the rolling window (frequency still TBD) before allowing a new guest entry.
 

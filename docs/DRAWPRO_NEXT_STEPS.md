@@ -195,6 +195,32 @@ not a confirmed choice.
   store the returned plan id as the `drawpro-paypal-subscription-plan-id`
   secret, and build the actual "Subscribe" UI (a natural fit on the new
   Producer Dashboard page) — none of that frontend work exists yet.
+- **NEW, not yet built**: multi-user accounts (adding helpers under one
+  producer's subscription so multiple people can run more than one event
+  at a time) and tiered pricing beyond the $149/year single-user base.
+  Recommended in `docs/ARCHITECTURE.md`'s 2026-07-27 entry: $149 (1 user,
+  unchanged) / $199 (3 users) / $249 (unlimited) — stays under every
+  researched competitor price point at every tier (Carlsen's RMP $189/yr
+  single computer, $299/yr two licenses; Rodeo Producer $100/yr + $50/
+  event). Would need a new `DrawProAccountUsers` join collection plus
+  additional PayPal Billing Plans (the API already supports multiple
+  plans per product) — not started, needs prioritizing against everything
+  else on this list first.
+
+## 6.5. "First to enter, last to rope" + CSV export (2026-07-27) — built, needs live verification
+Both built (`DrawProEventClasses.sequenceMode`, `matching-engine.jsw`'s
+updated `sequenceWithSpacing()`, new `csv-export.jsw`) — see
+`docs/ARCHITECTURE.md`'s entry for the full design. Two things still need
+a real producer/live-editor check before trusting these in front of an
+actual event:
+- **New Editor element**: `#checkboxFirstToEnterLastToRope` on Producer
+  Event Setup (see `DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`) — not yet added
+  to the live page.
+- **New Editor element**: `#btnExportCSV` on Producer Draw Sheet Review —
+  also not yet added, AND the download mechanism itself
+  (`wixLocation.to('data:text/csv;...')`) is untested live. Confirm in
+  Preview that it actually triggers a file save prompt rather than
+  navigating the page away, before relying on it with a real producer.
 
 ## 7. Legal drafts — DRAFT status, not counsel-reviewed
 Four documents exist (ToS, Privacy Policy, Minor & Parental Consent

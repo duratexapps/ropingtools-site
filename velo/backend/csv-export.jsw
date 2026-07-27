@@ -1,0 +1,124 @@
+/**
+ * csv-export.jsw
+ * Velo backend web module — NEW, added 2026-07-27.
+ *
+ * Lets a producer export a class's drawn run order as a CSV file,
+ * including each team's entry timestamp. Built for a real, explicitly
+ * stated transition problem: producers won't abandon whatever
+ * software/spreadsheet they currently run alongside/before switching to
+ * Draw Pro, so an export path is needed for the interim.
+ *
+ * Researched first, per explicit direction, before designing any column
+ * layout: no competitor product researched this session (Rodeo Producer,
+ * Carlsen's Roping Management Program, Roping Assistant Professional,
+ * Team Roping System/rodeosystem.com, Speedy Steeds, RodeoPro) publishes
+ * a documented, exact import column schema. Two of them (Speedy Steeds,
+ * RodeoPro) do advertise CSV import/export as a general capability, but
+ * neither publishes the literal header row it expects. With no real
+ * external standard to match, this exports a plain, clearly-labeled
+ * generic CSV instead of guessing at a proprietary competitor format —
+ * a producer can hand-map these columns into whatever they use. Columns
+ * are easy to add/reorder later if a producer reports a specific need.
+ *
+ * Download mechanism: Wix Velo page code has no direct DOM/File API
+ * access (no document.createElement, no Blob-backed anchor click), so
+ * this function only returns the CSV as a plain string. The frontend
+ * (producer-draw-sheet-review.js) triggers the actual download via
+ * wixLocation.to('data:text/csv;charset=utf-8,' + encodeURIComponent(csv))
+ * — a real, working technique for exactly this Velo limitation, since
+ * text/csv isn't a browser-renderable type and triggers a save prompt
+ * instead of navigating away. Flagging as untested-live: this needs a
+ * real check in Preview/live once built, same as everything else in this
+ * project that depends on actual browser/Wix Editor behavior.
+ */
+
+import wixData from 'wix-data';
+
+const EVENTS = 'DrawProEvents';
+const CLASSES = 'DrawProEventClasses';
+const ENTRANTS = 'DrawProEntrants';
+const TEAMS = 'DrawProTeams';
+
+const CSV_HEADERS = [
+    'Team #', 'Header Name', 'Header Number', 'Heeler Name', 'Heeler Number',
+    'Entry Timestamp', 'Class', 'Event Date'
+];
+
+/**
+ * Builds the CSV text for one class's drawn teams. Requires the class to
+ * already be drawn (or beyond) — there's no run order to export before
+ * that. Same full-pagination pattern as matching-engine.jsw's
+ * queryAllPages(), since a class can have 200-500+ teams and a single
+ * .find() call silently truncates at Wix Data's 1000-item page cap.
+ */
+export async function exportDrawSheetCSV(classId) {
+    const cls = await wixData.get(CLASSES, classId);
+    if (!cls) throw new Error('Class not found.');
+    if (!['drawn', 'notified'].includes(cls.status)) {
+        throw new Error(`Class must be drawn before exporting. Current status: ${cls.status}`);
+    }
+    const event = await wixData.get(EVENTS, cls.eventId);
+
+    const teams = await queryAllPages(wixData.query(TEAMS).eq('classId', classId).ascending('teamNumber'));
+    const entrantsById = new Map(
+        (await queryAllPages(wixData.query(ENTRANTS).eq('classId', classId))).map((e) => [e._id, e])
+    );
+
+    const rows = teams.map((team) => {
+        const header = entrantsById.get(team.headerEntrantId);
+        const heeler = entrantsById.get(team.heelerEntrantId);
+        // A team's effective entry timestamp for display purposes: the
+        // earlier of the two entrants' own timestamps — same rule used
+        // to actually SEQUENCE the draw when sequenceMode is
+        // 'entry_order' (see matching-engine.jsw's getEffectiveEntryTimestamp),
+        // kept consistent here even for classes that drew in pure random
+        // order, so the exported timestamp always means the same thing.
+        const headerTime = header ? new Date(header.entryTimestamp) : null;
+        const heelerTime = heeler ? new Date(heeler.entryTimestamp) : null;
+        const effectiveTime = earlierOf(headerTime, heelerTime);
+
+        return [
+            team.teamNumber,
+            header ? `${header.firstName} ${header.lastName}` : '',
+            header ? header.classificationNumber : '',
+            heeler ? `${heeler.firstName} ${heeler.lastName}` : '',
+            heeler ? heeler.classificationNumber : '',
+            effectiveTime ? effectiveTime.toISOString() : '',
+            cls.label,
+            event.eventDate ? new Date(event.eventDate).toLocaleDateString() : ''
+        ];
+    });
+
+    return toCsvText([CSV_HEADERS, ...rows]);
+}
+
+function earlierOf(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    return a.getTime() <= b.getTime() ? a : b;
+}
+
+function toCsvText(rows) {
+    return rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
+}
+
+// Quotes any field containing a comma, quote, or newline, per standard
+// CSV escaping — names are free text and could plausibly contain a comma
+// (unlikely but not impossible), so this isn't skipped as unnecessary.
+function csvEscape(value) {
+    const str = String(value == null ? '' : value);
+    if (/[",\r\n]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+}
+
+async function queryAllPages(query) {
+    let results = await query.find();
+    const items = [...results.items];
+    while (results.hasNext()) {
+        results = await results.next();
+        items.push(...results.items);
+    }
+    return items;
+}

@@ -82,6 +82,13 @@
  *                            300 if left blank. Purely a pacing/display concept - Draw Pro doesn't track
  *                            catches, advancement, or results, same established boundary as
  *                            qualifiesForIncentive)
+ *   #checkboxFirstToEnterLastToRope (NEW, added 2026-07-27 - checkbox, unchecked by default. "First to
+ *                            enter, last to rope" - a real, long-standing jackpot incentive (get entries
+ *                            in early so the producer isn't rushed right before start time). When
+ *                            checked, this class's run order is sequenced by entry timestamp instead of
+ *                            pure random - earliest entry ends up with the LAST (highest) team number.
+ *                            Opt-in per class, not a global default, since not every producer runs this
+ *                            incentive. See matching-engine.jsw's sequenceWithSpacing() for the algorithm)
  *   #btnAddClass           (button — adds this class, then clears the form for the next one)
  *
  *   -- Classes added so far (repeater) --
@@ -433,7 +440,8 @@ async function handleAddClass() {
         entryCloseMode: closeMode,
         entryCloseDateTime: closeMode === 'time' ? $w('#inputClassCloseDate').value : null,
         entryCloseTeamCount: closeMode === 'teamCount' ? parseInt($w('#inputClassCloseCount').value, 10) : null,
-        rotationSuggestionThreshold: parseOptionalNumber($w('#inputRotationThreshold').value)
+        rotationSuggestionThreshold: parseOptionalNumber($w('#inputRotationThreshold').value),
+        sequenceMode: $w('#checkboxFirstToEnterLastToRope').checked ? 'entry_order' : 'random'
     };
 
     $w('#btnAddClass').disable();
@@ -470,6 +478,7 @@ function clearClassForm() {
     $w('#inputClassEntryOpen').value = '';
     $w('#inputClassCloseDate').value = '';
     $w('#inputClassCloseCount').value = '';
+    safeCall(() => { $w('#checkboxFirstToEnterLastToRope').checked = false; });
 }
 
 /* ------------------------------------------------------------------ */

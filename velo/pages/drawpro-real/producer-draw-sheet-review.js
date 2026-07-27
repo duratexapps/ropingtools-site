@@ -69,6 +69,11 @@
  *   #boxOverrideConfirm       (must acknowledge before override applies)
  *   #checkboxOverrideAck
  *   #btnSendNotifications     (visible once status = 'drawn')
+ *   #btnExportCSV             (NEW, added 2026-07-27 — visible once status = 'drawn' or 'notified'.
+ *                             Exports the class's run order, including entry timestamps, as a CSV
+ *                             for producers still using other software alongside/before Draw Pro.
+ *                             See csv-export.jsw's file header for why the column layout is a plain
+ *                             generic format rather than matching a specific competitor product.)
  *   #textStatus
  */
 
@@ -80,6 +85,7 @@ import {
 } from 'backend/matching-engine.jsw';
 import { sendDrawNotifications, getManualContactList } from 'backend/notifications.jsw';
 import { setClassRotationSize } from 'backend/event-setup.jsw';
+import { exportDrawSheetCSV } from 'backend/csv-export.jsw';
 
 const DEFAULT_ROTATION_SUGGESTION_THRESHOLD = 300;
 
@@ -133,6 +139,7 @@ function wireButtons() {
     $w('#btnApplyRotationSize').onClick(handleApplyRotationSize);
     $w('#btnDismissRotationSuggestion').onClick(() => $w('#boxRotationSuggestion').collapse());
     $w('#btnSwapSelected').disable();
+    safeCall(() => $w('#btnExportCSV').onClick(handleExportCSV));
 }
 
 /**
@@ -285,9 +292,30 @@ async function handleSignOff() {
         }
 
         $w('#btnSendNotifications').enable();
+        safeCall(() => $w('#btnExportCSV').enable());
     } catch (err) {
         setStatus(err.message, true);
         $w('#btnSignOff').enable();
+    }
+}
+
+/**
+ * Downloads the drawn run order (with entry timestamps) as a CSV. Velo
+ * page code has no direct File/Blob/anchor-click API, so the returned
+ * CSV text is handed to the browser via a data: URI navigation instead —
+ * text/csv isn't browser-renderable, so this triggers a save prompt
+ * rather than replacing the page. Untested live as of this writing (see
+ * csv-export.jsw's file header) — confirm the download actually prompts
+ * cleanly in Preview before relying on it in front of a real producer.
+ */
+async function handleExportCSV() {
+    setStatus('Building CSV…');
+    try {
+        const csv = await exportDrawSheetCSV(currentClassId);
+        wixLocation.to(`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`);
+        setStatus('CSV download started.');
+    } catch (err) {
+        setStatus(err.message, true);
     }
 }
 

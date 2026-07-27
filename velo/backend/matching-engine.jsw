@@ -31,7 +31,11 @@
  *  4. Anyone left unmatched goes to manual override.
  *  5. Sequence all teams (pre-formed + drawn) so no entrant runs twice
  *     within a 10-team gap. If impossible for a given field, flag it and
- *     notify the producer rather than guessing.
+ *     notify the producer rather than guessing. Order is random by
+ *     default, or by entry timestamp (earliest entry -> latest run slot,
+ *     "first to enter, last to rope") if the class opted into
+ *     sequenceMode: 'entry_order' — see sequenceWithSpacing()'s own
+ *     comment, added 2026-07-27.
  *  6. Cap rule is absolute — even manual override cannot exceed either
  *     the combined cap or the heeler sub-cap. Any attempted violation is
  *     logged, never executed.
@@ -157,7 +161,7 @@ async function executeDraw(classId) {
     );
 
     const allTeams = [...preFormedTeams, ...drawnTeams];
-    const sequenced = sequenceWithSpacing(allTeams, MIN_SPACING);
+    const sequenced = sequenceWithSpacing(allTeams, MIN_SPACING, cls.sequenceMode);
 
     // Persist teams - a single bulkInsert() instead of one wixData.insert()
     // per team. Real, confirmed scaling problem: at 100-500+ teams (real
@@ -357,9 +361,9 @@ function shuffle(array) {
 
 /**
  * Assigns run-order team numbers such that no entrant appears in two
- * team numbers within MIN_SPACING of each other. Greedy placement:
- * shuffle the team list, then walk through assigning each team to the
- * earliest available slot that doesn't violate spacing for either of
+ * team numbers within MIN_SPACING of each other. Greedy placement: order
+ * the team list (see below), then walk through assigning each team to
+ * the earliest available slot that doesn't violate spacing for either of
  * its two entrants. If no such slot exists for a team by the time all
  * slots are placed, flag it rather than forcing a violation.
  *
@@ -367,15 +371,31 @@ function shuffle(array) {
  * slots produced a separate team object referencing the same entrantId,
  * lastSlotForEntrant naturally accumulates every one of that entrant's
  * runs regardless of which pool-expansion slot produced them.
+ *
+ * sequenceMode ('random' | 'entry_order', added 2026-07-27 — see
+ * event-setup.jsw's VALID_SEQUENCE_MODES comment for the product framing):
+ *  - 'random' (default/unchanged): the list is shuffled before placement,
+ *    same as always — pure random run order aside from spacing fixes.
+ *  - 'entry_order' ("first to enter, last to rope"): instead of a random
+ *    shuffle, the list is sorted by each team's effective entry timestamp,
+ *    LATEST first. Since greedy placement always fills the lowest-numbered
+ *    OPEN slot first, processing latest-entered teams first means they
+ *    claim the early slots, leaving earliest-entered teams to land in the
+ *    later slots by the time their turn comes — i.e. earliest entry =
+ *    highest team number = runs last. Spacing is still fully enforced on
+ *    top of this ordering, unchanged; the incentive changes WHERE in the
+ *    queue a team is considered, not whether spacing rules apply to it.
  */
-function sequenceWithSpacing(teams, minSpacing) {
-    const shuffled = shuffle([...teams]);
-    const totalSlots = shuffled.length;
+function sequenceWithSpacing(teams, minSpacing, sequenceMode) {
+    const ordered = sequenceMode === 'entry_order'
+        ? [...teams].sort((a, b) => getEffectiveEntryTimestamp(b) - getEffectiveEntryTimestamp(a))
+        : shuffle([...teams]);
+    const totalSlots = ordered.length;
     const slots = new Array(totalSlots).fill(null);
     const lastSlotForEntrant = new Map(); // entrantId -> last assigned slot index
     const unresolvedSpacingConflicts = [];
 
-    for (const team of shuffled) {
+    for (const team of ordered) {
         const headerId = team.header._id;
         const heelerId = team.heeler._id;
 
@@ -409,6 +429,29 @@ function sequenceWithSpacing(teams, minSpacing) {
 
     const numberedTeams = slots.map((team, idx) => ({ ...team, teamNumber: idx + 1 }));
     return { teams: numberedTeams, unresolvedSpacingConflicts };
+}
+
+/**
+ * A team's "entry order" for the 'entry_order' sequenceMode. Every
+ * DrawProEntrants record already carries entryTimestamp (set at
+ * submission time in event-setup.jsw's buildEntrantRecord() — no schema
+ * change needed for this feature).
+ *
+ * For a pre-formed team, header/heeler were submitted together, so this
+ * is just "when the team entered" either way.
+ *
+ * For a drawn (blind-draw) team, the two entrants each entered
+ * independently, at different times, and never chose each other — the
+ * "team" didn't exist until this algorithm ran. Confirmed decision
+ * (2026-07-27): use the EARLIER of the two entrants' own timestamps —
+ * whichever of the two entered first is what "counts" for that team's
+ * placement, same rule applied uniformly to both team types via one
+ * Math.min() rather than branching on preFormed.
+ */
+function getEffectiveEntryTimestamp(team) {
+    const headerTime = new Date(team.header.entryTimestamp).getTime();
+    const heelerTime = new Date(team.heeler.entryTimestamp).getTime();
+    return Math.min(headerTime, heelerTime);
 }
 
 function violatesSpacing(entrantId, candidateSlot, lastSlotForEntrant, minSpacing) {

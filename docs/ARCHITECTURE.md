@@ -1168,3 +1168,69 @@ extracted `<script>` contents, same as done here) before any future
 edit to this file gets pasted into the live Wix embed, given how easy
 this specific mistake is to make with any string containing a
 contraction or possessive apostrophe.
+
+---
+
+## "First to enter, last to rope" sequencing + CSV export + multi-user pricing (2026-07-27)
+
+Three related asks in one message. First two are built; the third is a
+pricing recommendation only, not built.
+
+**"First to enter, last to rope"** — a real, long-standing jackpot
+incentive: entries submitted earlier get scheduled to run LATER, so
+producers aren't rushed by everyone entering at the last minute. Built
+as a per-class opt-in (`DrawProEventClasses.sequenceMode`: `random`
+default | `entry_order`), not a global behavior change, since not every
+producer runs this incentive. `matching-engine.jsw`'s
+`sequenceWithSpacing()` already did greedy placement into the lowest
+available open slot; the only change needed was WHAT ORDER teams are
+considered in before that placement runs — sorting by entry timestamp
+descending (instead of a random shuffle) means teams that entered latest
+get first crack at low slot numbers, pushing earliest-entered teams into
+the high slot numbers by the time their turn comes. The existing 10-team
+minimum-spacing enforcement is completely unchanged and still applies on
+top. No new field was needed for the timestamp itself —
+`DrawProEntrants.entryTimestamp` was already captured at submission time
+(`buildEntrantRecord()`), just not previously read by anything.
+
+**Open product question resolved**: a blind-drawn team's two entrants
+each entered independently and never chose each other, so "when did this
+team enter" was ambiguous. Confirmed decision: use the EARLIER of the
+two entrants' timestamps for a drawn team (same rule as a pre-formed
+team, computed via one `Math.min()` in `getEffectiveEntryTimestamp()`
+rather than branching on `preFormed`).
+
+**CSV export** — researched before designing, per explicit direction.
+Searched documented import/export specs for every competitor product
+already identified this session (Rodeo Producer, Carlsen's Roping
+Management Program, Roping Assistant Professional, Team Roping
+System/rodeosystem.com) plus two more that surfaced (Speedy Steeds,
+RodeoPro). Finding: no product publishes an exact column-level import
+schema publicly, so there's no real external standard to match. Built a
+plain, clearly-labeled generic CSV instead (`csv-export.jsw`'s
+`exportDrawSheetCSV()`) — Team #, Header/Heeler name + number, entry
+timestamp, class, event date — easy to adjust columns later against real
+producer feedback rather than a guessed-at proprietary format.
+
+Download mechanism is a real Velo constraint worth flagging: page code
+has no direct File/Blob/anchor-click API, so the backend only returns
+CSV text; the frontend triggers the download via
+`wixLocation.to('data:text/csv;charset=utf-8,' + encodeURIComponent(csv))`.
+This should work (text/csv isn't browser-renderable, so it prompts a
+save rather than navigating away) but is **untested live** as of this
+writing - confirm in Preview before relying on it in front of a real
+producer.
+
+**Multi-user accounts + tiered pricing** — design/pricing recommendation
+only, nothing built. Architecturally sound as a `DrawProAccountUsers`
+join collection (accountOwnerId, memberUserId, role) layered on top of
+the existing single-producer `DrawProProducerProfiles` + PayPal
+Subscriptions plan, not a replacement. Pricing benchmarked against
+Carlsen's RMP ($189/yr single computer, $299/yr two licenses) and Rodeo
+Producer ($100/yr + $50/event): recommended $149 (1 user, unchanged) /
+$199 (3 users) / $249 (unlimited), which stays under every researched
+competitor price point at every tier. Not implemented — PayPal Billing
+Plans already support multiple plans under one product, so this would
+extend `payments.jsw`'s existing `createSubscriptionPlan()` pattern
+rather than needing new payment infrastructure, whenever this is
+prioritized.

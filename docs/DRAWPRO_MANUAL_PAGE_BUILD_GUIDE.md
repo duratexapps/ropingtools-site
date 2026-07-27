@@ -235,6 +235,7 @@ the manual-entry fallback, built first per established sequencing.
 | `#inputClassCloseDate` | Date/time picker | Shown when close mode = `time` |
 | `#inputClassCloseCount` | Text input | Shown when close mode = `teamCount` |
 | `#inputRotationThreshold` | Text input | **NEW**, added 2026-07-23. Numeric, optional - e.g. "300." NOT the rotation size itself - that's decided later on Producer Draw Sheet Review once the real entrant count is known (see `#boxRotationSuggestion` in that page's build guide section). This is just "how big a field should nudge me about splitting at all" - a judgment call a producer can make in advance. Defaults to 300 if left blank |
+| `#checkboxFirstToEnterLastToRope` | Checkbox | **NEW**, added 2026-07-27. Unchecked by default. "First to enter, last to rope" - a real jackpot incentive to get entries in early. If checked, this class's run order is sequenced by entry timestamp instead of pure random - whoever entered earliest gets the LAST team number. Per-class opt-in, not a global setting |
 | `#btnAddClass` | Button | Adds this class, then clears the form so you can immediately add the next one |
 
 ### Classes added so far (repeater)
@@ -366,6 +367,7 @@ classes" entry for the full reasoning on why Draw Pro doesn't track anything bey
 | ID | Type | Notes |
 |---|---|---|
 | `#btnSendNotifications` | Button | Enable this once status reaches "drawn" — **won't actually send anything until the Triggered Email template is created and `DRAW_NOTIFICATION_EMAIL_ID` is set in `notifications.jsw`**, per the existing setup note in that file |
+| `#btnExportCSV` | Button | **NEW**, added 2026-07-27. Downloads the class's drawn run order (with entry timestamps) as a CSV, for producers still using other software alongside/before Draw Pro. Enabled once the draw completes, same timing as `#btnSendNotifications`. **Untested live as of this writing** — confirm in Preview that clicking it actually prompts a file download rather than navigating away, before relying on it in front of a real producer (see `csv-export.jsw`'s file header for the mechanism and why) |
 | `#textStatus` | Text | |
 
 No Tour Overlay elements on this page.

@@ -37,6 +37,16 @@ const AUDIT_LOG = 'DrawProAuditLog';
 
 const MANDATORY_ENTRY_FIELDS = ['firstName', 'lastName', 'classificationNumber', 'email'];
 const VALID_ENTRY_MODES = ['pick_or_draw', 'pick_only', 'draw_only'];
+// NEW, added 2026-07-27 — "first to enter, last to rope": a real, long-
+// standing jackpot incentive practice (get entries in early so the
+// producer isn't rushed right before start time). 'random' preserves the
+// existing pure-random run-order behavior (default — not every producer
+// runs this incentive); 'entry_order' switches matching-engine.jsw's
+// sequenceWithSpacing() to order run slots by entry timestamp instead of
+// a random shuffle. See matching-engine.jsw's own comment for exactly how
+// a team's effective entry timestamp is computed (matters for drawn/blind
+// teams, whose two entrants each entered independently).
+const VALID_SEQUENCE_MODES = ['random', 'entry_order'];
 
 /* ------------------------------------------------------------------ */
 /* Event creation (shell only — see createEventClass for roping detail) */
@@ -183,6 +193,11 @@ export async function createEventClass(eventId, classInput) {
         // same established boundary as qualifiesForIncentive.
         rotationSuggestionThreshold: classInput.rotationSuggestionThreshold || null,
         rotationSize: null,
+        // "First to enter, last to rope" toggle — see VALID_SEQUENCE_MODES
+        // comment above. Defaults to 'random' if the producer's form
+        // doesn't send a value, preserving today's behavior for anyone not
+        // opting into the incentive.
+        sequenceMode: classInput.sequenceMode || 'random',
         status: 'draft'
     };
 
@@ -218,6 +233,9 @@ function validateClassInput(classInput) {
     }
     if (!VALID_ENTRY_MODES.includes(classInput.entryModeAllowed)) {
         throw new Error(`entryModeAllowed must be one of: ${VALID_ENTRY_MODES.join(', ')}.`);
+    }
+    if (classInput.sequenceMode != null && !VALID_SEQUENCE_MODES.includes(classInput.sequenceMode)) {
+        throw new Error(`sequenceMode, if set, must be one of: ${VALID_SEQUENCE_MODES.join(', ')}.`);
     }
     if (typeof classInput.maxEntriesPerEntrant !== 'number' || classInput.maxEntriesPerEntrant <= 0) {
         throw new Error('maxEntriesPerEntrant must be a positive number.');
