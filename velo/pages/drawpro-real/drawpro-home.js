@@ -72,6 +72,7 @@
 import wixData from 'wix-data';
 import wixLocation from 'wix-location';
 import { currentMember } from 'wix-members-frontend';
+import { getAccessibleProducerIds } from 'backend/account-users.jsw';
 
 $w.onReady(async function () {
     const member = await currentMember.getMember().catch(() => null);
@@ -80,7 +81,16 @@ $w.onReady(async function () {
         safeCall(() => $w('#boxVisitorCTA').collapse());
         safeCall(() => $w('#boxProducerDashboard').expand());
         wireDashboardButtons();
-        await loadProducerEvents(member._id);
+        // FIXED 2026-07-27 - this used to query by member._id alone, which
+        // meant a signed-in HELPER user (added via account-users.jsw's
+        // multi-user accounts) saw an empty dashboard instead of the
+        // account owner's events, even though their backend access was
+        // already fully working. getAccessibleProducerIds() returns
+        // [member._id, ...anyAccountsTheyHelpOn] - always includes their
+        // own id first, so this is a no-op change for anyone who isn't an
+        // active helper on someone else's account.
+        const producerIds = await getAccessibleProducerIds(member._id);
+        await loadProducerEvents(producerIds);
     } else {
         safeCall(() => $w('#boxProducerDashboard').collapse());
         safeCall(() => $w('#boxVisitorCTA').expand());
@@ -116,13 +126,17 @@ function wireDashboardButtons() {
     // wireVisitorButtons() above.
 }
 
-async function loadProducerEvents(producerId) {
+async function loadProducerEvents(producerIds) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // hasSome(), not eq() - producerIds is now an array (own id + any
+    // accounts this member actively helps on), see the onReady() comment
+    // above. hasSome() with a single-item array behaves identically to
+    // the old eq() call, so this is safe for the common (non-helper) case.
     const [activeResult, pastResult] = await Promise.all([
-        wixData.query('DrawProEvents').eq('producerId', producerId).ge('eventDate', today).ascending('eventDate').find(),
-        wixData.query('DrawProEvents').eq('producerId', producerId).lt('eventDate', today).descending('eventDate').find()
+        wixData.query('DrawProEvents').hasSome('producerId', producerIds).ge('eventDate', today).ascending('eventDate').find(),
+        wixData.query('DrawProEvents').hasSome('producerId', producerIds).lt('eventDate', today).descending('eventDate').find()
     ]);
 
     renderEventRepeater('#repeaterActiveEvents', '#textNoActiveEvents', activeResult.items, {

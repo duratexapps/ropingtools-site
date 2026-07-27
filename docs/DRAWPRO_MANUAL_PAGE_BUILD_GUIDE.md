@@ -465,6 +465,34 @@ still placeholders until then (see the note at the bottom of this section).
 **Note on the code's `wixLocation.to()` calls**: several paths in `drawpro-home.js` (sign-up/login,
 Producer Event Setup, Producer Profile, Producer Draw Sheet Review) are placeholders — the real page
 URLs aren't known until each page exists in the Editor. Flagged directly in the file's own comments.
+
+---
+
+## Page 6: Accept Account Invite (NEW, added 2026-07-27)
+
+Closes a real gap: multi-user accounts (`backend/account-users.jsw`) let a producer invite helper
+users, but until this page exists, an invited person had no actual way to accept and start using their
+access — `acceptAccountInvite()` existed and worked, nothing called it.
+
+**This page doesn't exist in the Wix Editor yet — it needs to be CREATED first** (a brand-new page, not
+an edit to an existing one), same as Producer Profile/Producer Dashboard originally did. Once you create
+it and Wix's Git Integration assigns it a real filename under `roping-tools/src/pages/`, let me know the
+filename so the code (currently just sitting in `velo/pages/drawpro-real/accept-account-invite.js`,
+un-mirrored) can be copied into the right place — same two-repo mirroring rule as everything else.
+
+Source: `velo/pages/drawpro-real/accept-account-invite.js`. Expected URL once created:
+`/accept-account-invite?invite=<id>` — that's the link the (also not-yet-set-up, see
+`account-users.jsw`'s `ACCOUNT_INVITE_EMAIL_ID`) invite email will point to.
+
+| ID | Type | Notes |
+|---|---|---|
+| `#textHeading` | Text | e.g. "Join the Team" |
+| `#textStatus` | Text | Status/error messages |
+| `#boxSignInPrompt` | Container | Shown only if the invited person isn't signed in yet |
+| `#btnSignIn` | Button (inside `#boxSignInPrompt`) | Opens Wix's own hosted login lightbox (includes a "Sign up" path already — no separate custom signup form needed) |
+| `#btnGoToDashboard` | Button | Hidden until the invite is successfully accepted, then shown — links to the Producer Dashboard |
+
+No Tour Overlay elements on this page.
 Update those paths once you have the real URLs, or send them to me and I'll update the file.
 
 ---

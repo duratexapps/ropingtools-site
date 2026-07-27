@@ -209,28 +209,31 @@ not a confirmed choice.
     times total) once real PayPal credentials exist, storing each
     returned id under `drawpro-paypal-subscription-plan-id-solo` /
     `-team3` / `-unlimited`.
-  - Create a 4th Triggered Email template for account-user invites, then
+  - **Still needed — 4th Triggered Email template for account-user
+    invites.** This one's a Wix Dashboard action only you can do (see
+    below for exact steps), then tell me the resulting email ID so I can
     set `account-users.jsw`'s `ACCOUNT_INVITE_EMAIL_ID` — until then,
     invites are recorded (the team list is accurate) but no email
     actually sends.
-  - Build the invited person's "accept invite" landing page/flow —
-    `acceptAccountInvite(inviteId)` exists and is ready to call, but no
-    page calls it yet (needs to read an `?invite=` query param once
-    they're signed in).
+  - **BUILT 2026-07-27** — `velo/pages/drawpro-real/accept-account-invite.js`:
+    the invited person's "accept invite" page. Reads `?invite=` from the
+    URL, prompts sign-in if needed (via Wix's own login lightbox), then
+    calls `acceptAccountInvite()`. **Still needs the actual page created
+    in the Wix Editor** (doesn't exist there yet) — see
+    `DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s new Page 6 section for exactly
+    what to build and which elements it needs.
   - New Editor elements on Producer Profile: `#inputInviteEmail`,
     `#btnInviteUser`, `#textTeamStatus`, `#textSeatInfo`,
     `#repeaterTeamUsers` (+ item template) — see
     `DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s Page 4 section. Not yet added
     to the live page.
-  - `drawpro-home.js`'s producer dashboard currently only ever queries
-    events by `member._id` — a signed-in HELPER user would see an EMPTY
-    dashboard today, not the account owner's events, since it has no
-    concept yet of "which producerId(s) can this member act on." Fix:
-    call `account-users.jsw`'s `getAccessibleProducerIds(member._id)`
-    and query across all of them, not just `member._id` alone. Not done
-    yet — flagging clearly since a helper accepting an invite right now
-    would get real backend access but no way to actually SEE the events
-    they're supposed to help with.
+  - **FIXED 2026-07-27** — `drawpro-home.js`'s producer dashboard used to
+    only query events by `member._id` alone, meaning a signed-in HELPER
+    user would see an EMPTY dashboard instead of the account owner's
+    events. Now calls `account-users.jsw`'s
+    `getAccessibleProducerIds(member._id)` and queries across all
+    returned ids via `hasSome()` instead of `eq()` — a no-op for anyone
+    who isn't an active helper on someone else's account.
   - **Known, not-yet-closed gap**: the same "does this member actually
     own this record" check was added to the highest-stakes functions in
     `event-setup.jsw`/`matching-engine.jsw`/`csv-export.jsw`/
