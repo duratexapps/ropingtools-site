@@ -430,7 +430,7 @@ still placeholders until then (see the note at the bottom of this section).
 | `#btnCreateEvent` | Button | Links to Producer Event Setup |
 | `#linkEditProfile` | Button/Link | Links to the Producer Profile page |
 | `#textActiveEventsHeading` | Text | |
-| `#repeaterActiveEvents` | Repeater | Item template needs `#textEventTitle`, `#textEventDate`, `#textEventLocation`, `#linkManageEvent` inside |
+| `#repeaterActiveEvents` | Repeater | Item template needs `#textActiveEventTitle`, `#textEventDate`, `#textEventLocation`, `#linkManageEvent` inside. Named `#textActiveEventTitle` rather than the plainer `#textEventTitle` originally spec'd here — something else on the page kept conflicting with `#textEventTitle` specifically, unresolved after real troubleshooting, renamed rather than keep hunting for a phantom element (2026-07-25) |
 | `#textNoActiveEvents` | Text | Shown if `#repeaterActiveEvents` is empty |
 | `#textPastEventsHeading` | Text | |
 | `#repeaterPastEvents` | Repeater | **CONFIRMED LIVE 2026-07-25**: this can NOT reuse `#repeaterActiveEvents`'s item template IDs — Wix's classic Editor rejects the same Element ID reused across two different repeaters on one page (only reuse within items of the SAME repeater is allowed). Give this repeater's item template its own distinct IDs: `#textPastEventTitle`, `#textPastEventDate`, `#textPastEventLocation`, `#linkPastManageEvent` |

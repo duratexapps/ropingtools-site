@@ -49,9 +49,12 @@
  *   #linkEditProfile      (Button/Link, inside #boxProducerDashboard — links
  *                          to the Producer Profile page)
  *   #textActiveEventsHeading (Text, inside #boxProducerDashboard)
- *   #repeaterActiveEvents (Repeater, inside #boxProducerDashboard — item
- *                          template needs #textEventTitle, #textEventDate,
- *                          #textEventLocation, #linkManageEvent inside)
+ *   #repeaterActiveEvents (Repeater, inside #boxProducerDashboard — item template needs
+ *                          #textActiveEventTitle, #textEventDate, #textEventLocation, #linkManageEvent
+ *                          inside. #textActiveEventTitle (not the plainer #textEventTitle originally
+ *                          spec'd) because something else on this page kept conflicting with
+ *                          #textEventTitle specifically, unresolved after real troubleshooting -
+ *                          renamed rather than keep hunting for a phantom element, 2026-07-25)
  *   #textNoActiveEvents   (Text, inside #boxProducerDashboard — shown if
  *                          #repeaterActiveEvents is empty)
  *   #textPastEventsHeading (Text, inside #boxProducerDashboard)
@@ -123,7 +126,7 @@ async function loadProducerEvents(producerId) {
     ]);
 
     renderEventRepeater('#repeaterActiveEvents', '#textNoActiveEvents', activeResult.items, {
-        title: '#textEventTitle', date: '#textEventDate', location: '#textEventLocation', manage: '#linkManageEvent'
+        title: '#textActiveEventTitle', date: '#textEventDate', location: '#textEventLocation', manage: '#linkManageEvent'
     });
     renderEventRepeater('#repeaterPastEvents', '#textNoPastEvents', pastResult.items, {
         title: '#textPastEventTitle', date: '#textPastEventDate', location: '#textPastEventLocation', manage: '#linkPastManageEvent'
