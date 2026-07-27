@@ -103,10 +103,31 @@ const PER_TEAM_EXECUTION_RATE = 0.50;
 // not wired into anything that would need a data migration to change.
 const PRODUCER_ANNUAL_SUBSCRIPTION_FEE = 149;
 
+// NEW, added 2026-07-27 — multi-user accounts (backend/account-users.jsw)
+// layered on top of the same annual subscription rather than a separate
+// product. Benchmarked against the same researched competitors as the
+// base fee above: Carlsen's Roping Management Program charges $189/yr
+// for a single-computer license and $299/yr for two, so $199 for THREE
+// users and $249 for unlimited both stay under every price point in that
+// comparison, not just the base tier. 'solo' is the default for anyone
+// who's never touched this - existing subscriptions with no seatTier
+// field behave exactly as before (see getSubscription() call sites).
+const PRODUCER_SEAT_TIERS = {
+    solo: { userLimit: 1, annualFee: PRODUCER_ANNUAL_SUBSCRIPTION_FEE, label: '1 user' },
+    team3: { userLimit: 3, annualFee: 199, label: '3 users' },
+    unlimited: { userLimit: Infinity, annualFee: 249, label: 'Unlimited users' }
+};
+
 // Set once, after createSubscriptionProduct()/createSubscriptionPlan()
 // are each run one time by an admin (see their own doc comments below) -
-// every producer's subscription attaches to this same plan id.
-const PAYPAL_SUBSCRIPTION_PLAN_ID_SECRET_NAME = 'drawpro-paypal-subscription-plan-id';
+// every producer's subscription attaches to one of these plan ids,
+// depending which seatTier they choose. NEW, added 2026-07-27: one
+// secret PER TIER instead of a single flat plan, since each tier is now
+// its own PayPal Billing Plan at its own price (see PRODUCER_SEAT_TIERS
+// above and createSubscriptionPlan()'s updated doc comment below).
+function subscriptionPlanIdSecretName(seatTier) {
+    return `drawpro-paypal-subscription-plan-id-${seatTier}`;
+}
 
 const SUBSCRIPTION_RETURN_URL = 'https://www.ropingtools.com/drawpro/subscription-complete';
 const SUBSCRIPTION_CANCEL_URL = 'https://www.ropingtools.com/drawpro/subscription-cancelled';
@@ -658,9 +679,10 @@ async function hasActiveSubscription(producerId) {
  * real PayPal-backed flow. annualFee is still passed in explicitly here
  * rather than defaulting to PRODUCER_ANNUAL_SUBSCRIPTION_FEE, since an
  * admin override is exactly the situation where the real published rate
- * might deliberately NOT apply.
+ * might deliberately NOT apply. seatTier defaults to 'solo' - pass one of
+ * PRODUCER_SEAT_TIERS' keys explicitly if comping a multi-user deal.
  */
-export async function subscribeToAnnualPlan(producerId, annualFee) {
+export async function subscribeToAnnualPlan(producerId, annualFee, seatTier) {
     const existing = await getSubscription(producerId);
     const now = new Date();
     const renewalDate = new Date(now);
@@ -670,6 +692,7 @@ export async function subscribeToAnnualPlan(producerId, annualFee) {
         producerId,
         status: 'active',
         annualFee,
+        seatTier: seatTier || 'solo',
         startDate: now,
         renewalDate
     };
@@ -743,12 +766,22 @@ export async function createSubscriptionProduct() {
 }
 
 /**
- * ONE-TIME ADMIN SETUP - run once, after createSubscriptionProduct().
- * Creates the actual annual Billing Plan at PRODUCER_ANNUAL_SUBSCRIPTION_FEE.
- * Returns the plan id — store it as the drawpro-paypal-subscription-plan-id
- * secret afterward; every producer's subscription attaches to this one plan.
+ * ONE-TIME ADMIN SETUP - run once PER SEAT TIER, after
+ * createSubscriptionProduct() (shared across all three tiers - they're
+ * different Billing Plans under the same Product, not different
+ * Products). CHANGED 2026-07-27 for multi-user pricing: previously one
+ * flat plan at PRODUCER_ANNUAL_SUBSCRIPTION_FEE; now takes a seatTier key
+ * ('solo' | 'team3' | 'unlimited', see PRODUCER_SEAT_TIERS) and creates
+ * that tier's own plan at its own price. Run this 3 times total (once per
+ * key in PRODUCER_SEAT_TIERS) and store each returned plan id as the
+ * secret subscriptionPlanIdSecretName(seatTier) generates.
  */
-export async function createSubscriptionPlan(productId) {
+export async function createSubscriptionPlan(productId, seatTier) {
+    const tier = PRODUCER_SEAT_TIERS[seatTier];
+    if (!tier) {
+        throw new Error(`Unknown seatTier "${seatTier}" - must be one of: ${Object.keys(PRODUCER_SEAT_TIERS).join(', ')}.`);
+    }
+
     const accessToken = await getPayPalAccessToken();
     const response = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans`, {
         method: 'POST',
@@ -758,15 +791,15 @@ export async function createSubscriptionPlan(productId) {
         },
         body: JSON.stringify({
             product_id: productId,
-            name: 'Draw Pro Producer Annual Plan',
-            description: `$${PRODUCER_ANNUAL_SUBSCRIPTION_FEE}/year, billed annually.`,
+            name: `Draw Pro Producer Annual Plan — ${tier.label}`,
+            description: `$${tier.annualFee}/year, billed annually. ${tier.label}.`,
             billing_cycles: [{
                 frequency: { interval_unit: 'YEAR', interval_count: 1 },
                 tenure_type: 'REGULAR',
                 sequence: 1,
                 total_cycles: 0, // 0 = infinite - renews every year until cancelled
                 pricing_scheme: {
-                    fixed_price: { value: PRODUCER_ANNUAL_SUBSCRIPTION_FEE.toFixed(2), currency_code: 'USD' }
+                    fixed_price: { value: tier.annualFee.toFixed(2), currency_code: 'USD' }
                 }
             }],
             payment_preferences: {
@@ -782,16 +815,30 @@ export async function createSubscriptionPlan(productId) {
 
 /**
  * The real, producer-facing way to subscribe. Creates a PayPal
- * Subscription against the stored plan and returns the approval URL to
- * redirect the producer to (PayPal's own hosted checkout) - nothing is
- * charged or active until they approve there. Records a
- * 'pending_approval' row immediately so checkSubscriptionStatus() has
- * something to update once they return.
+ * Subscription against the chosen seat tier's stored plan and returns
+ * the approval URL to redirect the producer to (PayPal's own hosted
+ * checkout) - nothing is charged or active until they approve there.
+ * Records a 'pending_approval' row immediately so checkSubscriptionStatus()
+ * has something to update once they return.
+ *
+ * seatTier defaults to 'solo' (today's only behavior, unchanged) if not
+ * passed - existing call sites that don't know about multi-user pricing
+ * yet keep working exactly as before.
  */
-export async function startProducerSubscription(producerId) {
-    const planId = await getSecret(PAYPAL_SUBSCRIPTION_PLAN_ID_SECRET_NAME);
+export async function startProducerSubscription(producerId, seatTier) {
+    const tierKey = seatTier || 'solo';
+    const tier = PRODUCER_SEAT_TIERS[tierKey];
+    if (!tier) {
+        throw new Error(`Unknown seatTier "${tierKey}" - must be one of: ${Object.keys(PRODUCER_SEAT_TIERS).join(', ')}.`);
+    }
+
+    const planId = await getSecret(subscriptionPlanIdSecretName(tierKey));
     if (!planId) {
-        throw new Error('Subscription plan not set up yet — run createSubscriptionProduct() then createSubscriptionPlan() once, then store the returned plan id as the drawpro-paypal-subscription-plan-id secret.');
+        throw new Error(
+            `Subscription plan not set up yet for the "${tierKey}" tier — run createSubscriptionProduct() then ` +
+            `createSubscriptionPlan(productId, '${tierKey}') once, then store the returned plan id as the ` +
+            `${subscriptionPlanIdSecretName(tierKey)} secret.`
+        );
     }
 
     const accessToken = await getPayPalAccessToken();
@@ -819,7 +866,8 @@ export async function startProducerSubscription(producerId) {
     const record = {
         producerId,
         status: 'pending_approval',
-        annualFee: PRODUCER_ANNUAL_SUBSCRIPTION_FEE,
+        annualFee: tier.annualFee,
+        seatTier: tierKey,
         paypalSubscriptionId: data.id
     };
     if (existing) {

@@ -33,6 +33,8 @@
  */
 
 import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+import { assertProducerAccess } from 'backend/account-users.jsw';
 
 const EVENTS = 'DrawProEvents';
 const CLASSES = 'DrawProEventClasses';
@@ -54,10 +56,20 @@ const CSV_HEADERS = [
 export async function exportDrawSheetCSV(classId) {
     const cls = await wixData.get(CLASSES, classId);
     if (!cls) throw new Error('Class not found.');
+
+    // NEW, added 2026-07-27 alongside multi-user accounts - export
+    // contains entrant contact info (via entryTimestamp tied back to real
+    // people), so this needs the same producer-ownership check as the
+    // rest of this project's producer-facing actions, not just "someone's
+    // signed in."
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
     if (!['drawn', 'notified'].includes(cls.status)) {
         throw new Error(`Class must be drawn before exporting. Current status: ${cls.status}`);
     }
-    const event = await wixData.get(EVENTS, cls.eventId);
 
     const teams = await queryAllPages(wixData.query(TEAMS).eq('classId', classId).ascending('teamNumber'));
     const entrantsById = new Map(

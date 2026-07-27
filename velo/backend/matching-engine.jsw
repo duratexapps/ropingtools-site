@@ -51,6 +51,7 @@
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
 import { calculateAndRecordExecutionCharge } from 'backend/payments.jsw';
+import { assertProducerAccess } from 'backend/account-users.jsw';
 
 const EVENTS = 'DrawProEvents';
 const CLASSES = 'DrawProEventClasses';
@@ -87,6 +88,16 @@ async function queryAllPages(query) {
 
 export async function finalizeDrawSheet(classId) {
     const cls = await wixData.get(CLASSES, classId);
+
+    // NEW, added 2026-07-27 - previously had no signed-in/ownership check
+    // at all. Real, pre-existing gap, surfaced (not introduced) while
+    // building multi-user account support - see account-users.jsw's file
+    // header for the full reasoning.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
     if (cls.status !== 'closed') {
         throw new Error(`Class must be closed before finalizing. Current status: ${cls.status}`);
     }
@@ -114,6 +125,14 @@ export async function finalizeDrawSheet(classId) {
 export async function signOffDrawSheet(classId) {
     const member = await currentMember.getMember();
     if (!member) throw new Error('Must be signed in as the producer to sign off.');
+
+    // NEW, added 2026-07-27 - previously checked "someone's signed in" but
+    // not that they own THIS class. Sign-off triggers the actual
+    // irreversible draw, making this one of the highest-stakes places
+    // this check belongs.
+    const clsForAuth = await wixData.get(CLASSES, classId);
+    const eventForAuth = await wixData.get(EVENTS, clsForAuth.eventId);
+    await assertProducerAccess(eventForAuth.producerId, member._id);
 
     const sheet = await getDrawSheet(classId);
     if (sheet.status !== 'pending_signoff') {
@@ -507,6 +526,10 @@ export async function manualPairEntrants(classId, headerEntrantId, heelerEntrant
     const heeler = await wixData.get(ENTRANTS, heelerEntrantId);
     const cls = await wixData.get(CLASSES, classId);
 
+    // NEW, added 2026-07-27 - see finalizeDrawSheet()'s matching comment.
+    const eventForAuth = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(eventForAuth.producerId, member._id);
+
     const sum = header.classificationNumber + heeler.classificationNumber;
     const combinedOk = sum <= cls.capNumber;
     const subCapOk = cls.heelerSubCap == null || heeler.classificationNumber <= cls.heelerSubCap;
@@ -598,6 +621,10 @@ export async function swapTeamPositions(classId, teamIdA, teamIdB) {
     if (teamA.classId !== classId || teamB.classId !== classId) {
         throw new Error('Both teams must belong to the class being edited.');
     }
+
+    // NEW, added 2026-07-27 - see finalizeDrawSheet()'s matching comment.
+    const eventForAuth = await wixData.get(EVENTS, teamA.eventId);
+    await assertProducerAccess(eventForAuth.producerId, member._id);
 
     const numberA = teamA.teamNumber;
     const numberB = teamB.teamNumber;
@@ -696,6 +723,11 @@ export async function acknowledgeSpacingConflict(classId, teamId, note) {
 
     const team = await wixData.get(TEAMS, teamId);
     if (team.classId !== classId) throw new Error('Team does not belong to this class.');
+
+    // NEW, added 2026-07-27 - see finalizeDrawSheet()'s matching comment.
+    const eventForAuth = await wixData.get(EVENTS, team.eventId);
+    await assertProducerAccess(eventForAuth.producerId, member._id);
+
     if (!team.spacingFlagged) throw new Error('This team does not currently have a flagged spacing conflict.');
     if (team.spacingAcknowledged) throw new Error('This conflict has already been acknowledged.');
 

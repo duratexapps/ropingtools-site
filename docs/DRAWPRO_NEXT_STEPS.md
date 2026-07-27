@@ -195,17 +195,49 @@ not a confirmed choice.
   store the returned plan id as the `drawpro-paypal-subscription-plan-id`
   secret, and build the actual "Subscribe" UI (a natural fit on the new
   Producer Dashboard page) — none of that frontend work exists yet.
-- **NEW, not yet built**: multi-user accounts (adding helpers under one
-  producer's subscription so multiple people can run more than one event
-  at a time) and tiered pricing beyond the $149/year single-user base.
-  Recommended in `docs/ARCHITECTURE.md`'s 2026-07-27 entry: $149 (1 user,
-  unchanged) / $199 (3 users) / $249 (unlimited) — stays under every
-  researched competitor price point at every tier (Carlsen's RMP $189/yr
-  single computer, $299/yr two licenses; Rodeo Producer $100/yr + $50/
-  event). Would need a new `DrawProAccountUsers` join collection plus
-  additional PayPal Billing Plans (the API already supports multiple
-  plans per product) — not started, needs prioritizing against everything
-  else on this list first.
+- **Multi-user accounts + tiered pricing — BUILT 2026-07-27** (was "not yet
+  built" as of the last update to this section): `backend/account-users.jsw`
+  (invite/accept/remove/list + the `assertProducerAccess()` authorization
+  check used across `event-setup.jsw`/`matching-engine.jsw`/
+  `csv-export.jsw`/`notifications.jsw`), `DrawProAccountUsers` collection,
+  and `payments.jsw`'s `PRODUCER_SEAT_TIERS` ($149 solo / $199 team3 / $249
+  unlimited, extending `createSubscriptionPlan()`/`startProducerSubscription()`
+  to take a `seatTier`). Manage Team UI added to Producer Profile. See
+  `docs/ARCHITECTURE.md`'s 2026-07-27 entry for the full design. **Still
+  needed before this is fully live**:
+  - Run `createSubscriptionPlan(productId, seatTier)` once per tier (3
+    times total) once real PayPal credentials exist, storing each
+    returned id under `drawpro-paypal-subscription-plan-id-solo` /
+    `-team3` / `-unlimited`.
+  - Create a 4th Triggered Email template for account-user invites, then
+    set `account-users.jsw`'s `ACCOUNT_INVITE_EMAIL_ID` — until then,
+    invites are recorded (the team list is accurate) but no email
+    actually sends.
+  - Build the invited person's "accept invite" landing page/flow —
+    `acceptAccountInvite(inviteId)` exists and is ready to call, but no
+    page calls it yet (needs to read an `?invite=` query param once
+    they're signed in).
+  - New Editor elements on Producer Profile: `#inputInviteEmail`,
+    `#btnInviteUser`, `#textTeamStatus`, `#textSeatInfo`,
+    `#repeaterTeamUsers` (+ item template) — see
+    `DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s Page 4 section. Not yet added
+    to the live page.
+  - `drawpro-home.js`'s producer dashboard currently only ever queries
+    events by `member._id` — a signed-in HELPER user would see an EMPTY
+    dashboard today, not the account owner's events, since it has no
+    concept yet of "which producerId(s) can this member act on." Fix:
+    call `account-users.jsw`'s `getAccessibleProducerIds(member._id)`
+    and query across all of them, not just `member._id` alone. Not done
+    yet — flagging clearly since a helper accepting an invite right now
+    would get real backend access but no way to actually SEE the events
+    they're supposed to help with.
+  - **Known, not-yet-closed gap**: the same "does this member actually
+    own this record" check was added to the highest-stakes functions in
+    `event-setup.jsw`/`matching-engine.jsw`/`csv-export.jsw`/
+    `notifications.jsw`, but NOT to `steerMeSync.jsw`, `venues.jsw`,
+    `qr-and-alerts.jsw`, or `producerProfiles.jsw` — those haven't been
+    audited for the same pre-existing gap. Worth a deliberate pass rather
+    than assuming they're fine.
 
 ## 6.5. "First to enter, last to rope" + CSV export (2026-07-27) — built, needs live verification
 Both built (`DrawProEventClasses.sequenceMode`, `matching-engine.jsw`'s

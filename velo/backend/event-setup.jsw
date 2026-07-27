@@ -29,6 +29,7 @@ import { sendEntryOpenAlerts } from 'backend/qr-and-alerts.jsw';
 import { calculateProducerFee, sendPartnerInvite } from 'backend/payments.jsw';
 import { syncEventToSteerMe } from 'backend/steerMeSync.jsw';
 import { recordVenueUsage } from 'backend/venues.jsw';
+import { assertProducerAccess } from 'backend/account-users.jsw';
 
 const EVENTS = 'DrawProEvents';
 const CLASSES = 'DrawProEventClasses';
@@ -64,8 +65,14 @@ const VALID_SEQUENCE_MODES = ['random', 'entry_order'];
  * @param {string[]} [eventInput.requiredEntryFields]
  * @param {boolean} [eventInput.listOnSteerMe] - opts into the cross-posted Steer Me listing (see steerMeSync.jsw). Defaults true - continuity is the desired default, not something a producer has to remember to turn on.
  * @param {'cash'|'online'} eventInput.paymentMethod
+ * @param {string} [onBehalfOfProducerId] - NEW, added 2026-07-27. Set when
+ *   an invited account helper (backend/account-users.jsw) is creating this
+ *   event for the account OWNER, not themselves - omit to create the event
+ *   under the signed-in member's own id, same as before. When set, the
+ *   signed-in member must be an active helper (or the owner themselves) on
+ *   that producerId, checked via assertProducerAccess().
  */
-export async function createEvent(eventInput) {
+export async function createEvent(eventInput, onBehalfOfProducerId) {
     // Temporary diagnostic - the eventDate-required validation added
     // 2026-07-23 is rejecting dates the producer confirmed were actively
     // selected (not left blank/placeholder), so something about how this
@@ -79,6 +86,11 @@ export async function createEvent(eventInput) {
         throw new Error('Must be signed in as a producer to create an event.');
     }
 
+    const producerId = onBehalfOfProducerId || member._id;
+    if (onBehalfOfProducerId) {
+        await assertProducerAccess(onBehalfOfProducerId, member._id);
+    }
+
     const record = {
         title: eventInput.title,
         location: eventInput.location,
@@ -88,7 +100,7 @@ export async function createEvent(eventInput) {
         // venue's booking link only ever has to be found and saved once.
         eventSite: eventInput.eventSite || null,
         eventSiteLink: eventInput.eventSiteLink || null,
-        producerId: member._id,
+        producerId: producerId,
         eventDate: eventInput.eventDate,
         preEntryEnabled: !!eventInput.preEntryEnabled,
         requiredEntryFields: eventInput.requiredEntryFields || [],
@@ -163,6 +175,14 @@ function validateEventInput(eventInput) {
 export async function createEventClass(eventId, classInput) {
     const event = await wixData.get(EVENTS, eventId);
     if (!event) throw new Error('Event not found.');
+
+    // NEW, added 2026-07-27 alongside multi-user accounts - this event
+    // already has an owner (event.producerId), so unlike createEvent()
+    // there's no "on behalf of" param needed here: just verify the
+    // signed-in member is allowed to act as that existing owner.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    await assertProducerAccess(event.producerId, member._id);
 
     validateClassInput(classInput);
 
@@ -269,6 +289,13 @@ export async function setClassRotationSize(classId, rotationSize) {
     }
 
     const cls = await wixData.get(CLASSES, classId);
+
+    // NEW, added 2026-07-27 - previously only checked "is someone signed
+    // in," not ownership of this specific class. See openClass()'s
+    // matching comment above.
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
     return wixData.update(CLASSES, { ...cls, rotationSize: rotationSize || null });
 }
 
@@ -280,6 +307,17 @@ export async function setClassRotationSize(classId, rotationSize) {
  */
 export async function openClass(classId) {
     const cls = await wixData.get(CLASSES, classId);
+
+    // NEW, added 2026-07-27 - this function previously had NO signed-in
+    // check at all, meaning any Wix member (not just this class's own
+    // producer) could open it. Real, pre-existing gap, not introduced by
+    // multi-user accounts - just surfaced by building the shared
+    // assertProducerAccess() check. See account-users.jsw's file header.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
     if (cls.status !== 'draft') {
         throw new Error(`Class must be in draft status to open. Current status: ${cls.status}`);
     }
@@ -306,6 +344,13 @@ export async function openClass(classId) {
  */
 export async function closeClass(classId) {
     const cls = await wixData.get(CLASSES, classId);
+
+    // Same real, pre-existing gap as openClass() above, fixed the same way.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
     if (cls.status !== 'open') return cls; // already closed/beyond
     return wixData.update(CLASSES, { ...cls, status: 'closed' });
 }

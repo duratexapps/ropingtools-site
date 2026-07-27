@@ -1,0 +1,252 @@
+/**
+ * account-users.jsw
+ * Velo backend web module — NEW, added 2026-07-27.
+ *
+ * Lets a producer add helper users to their account, so more than one
+ * person can run/manage events at the same time - previously Draw Pro
+ * had no concept of this at all (every event/class/team is scoped to
+ * exactly one `producerId`, checked - where checked at all - against
+ * whoever is currently signed in).
+ *
+ * Deliberately does NOT introduce a new "account" identity separate from
+ * the existing producerId (a plain Wix Member id, same convention as
+ * DrawProProducerProfiles.producerId) used everywhere else in this
+ * schema. An added user doesn't get their OWN events - they get GRANTED
+ * PERMISSION to act on the account OWNER's existing producerId. This
+ * avoids any migration of DrawProEvents/DrawProEventClasses/etc, and
+ * keeps "who owns this event" exactly as unambiguous as it already was:
+ * still always `producerId`, just no longer required to be the literal
+ * signed-in member.
+ *
+ * Seat limits tie to the producer's subscription tier - see
+ * payments.jsw's PRODUCER_SEAT_TIERS for the billing side ($149 solo /
+ * $199 team3 / $249 unlimited). SEAT_LIMITS below only needs the LIMIT
+ * per tier, not PayPal/pricing details, so it's a small local constant
+ * rather than importing payments.jsw's whole tier object.
+ *
+ * Real, pre-existing gap this also surfaces: most producer-facing
+ * functions across event-setup.jsw/matching-engine.jsw/csv-export.jsw
+ * only checked "is SOMEONE signed in," not "does this signed-in member
+ * actually own the specific event/class being acted on." That's been
+ * true since before this file existed - not introduced here - but it
+ * matters more now that "who's allowed to act as this producer" is an
+ * actual question with more than one right answer. assertProducerAccess()
+ * below is the shared check meant to close that gap; applied so far to
+ * the highest-stakes actions (class creation/open/close, draw sign-off,
+ * manual override, CSV export) - see DRAWPRO_NEXT_STEPS.md for which
+ * functions still need it added.
+ */
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+import { contacts, triggeredEmails } from 'wix-crm-backend';
+import { getSubscription } from 'backend/payments.jsw';
+
+const ACCOUNT_USERS = 'DrawProAccountUsers';
+const PRODUCER_PROFILES = 'DrawProProducerProfiles';
+
+// Mirrors payments.jsw's PRODUCER_SEAT_TIERS keys exactly - kept in sync
+// by hand rather than importing that whole object, since this file only
+// ever needs the seat COUNT, never the PayPal/pricing side.
+const SEAT_LIMITS = { solo: 1, team3: 3, unlimited: Infinity };
+const DEFAULT_SEAT_TIER = 'solo';
+
+// Set once a 4th Triggered Email template is created in the Wix
+// dashboard for account-user invites (see DRAWPRO_NEXT_STEPS.md) - until
+// then, inviteAccountUser() still creates the invite record (so the
+// producer's team list is accurate) but skips sending the actual email,
+// same "built but not urgent" boundary already accepted elsewhere in
+// this project for other not-yet-configured email IDs.
+const ACCOUNT_INVITE_EMAIL_ID = '';
+
+/**
+ * The one check every producer-facing action should run before touching
+ * anything scoped to a producerId: true if memberId either IS that
+ * producer, or is an active invited helper on that producer's account.
+ */
+export async function isAuthorizedForProducer(memberId, producerId) {
+    if (!memberId || !producerId) return false;
+    if (memberId === producerId) return true;
+
+    const result = await wixData.query(ACCOUNT_USERS)
+        .eq('accountOwnerId', producerId)
+        .eq('memberUserId', memberId)
+        .eq('status', 'active')
+        .find();
+    return result.items.length > 0;
+}
+
+/**
+ * Throws with a clear message if not authorized - the actual call-site
+ * guard, so every producer-facing function reads the same one line
+ * instead of repeating the boolean check + a custom error each time.
+ */
+export async function assertProducerAccess(producerId, memberId) {
+    const ok = await isAuthorizedForProducer(memberId, producerId);
+    if (!ok) {
+        throw new Error("You do not have access to manage this producer's events.");
+    }
+}
+
+function seatLimitForTier(tier) {
+    return SEAT_LIMITS[tier] != null ? SEAT_LIMITS[tier] : SEAT_LIMITS[DEFAULT_SEAT_TIER];
+}
+
+/**
+ * Producer invites a helper by email. Enforces the seat limit tied to
+ * their subscription's seatTier (payments.jsw) - an unsubscribed
+ * producer, or one on the base 'solo' tier, has a limit of 1 (themselves
+ * only) and can't invite anyone; upgrading the subscription's seatTier
+ * via payments.jsw's startProducerSubscription() is what raises this.
+ * Counts existing 'invited' rows toward the limit too, not just
+ * 'active' ones - an unclaimed invite still reserves a seat, otherwise
+ * a producer could invite far more people than their tier allows just
+ * because none of them had accepted yet.
+ *
+ * Owner-only, deliberately stricter than assertProducerAccess() (which
+ * would also allow an active helper to call this) - who's allowed ON
+ * the team is the account owner's call, not something helpers grant to
+ * each other. Keeps this simple and matches how it was actually asked
+ * for: the paying producer adds people, not a peer-to-peer permission.
+ */
+export async function inviteAccountUser(producerId, email) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    if (member._id !== producerId) {
+        throw new Error('Only the account owner can invite team members.');
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('Enter a valid email address to invite.');
+    }
+
+    const sub = await getSubscription(producerId);
+    const tier = (sub && sub.seatTier) || DEFAULT_SEAT_TIER;
+    const limit = seatLimitForTier(tier);
+
+    const existing = await wixData.query(ACCOUNT_USERS)
+        .eq('accountOwnerId', producerId)
+        .ne('status', 'removed')
+        .find();
+    const seatsUsed = existing.items.length + 1; // +1 for the account owner, who never has their own row
+    if (seatsUsed >= limit) {
+        const limitLabel = limit === Infinity ? 'unlimited' : limit;
+        throw new Error(
+            `Your current plan (${tier}) allows ${limitLabel} user(s), and you're already using ${seatsUsed}. ` +
+            `Upgrade your subscription to add more.`
+        );
+    }
+    if (existing.items.some((u) => u.inviteEmail === email && u.status === 'invited')) {
+        throw new Error('This email already has a pending invite.');
+    }
+
+    const record = await wixData.insert(ACCOUNT_USERS, {
+        accountOwnerId: producerId,
+        memberUserId: null,
+        inviteEmail: email,
+        role: 'manager',
+        status: 'invited',
+        invitedTimestamp: new Date(),
+        acceptedTimestamp: null
+    });
+
+    if (ACCOUNT_INVITE_EMAIL_ID) {
+        const profileResult = await wixData.query(PRODUCER_PROFILES).eq('producerId', producerId).find();
+        const orgName = profileResult.items.length > 0 ? profileResult.items[0].organizationName : 'A Draw Pro producer';
+
+        const { contactId } = await contacts.appendOrCreateContact({ emails: [{ email }] });
+        await triggeredEmails.emailContact(ACCOUNT_INVITE_EMAIL_ID, contactId, {
+            variables: { inviterOrganization: orgName, inviteId: record._id }
+        });
+    }
+
+    return record;
+}
+
+/**
+ * Called once the invited person is signed in to their own Wix Member
+ * account (they followed the invite email's link) - links their now-
+ * known member id to the pending invite and activates it. inviteId is
+ * the DrawProAccountUsers record's own _id, expected to arrive as a
+ * query param on the invite email's link (?invite=<id>), same pattern
+ * as this project's other query-param-driven pages
+ * (producer-draw-sheet-review.js's ?event=).
+ */
+export async function acceptAccountInvite(inviteId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in to accept this invite.');
+
+    const invite = await wixData.get(ACCOUNT_USERS, inviteId);
+    if (!invite) throw new Error('Invite not found.');
+    if (invite.status !== 'invited') {
+        throw new Error(`This invite is no longer pending (status: ${invite.status}).`);
+    }
+
+    return wixData.update(ACCOUNT_USERS, {
+        ...invite,
+        memberUserId: member._id,
+        status: 'active',
+        acceptedTimestamp: new Date()
+    });
+}
+
+/**
+ * Producer revokes a helper's access. Soft-removed (status -> 'removed'),
+ * not deleted outright, so there's a record of who had access and when -
+ * same audit-trail instinct as DrawProAuditLog elsewhere in this project,
+ * even though this lives in its own collection rather than that shared
+ * log (a seat-management event, not a draw/entry event). Owner-only,
+ * same reasoning as inviteAccountUser() above.
+ */
+export async function removeAccountUser(producerId, accountUserRecordId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    if (member._id !== producerId) {
+        throw new Error('Only the account owner can remove team members.');
+    }
+
+    const record = await wixData.get(ACCOUNT_USERS, accountUserRecordId);
+    if (record.accountOwnerId !== producerId) {
+        throw new Error('This user is not on your account.');
+    }
+
+    return wixData.update(ACCOUNT_USERS, { ...record, status: 'removed' });
+}
+
+/**
+ * For the producer's own "manage my team" UI - every non-removed
+ * invite/active user on their account. Both the account owner AND any
+ * of their active helpers can call this (assertProducerAccess allows
+ * either), so a helper can see who else has access, not just the owner.
+ */
+export async function listAccountUsers(producerId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in.');
+    await assertProducerAccess(producerId, member._id);
+
+    const result = await wixData.query(ACCOUNT_USERS)
+        .eq('accountOwnerId', producerId)
+        .ne('status', 'removed')
+        .find();
+    return result.items;
+}
+
+/**
+ * Convenience for a signed-in member landing on their OWN dashboard:
+ * which producerId(s) they can act on - their own, plus any account
+ * they're an active helper on. drawpro-home.js's producer dashboard
+ * currently only ever queries eventId/classId records by
+ * `member._id`, meaning a helper user signed into THEIR OWN member
+ * account would see an empty dashboard today, not the account owner's
+ * events - this is the lookup that page needs to add to fix that,
+ * flagged in DRAWPRO_NEXT_STEPS.md rather than changed here, since that
+ * page's query logic is out of scope for this file.
+ */
+export async function getAccessibleProducerIds(memberId) {
+    const result = await wixData.query(ACCOUNT_USERS)
+        .eq('memberUserId', memberId)
+        .eq('status', 'active')
+        .find();
+    const asHelper = result.items.map((u) => u.accountOwnerId);
+    return [memberId, ...asHelper];
+}

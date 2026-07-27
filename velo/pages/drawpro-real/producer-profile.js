@@ -25,15 +25,46 @@
  *                         not done here to keep this first pass simple)
  *   #btnSaveProfile      (button)
  *   #textStatus          (text, status/error messages)
+ *
+ *   -- Manage Team (NEW, added 2026-07-27 - multi-user accounts) --
+ *   #inputInviteEmail    (text input - email of the helper to invite)
+ *   #btnInviteUser       (button)
+ *   #textTeamStatus      (text, status/error messages for this section specifically -
+ *                         separate from #textStatus above so an invite error doesn't
+ *                         overwrite/get overwritten by a profile-save message)
+ *   #repeaterTeamUsers   (repeater - item template needs #textTeamEmail, #textTeamStatus2
+ *                         (the row's own invited/active/removed status - named _2 to avoid
+ *                         colliding with the page-level #textTeamStatus, same repeater-ID
+ *                         scoping rule noted on drawpro-home.js), #btnRemoveTeamUser inside)
+ *   #textSeatInfo        (text - e.g. "2 of 3 seats used (team3 plan)" - updates after
+ *                         every invite/remove)
  */
 
 import { getProducerProfile, upsertProducerProfile } from 'backend/producerProfiles.jsw';
+import { inviteAccountUser, removeAccountUser, listAccountUsers } from 'backend/account-users.jsw';
+import { getSubscription } from 'backend/payments.jsw';
 import { currentMember } from 'wix-members-frontend';
+
+let currentProducerId = null;
 
 $w.onReady(async function () {
     $w('#btnSaveProfile').onClick(handleSave);
+    safeCall(() => $w('#btnInviteUser').onClick(handleInviteUser));
     await loadExistingProfile();
+    await loadTeamSection();
 });
+
+// Same defensive pattern established elsewhere in this project
+// (producer-event-setup.js, drawpro-home.js) - the Manage Team section
+// is new and its elements may not exist on the live page yet; one
+// missing/mistyped element shouldn't crash the whole page's onReady().
+function safeCall(fn) {
+    try {
+        fn();
+    } catch (err) {
+        console.error(`[producer-profile] setup step failed (page keeps working): ${err.message}`);
+    }
+}
 
 async function loadExistingProfile() {
     const member = await currentMember.getMember().catch(() => null);
@@ -42,6 +73,7 @@ async function loadExistingProfile() {
         $w('#btnSaveProfile').disable();
         return;
     }
+    currentProducerId = member._id;
 
     const profile = await getProducerProfile(member._id);
     if (profile) {
@@ -76,4 +108,82 @@ async function handleSave() {
 function setStatus(message, isError) {
     $w('#textStatus').text = message;
     $w('#textStatus').style.color = isError ? '#B3261E' : '#2E7D32';
+}
+
+/* ------------------------------------------------------------------ */
+/* Manage Team - NEW, added 2026-07-27 (multi-user accounts)           */
+/* ------------------------------------------------------------------ */
+
+// Owner-only section, by design - account-users.jsw's inviteAccountUser()/
+// removeAccountUser() reject anyone but the account owner (member._id ===
+// producerId), so a signed-in HELPER visiting this page wouldn't be able
+// to use these actions even if the elements are visible to them. Not
+// hidden for helpers here since that's a call this page doesn't currently
+// have enough info to make cleanly (see account-users.jsw's
+// getAccessibleProducerIds() doc comment) - the backend rejection is the
+// real enforcement either way.
+async function loadTeamSection() {
+    if (!currentProducerId) return;
+
+    try {
+        const [users, sub] = await Promise.all([
+            listAccountUsers(currentProducerId),
+            getSubscription(currentProducerId)
+        ]);
+
+        const tier = (sub && sub.seatTier) || 'solo';
+        const limitLabel = tier === 'unlimited' ? 'unlimited' : (tier === 'team3' ? 3 : 1);
+        const seatsUsed = users.length + 1; // +1 for the owner, who has no row of their own
+        safeCall(() => {
+            $w('#textSeatInfo').text = `${seatsUsed} of ${limitLabel} seat(s) used (${tier} plan)`;
+        });
+
+        safeCall(() => {
+            $w('#repeaterTeamUsers').data = users;
+            $w('#repeaterTeamUsers').onItemReady(($item, user) => {
+                $item('#textTeamEmail').text = user.inviteEmail;
+                $item('#textTeamStatus2').text = user.status;
+                $item('#btnRemoveTeamUser').onClick(() => handleRemoveTeamUser(user._id));
+            });
+        });
+    } catch (err) {
+        // Not fatal to the rest of the page (profile save still works) -
+        // log and move on, same defensive instinct as safeCall() above.
+        console.error(`[producer-profile] loadTeamSection failed: ${err.message}`);
+    }
+}
+
+async function handleInviteUser() {
+    const email = $w('#inputInviteEmail').value;
+    setTeamStatus('');
+    safeCall(() => $w('#btnInviteUser').disable());
+
+    try {
+        await inviteAccountUser(currentProducerId, email);
+        setTeamStatus('Invite sent.');
+        safeCall(() => { $w('#inputInviteEmail').value = ''; });
+        await loadTeamSection();
+    } catch (err) {
+        setTeamStatus(err.message, true);
+    } finally {
+        safeCall(() => $w('#btnInviteUser').enable());
+    }
+}
+
+async function handleRemoveTeamUser(accountUserRecordId) {
+    setTeamStatus('');
+    try {
+        await removeAccountUser(currentProducerId, accountUserRecordId);
+        setTeamStatus('Removed.');
+        await loadTeamSection();
+    } catch (err) {
+        setTeamStatus(err.message, true);
+    }
+}
+
+function setTeamStatus(message, isError) {
+    safeCall(() => {
+        $w('#textTeamStatus').text = message;
+        $w('#textTeamStatus').style.color = isError ? '#B3261E' : '#2E7D32';
+    });
 }

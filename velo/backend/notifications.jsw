@@ -39,6 +39,8 @@
 
 import wixData from 'wix-data';
 import { contacts, triggeredEmails } from 'wix-crm-backend';
+import { currentMember } from 'wix-members-backend';
+import { assertProducerAccess } from 'backend/account-users.jsw';
 
 const TEAMS = 'DrawProTeams';
 const ENTRANTS = 'DrawProEntrants';
@@ -64,6 +66,16 @@ export async function sendDrawNotifications(classId) {
 
     const cls = await wixData.get(CLASSES, classId);
     const event = await wixData.get(EVENTS, cls.eventId);
+
+    // NEW, added 2026-07-27 - this function previously had NO signed-in
+    // check at all, meaning anyone who knew a classId could trigger a
+    // real mass email blast to that class's entrants. Real, pre-existing
+    // gap, surfaced (not introduced) while building multi-user account
+    // support - see account-users.jsw's file header.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    await assertProducerAccess(event.producerId, member._id);
+
     const sheet = await getDrawSheetOrThrow(classId);
 
     if (sheet.status !== 'drawn') {
@@ -207,6 +219,16 @@ async function getDrawSheetOrThrow(classId) {
  * since that's outside this file.
  */
 export async function getManualContactList(classId) {
+    // NEW, added 2026-07-27 - same real, pre-existing gap as
+    // sendDrawNotifications() above (no ownership check at all before
+    // this). Lower stakes than a mass email trigger, but still returns
+    // real entrants' contact-status info, so it gets the same treatment.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const cls = await wixData.get(CLASSES, classId);
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
     const result = await wixData.query(NOTIFICATION_LOG)
         .eq('classId', classId)
         .hasSome('status', ['manual_contact_needed', 'bounced'])

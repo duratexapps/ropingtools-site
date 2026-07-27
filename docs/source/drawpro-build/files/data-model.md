@@ -402,8 +402,46 @@ One record per producer.
 | `_id` | auto | |
 | `producerId` | reference → Wix Members (unique) | |
 | `status` | text (enum) | `inactive` \| `active` \| `expired` |
-| `annualFee` | number (nullable) | Snapshotted at signup — placeholder amount, not yet set |
+| `annualFee` | number (nullable) | Snapshotted at signup — reflects whichever seat tier was chosen (see `seatTier` below), not always the same number |
+| `seatTier` | text (enum, nullable) | **NEW, added 2026-07-27.** `solo` \| `team3` \| `unlimited` — see `backend/payments.jsw`'s `PRODUCER_SEAT_TIERS` for pricing ($149/$199/$249) and `backend/account-users.jsw` for what the seat count actually gates (inviting helper users). Treated as `solo` if absent, so pre-existing subscription records with no `seatTier` value keep behaving exactly as before |
 | `startDate` / `renewalDate` | date/time (nullable) | |
+
+---
+
+## 11.5. `DrawProAccountUsers`
+
+**NEW, added 2026-07-27.** Lets a producer add helper users to their account
+so more than one person can run/manage events at the same time — previously
+Draw Pro had no concept of this at all. Deliberately does NOT give an added
+user their own events — every `DrawProEvents`/`DrawProEventClasses` record
+still belongs to exactly one `producerId`, unchanged. An active row here just
+means `memberUserId` is GRANTED PERMISSION to act as `accountOwnerId`,
+checked via `backend/account-users.jsw`'s `assertProducerAccess()`. Seat
+count (how many of these a producer can have) is capped by their
+`DrawProProducerSubscriptions.seatTier`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `_id` | auto | |
+| `accountOwnerId` | text | A plain Wix Member ID string, same convention as `DrawProProducerProfiles.producerId` — the paying producer whose events this grants access to |
+| `memberUserId` | text (nullable) | The invited helper's own Wix Member ID — null until they accept the invite (`acceptAccountInvite()`), since they may not have a Wix account yet at invite time |
+| `inviteEmail` | text | The email address invited — always set, even after `memberUserId` is filled in, so the producer's team list still shows who's who |
+| `role` | text (enum) | `manager` — only one role exists in v1; no tiered permissions (e.g. "can view but not sign off") were specced, so every active helper can do everything the account owner can |
+| `status` | text (enum) | `invited` \| `active` \| `removed` |
+| `invitedTimestamp` | date/time | |
+| `acceptedTimestamp` | date/time (nullable) | |
+| `createdDate` / `updatedDate` | date/time | Wix-managed |
+
+**Real, pre-existing gap surfaced while building this, not introduced by
+it**: most producer-facing functions across `event-setup.jsw` /
+`matching-engine.jsw` / `csv-export.jsw` previously checked only "is
+someone signed in," not "does this signed-in member actually own the
+specific event/class." Fixed on the highest-stakes actions (class
+creation/open/close, draw sign-off, manual override, spacing
+acknowledgment, CSV export) as part of this same change — see each
+function's own comment in those files. `notifications.jsw`'s functions and
+a few lower-stakes read paths have **not** been updated yet; see
+`DRAWPRO_NEXT_STEPS.md`.
 
 ---
 

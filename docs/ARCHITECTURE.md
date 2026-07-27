@@ -1284,3 +1284,70 @@ a `max-height: 700px` media query so it's rarely even needed. Verified
 live via Playwright at both a comfortable (500x900) and a tight
 (375x667) viewport, including confirming the Next button is reachable
 by scroll in the worst case.
+
+---
+
+## Multi-user accounts + tiered pricing — actually built (2026-07-27)
+
+Follow-up to the same-day entry above, which was a design/pricing
+recommendation only. This is the real implementation.
+
+**Deliberate design choice: no new "account" identity.** An added user
+does NOT get their own events - they get GRANTED PERMISSION to act on
+the account owner's existing `producerId` (a plain Wix Member id, same
+convention `DrawProProducerProfiles.producerId` already uses). Every
+`DrawProEvents`/`DrawProEventClasses`/etc record still belongs to
+exactly one producerId, completely unchanged - avoids any migration of
+existing data. New collection: `DrawProAccountUsers`
+(accountOwnerId/memberUserId/inviteEmail/role/status). New module:
+`backend/account-users.jsw` - `inviteAccountUser()`/`removeAccountUser()`
+(owner-only, deliberately stricter than the general access check - who's
+on the team is the paying owner's call, not something helpers grant each
+other), `acceptAccountInvite()`, `listAccountUsers()` (owner OR an active
+helper can view), and the shared `isAuthorizedForProducer()` /
+`assertProducerAccess()` check.
+
+**Real, pre-existing gap found and partially closed as a direct
+consequence of this work, not the original goal**: most producer-facing
+functions across `event-setup.jsw`/`matching-engine.jsw`/
+`notifications.jsw` only ever checked "is someone signed in," never "does
+this signed-in member actually own the specific event/class." True since
+before multi-user accounts existed - just surfaced by building a real
+authorization check for the first time. Applied to the highest-stakes
+actions: class creation/open/close, `setClassRotationSize`, draw
+finalize/sign-off (triggers the actual irreversible draw), manual
+pairing/override, team swaps, spacing-conflict acknowledgment, CSV
+export, and both notification functions (`sendDrawNotifications()`
+previously had NO auth check at all - anyone who knew a classId could
+trigger a real mass email blast to that class's entrants). NOT yet
+applied to `steerMeSync.jsw`, `venues.jsw`, `qr-and-alerts.jsw`, or
+`producerProfiles.jsw` - see `DRAWPRO_NEXT_STEPS.md`, flagging rather
+than assuming those are fine by omission.
+
+**Pricing tiers** live in `payments.jsw`'s `PRODUCER_SEAT_TIERS` (solo
+$149/1 user, team3 $199/3 users, unlimited $249) - `createSubscriptionPlan()`
+and `startProducerSubscription()` both now take a `seatTier` param and
+create/attach to a separate PayPal Billing Plan per tier (one Product,
+three Plans - PayPal's API already supported this, no new payment
+mechanism needed). `subscribeToAnnualPlan()` (the manual/admin-override
+path) also takes an optional `seatTier` now, defaulting to `solo`.
+Seat limits are enforced in `account-users.jsw`'s `inviteAccountUser()`
+by reading the owner's `DrawProProducerSubscriptions.seatTier` (defaults
+to `solo`/1 seat if absent or unsubscribed - multi-user is an extension
+of the same paid annual subscription, not a separate product).
+
+**UI**: a "Manage Team" section added to Producer Profile
+(`producer-profile.js`) - invite by email, see current team + seat usage,
+remove a user. New Editor elements not yet added to the live page - see
+`DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`.
+
+**Not yet done, flagged rather than silently left**: the 4th Triggered
+Email template for invites (invites are recorded either way, just don't
+email yet); the invited person's own "accept invite" page/flow
+(`acceptAccountInvite()` exists, nothing calls it); and
+`drawpro-home.js`'s producer dashboard still only queries events by
+`member._id` alone, meaning a helper who accepts an invite today gets
+real backend access but would see an EMPTY dashboard, not the events
+they're supposed to help with - it needs to query across
+`getAccessibleProducerIds(member._id)` instead. All three are listed in
+`DRAWPRO_NEXT_STEPS.md`.

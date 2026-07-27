@@ -395,6 +395,30 @@ progress.
 | `#btnSaveProfile` | Button | |
 | `#textStatus` | Text | Status/error messages |
 
+### Manage Team (NEW, added 2026-07-27 — multi-user accounts)
+Owner-only in this v1 — `account-users.jsw`'s `inviteAccountUser()`/`removeAccountUser()` reject
+anyone who isn't the account owner themselves, even an already-active helper. Lets a producer add
+helper users so more than one person can run/manage events at the same time; seat count is capped by
+the subscription's tier (see `backend/payments.jsw`'s `PRODUCER_SEAT_TIERS` — $149 solo / $199 team3 /
+$249 unlimited).
+
+| ID | Type | Notes |
+|---|---|---|
+| `#inputInviteEmail` | Text input | Email of the helper to invite |
+| `#btnInviteUser` | Button | |
+| `#textTeamStatus` | Text | Status/error messages for this section specifically — kept separate from `#textStatus` above so an invite error doesn't collide with a profile-save message |
+| `#textSeatInfo` | Text | e.g. "2 of 3 seat(s) used (team3 plan)" — updates after every invite/remove |
+| `#repeaterTeamUsers` | Repeater | Item template needs the 3 elements below inside it |
+| `#textTeamEmail` | Text (inside repeater item) | The invited email address |
+| `#textTeamStatus2` | Text (inside repeater item) | This row's own status (`invited` / `active` / `removed`) — named `_2` specifically to avoid colliding with the page-level `#textTeamStatus` above, same repeater-ID scoping issue noted on the Producer Dashboard page's build guide section |
+| `#btnRemoveTeamUser` | Button (inside repeater item) | Revokes this person's access |
+
+**Not yet built**: the invited person's own "accept invite" landing page/flow — `account-users.jsw`'s
+`acceptAccountInvite(inviteId)` exists and is ready to call, but no page calls it yet. Needs a small new
+page (or a section added to an existing one) that reads an `?invite=` query param and calls it once the
+invited person is signed in. Also, the Triggered Email that actually notifies an invited person isn't
+set up yet — see `DRAWPRO_NEXT_STEPS.md`.
+
 No Tour Overlay elements on this page. Also worth adding a plain Editor-native Link element on
 Producer Event Setup pointing here once this page exists — no custom code needed for that, since the
 exact page URL isn't known until it's created.
