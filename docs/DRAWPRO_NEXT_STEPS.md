@@ -189,12 +189,20 @@ not a confirmed choice.
   `createSubscriptionPlan()`, `startProducerSubscription()`,
   `checkSubscriptionStatus()`, and a corrected `cancelSubscription()` that
   now actually cancels on PayPal's side) — see `docs/ARCHITECTURE.md`'s
-  entry on this for the full design. **Still needed before this is live**:
-  run `createSubscriptionProduct()`/`createSubscriptionPlan()` once (after
-  PayPal for Platforms approval lands, since these need real credentials),
-  store the returned plan id as the `drawpro-paypal-subscription-plan-id`
-  secret, and build the actual "Subscribe" UI (a natural fit on the new
-  Producer Dashboard page) — none of that frontend work exists yet.
+  entry on this for the full design. **Subscribe UI now BUILT 2026-07-27**
+  (was the one piece of this still missing) — a full Subscription section
+  on Producer Profile: shows current status, lets a producer pick a tier
+  (pulled live from `getSeatTierOptions()`, never hardcoded), starts
+  PayPal checkout, and reconciles status on return. Mirrors what Steer Me
+  already has in `app/subscription.tsx`. **Still needed before this is
+  live** — same external dependency Steer Me has for its own subscriptions,
+  just a different vendor: run `createSubscriptionProduct()` once, then
+  `createSubscriptionPlan(productId, seatTier)` once PER TIER (3 times
+  total) after PayPal for Platforms approval lands (these need real
+  credentials), storing each returned plan id under
+  `drawpro-paypal-subscription-plan-id-solo` / `-team3` / `-unlimited`.
+  New Editor elements needed on Producer Profile — see
+  `DRAWPRO_MANUAL_PAGE_BUILD_GUIDE.md`'s Page 4 section.
 - **Multi-user accounts + tiered pricing — BUILT 2026-07-27** (was "not yet
   built" as of the last update to this section): `backend/account-users.jsw`
   (invite/accept/remove/list + the `assertProducerAccess()` authorization

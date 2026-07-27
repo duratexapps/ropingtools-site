@@ -1382,3 +1382,46 @@ Same overflow lesson applied preemptively rather than waited for: the
 slide content switched from a plain centered `View` to a `ScrollView`,
 since a taller slide (image + hints) risks the identical small-phone
 overflow bug found and fixed on Draw Pro's tour earlier the same day.
+
+---
+
+## Draw Pro's Subscribe UI — built to match Steer Me's existing one (2026-07-27)
+
+Prompted by a direct comparison question: Steer Me already has a complete,
+real Subscription screen (`app/subscription.tsx`) - fully coded, gated
+only on the external step of setting up RevenueCat + App Store/Google
+Play products. Checked Draw Pro's own pages and confirmed nothing called
+`startProducerSubscription()` anywhere - the equivalent producer-facing
+UI simply didn't exist, despite the backend being fully built the same
+day as the tiered-pricing work above.
+
+Built a Subscription section on Producer Profile (not a new page - no
+Wix Editor page-creation step needed): current status, a tier picker
+populated live from a new `payments.jsw` export,
+`getSeatTierOptions()` (never hardcode prices into the page - this
+function is the single source of truth so the two can't drift apart),
+Subscribe (redirects to PayPal's hosted checkout) and Cancel buttons.
+
+**Return-URL design choice**: rather than build a whole separate landing
+page just to catch the PayPal redirect, `SUBSCRIPTION_RETURN_URL`/
+`SUBSCRIPTION_CANCEL_URL` now point back at Producer Profile itself with
+a `?subReturn=1`/`?subReturn=0` query flag - the same page's `onReady()`
+checks for it and calls `checkSubscriptionStatus()` to reconcile before
+displaying anything. Simpler than Steer Me's equivalent (which has no
+return-URL concept at all, since RevenueCat's native purchase flow never
+leaves the app).
+
+**Real, pre-existing gap found and closed as a direct result**:
+`startProducerSubscription()`, `cancelSubscription()`, and
+`checkSubscriptionStatus()` had **no authorization check at all** before
+this - any signed-in Wix member could have started or cancelled billing
+for any producerId they knew. Restricted to the account owner only (same
+reasoning as `account-users.jsw`'s invite/remove functions - billing
+decisions are the paying owner's call, not something a helper should be
+able to do even though they can otherwise act on the account's events).
+
+**Same external dependency as Steer Me, different vendor**: this is
+fully coded and ready, but won't work until `createSubscriptionProduct()`
+and `createSubscriptionPlan(productId, seatTier)` (once per tier) are run
+with real PayPal credentials, which don't exist yet pending the PayPal
+for Platforms application approval - see `DRAWPRO_NEXT_STEPS.md`.

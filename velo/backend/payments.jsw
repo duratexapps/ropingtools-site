@@ -129,8 +129,33 @@ function subscriptionPlanIdSecretName(seatTier) {
     return `drawpro-paypal-subscription-plan-id-${seatTier}`;
 }
 
-const SUBSCRIPTION_RETURN_URL = 'https://www.ropingtools.com/drawpro/subscription-complete';
-const SUBSCRIPTION_CANCEL_URL = 'https://www.ropingtools.com/drawpro/subscription-cancelled';
+// CHANGED 2026-07-27: point back at Producer Profile (where the new
+// Subscription section lives) with a query flag, instead of a dedicated
+// standalone landing page - avoids needing a whole extra Wix Editor page
+// created just to catch the PayPal redirect. producer-profile.js's
+// onReady() checks for ?subReturn=1 and calls checkSubscriptionStatus()
+// automatically. Adjust once Producer Profile's real page URL is
+// confirmed, same placeholder-URL note as every other page in this
+// codebase that references a URL by convention rather than a confirmed one.
+const SUBSCRIPTION_RETURN_URL = 'https://www.ropingtools.com/producer-profile?subReturn=1';
+const SUBSCRIPTION_CANCEL_URL = 'https://www.ropingtools.com/producer-profile?subReturn=0';
+
+/**
+ * Plain, JSON-safe tier metadata for the frontend Subscribe UI - NEW,
+ * added 2026-07-27. Doesn't just export PRODUCER_SEAT_TIERS directly
+ * because Infinity (unlimited's userLimit) doesn't survive a cross-.jsw
+ * JSON round-trip - it silently becomes null on the wire. Converting it
+ * to an explicit null here means the frontend deals with one clear,
+ * documented sentinel instead of a subtle serialization gotcha.
+ */
+export function getSeatTierOptions() {
+    return Object.entries(PRODUCER_SEAT_TIERS).map(([key, tier]) => ({
+        key,
+        label: tier.label,
+        annualFee: tier.annualFee,
+        userLimit: tier.userLimit === Infinity ? null : tier.userLimit // null = unlimited
+    }));
+}
 
 // SWITCH to https://api-m.sandbox.paypal.com while testing against a
 // PayPal sandbox account, before the real application is approved.
@@ -710,8 +735,22 @@ export async function subscribeToAnnualPlan(producerId, annualFee, seatTier) {
  * via the manual subscribeToAnnualPlan() override above, which has no
  * paypalSubscriptionId - in that case this just updates our own status,
  * same as before, since there's nothing on PayPal's side to cancel.
+ *
+ * Owner-only, added 2026-07-27 - this had NO auth check at all before
+ * (real, pre-existing gap, same class as the ones found/fixed elsewhere
+ * this session - see account-users.jsw's file header). Billing actions
+ * specifically are restricted to the account owner, same reasoning as
+ * account-users.jsw's invite/removeAccountUser - not something a helper
+ * should be able to do even though they can otherwise act on the
+ * account's events.
  */
 export async function cancelSubscription(producerId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    if (member._id !== producerId) {
+        throw new Error('Only the account owner can cancel the subscription.');
+    }
+
     const existing = await getSubscription(producerId);
     if (!existing) return null;
 
@@ -824,8 +863,17 @@ export async function createSubscriptionPlan(productId, seatTier) {
  * seatTier defaults to 'solo' (today's only behavior, unchanged) if not
  * passed - existing call sites that don't know about multi-user pricing
  * yet keep working exactly as before.
+ *
+ * Owner-only, same reasoning and same real pre-existing gap as
+ * cancelSubscription() above.
  */
 export async function startProducerSubscription(producerId, seatTier) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    if (member._id !== producerId) {
+        throw new Error('Only the account owner can manage the subscription.');
+    }
+
     const tierKey = seatTier || 'solo';
     const tier = PRODUCER_SEAT_TIERS[tierKey];
     if (!tier) {
@@ -890,6 +938,15 @@ export async function startProducerSubscription(producerId, seatTier) {
  * lands on after returning from PayPal's approval flow (SUBSCRIPTION_RETURN_URL).
  */
 export async function checkSubscriptionStatus(producerId) {
+    // Owner-only, added 2026-07-27 - same reasoning as
+    // startProducerSubscription()/cancelSubscription() above, grouping all
+    // three subscription-management actions under the same restriction.
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    if (member._id !== producerId) {
+        throw new Error('Only the account owner can check the subscription status.');
+    }
+
     const sub = await getSubscription(producerId);
     if (!sub || !sub.paypalSubscriptionId) {
         throw new Error('No PayPal-backed subscription found for this producer.');

@@ -38,11 +38,29 @@
  *                         scoping rule noted on drawpro-home.js), #btnRemoveTeamUser inside)
  *   #textSeatInfo        (text - e.g. "2 of 3 seats used (team3 plan)" - updates after
  *                         every invite/remove)
+ *
+ *   -- Subscription (NEW, added 2026-07-27) --
+ *   #textSubCurrentStatus (text - e.g. "Active - 3 users plan, renews Aug 1, 2027" or
+ *                          "Not subscribed")
+ *   #radioSubTier         (radio button group - options populated dynamically from
+ *                          backend/payments.jsw's getSeatTierOptions(), so pricing/labels
+ *                          shown here always match what actually gets charged - never
+ *                          hardcode tier prices into this page's own text)
+ *   #btnSubscribe         (button - starts PayPal checkout for the selected tier;
+ *                          label changes to "Change Plan" if already subscribed)
+ *   #btnCancelSubscription (button - cancels the active subscription; hidden if not subscribed)
+ *   #textSubActionStatus  (text, status/error messages for subscribe/cancel actions
+ *                          specifically - separate from #textSubCurrentStatus, same
+ *                          reasoning as #textTeamStatus above)
  */
 
+import wixLocation from 'wix-location';
 import { getProducerProfile, upsertProducerProfile } from 'backend/producerProfiles.jsw';
 import { inviteAccountUser, removeAccountUser, listAccountUsers } from 'backend/account-users.jsw';
-import { getSubscription } from 'backend/payments.jsw';
+import {
+    getSubscription, getSeatTierOptions, startProducerSubscription,
+    checkSubscriptionStatus, cancelSubscription
+} from 'backend/payments.jsw';
 import { currentMember } from 'wix-members-frontend';
 
 let currentProducerId = null;
@@ -50,8 +68,11 @@ let currentProducerId = null;
 $w.onReady(async function () {
     $w('#btnSaveProfile').onClick(handleSave);
     safeCall(() => $w('#btnInviteUser').onClick(handleInviteUser));
+    safeCall(() => $w('#btnSubscribe').onClick(handleSubscribeClick));
+    safeCall(() => $w('#btnCancelSubscription').onClick(handleCancelClick));
     await loadExistingProfile();
     await loadTeamSection();
+    await loadSubscriptionSection();
 });
 
 // Same defensive pattern established elsewhere in this project
@@ -186,4 +207,120 @@ function setTeamStatus(message, isError) {
         $w('#textTeamStatus').text = message;
         $w('#textTeamStatus').style.color = isError ? '#B3261E' : '#2E7D32';
     });
+}
+
+/* ------------------------------------------------------------------ */
+/* Subscription - NEW, added 2026-07-27                                */
+/* ------------------------------------------------------------------ */
+
+// This whole section answers a real, previously-open question: Steer Me
+// already has a complete, real Subscribe screen (app/subscription.tsx,
+// gated only on the external RevenueCat/App Store setup step) - Draw Pro
+// had NO equivalent page at all until this one. Owner-only, same as
+// account-users.jsw's Manage Team actions - startProducerSubscription()/
+// cancelSubscription()/checkSubscriptionStatus() all reject anyone but
+// the account owner server-side regardless of what this page shows.
+async function loadSubscriptionSection() {
+    if (!currentProducerId) return;
+
+    try {
+        // ?subReturn=1 means we're back from PayPal's approval flow
+        // (SUBSCRIPTION_RETURN_URL) - reconcile our own record against
+        // PayPal's real status before displaying anything. ?subReturn=0
+        // means they hit SUBSCRIPTION_CANCEL_URL instead (backed out of
+        // checkout) - nothing to reconcile, just a heads-up message.
+        const subReturn = wixLocation.query.subReturn;
+        if (subReturn === '1') {
+            await checkSubscriptionStatus(currentProducerId).catch((err) =>
+                console.error(`[producer-profile] checkSubscriptionStatus failed: ${err.message}`)
+            );
+        } else if (subReturn === '0') {
+            setSubActionStatus('Checkout was cancelled - your subscription was not changed.');
+        }
+
+        const [tierOptions, sub] = await Promise.all([
+            getSeatTierOptions(),
+            getSubscription(currentProducerId)
+        ]);
+
+        safeCall(() => {
+            $w('#radioSubTier').options = tierOptions.map((t) => ({
+                label: `${t.label} — $${t.annualFee}/year`,
+                value: t.key
+            }));
+        });
+
+        const isActive = sub && sub.status === 'active';
+        safeCall(() => {
+            if (isActive) {
+                const renewalText = sub.renewalDate
+                    ? `renews ${new Date(sub.renewalDate).toLocaleDateString()}`
+                    : '';
+                $w('#textSubCurrentStatus').text = `Active — ${sub.seatTier || 'solo'} plan. ${renewalText}`.trim();
+                $w('#radioSubTier').value = sub.seatTier || 'solo';
+                $w('#btnSubscribe').label = 'Change Plan';
+                $w('#btnCancelSubscription').expand();
+            } else {
+                $w('#textSubCurrentStatus').text = sub && sub.status === 'pending_approval'
+                    ? 'Subscription pending approval — finish checkout with PayPal to activate it.'
+                    : 'Not subscribed.';
+                $w('#radioSubTier').value = 'solo';
+                $w('#btnSubscribe').label = 'Subscribe';
+                $w('#btnCancelSubscription').collapse();
+            }
+        });
+    } catch (err) {
+        console.error(`[producer-profile] loadSubscriptionSection failed: ${err.message}`);
+    }
+}
+
+async function handleSubscribeClick() {
+    setSubActionStatus('');
+    const selectedTier = safeGet(() => $w('#radioSubTier').value) || 'solo';
+    safeCall(() => $w('#btnSubscribe').disable());
+
+    try {
+        const approvalUrl = await startProducerSubscription(currentProducerId, selectedTier);
+        // Redirects away to PayPal's hosted checkout - nothing left to do
+        // on this page until they return via SUBSCRIPTION_RETURN_URL/
+        // SUBSCRIPTION_CANCEL_URL, both of which point back here with
+        // ?subReturn=, handled at the top of loadSubscriptionSection().
+        wixLocation.to(approvalUrl);
+    } catch (err) {
+        setSubActionStatus(err.message, true);
+        safeCall(() => $w('#btnSubscribe').enable());
+    }
+}
+
+async function handleCancelClick() {
+    setSubActionStatus('Cancelling…');
+    safeCall(() => $w('#btnCancelSubscription').disable());
+
+    try {
+        await cancelSubscription(currentProducerId);
+        setSubActionStatus('Subscription cancelled.');
+        await loadSubscriptionSection();
+    } catch (err) {
+        setSubActionStatus(err.message, true);
+    } finally {
+        safeCall(() => $w('#btnCancelSubscription').enable());
+    }
+}
+
+function setSubActionStatus(message, isError) {
+    safeCall(() => {
+        $w('#textSubActionStatus').text = message;
+        $w('#textSubActionStatus').style.color = isError ? '#B3261E' : '#2E7D32';
+    });
+}
+
+// Same idea as safeCall(), but for a value read rather than a void
+// action - returns undefined instead of throwing if the element doesn't
+// exist, so handleSubscribeClick() can fall back to 'solo' cleanly.
+function safeGet(fn) {
+    try {
+        return fn();
+    } catch (err) {
+        return undefined;
+    }
 }

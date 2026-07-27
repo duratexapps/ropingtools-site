@@ -413,11 +413,30 @@ $249 unlimited).
 | `#textTeamStatus2` | Text (inside repeater item) | This row's own status (`invited` / `active` / `removed`) — named `_2` specifically to avoid colliding with the page-level `#textTeamStatus` above, same repeater-ID scoping issue noted on the Producer Dashboard page's build guide section |
 | `#btnRemoveTeamUser` | Button (inside repeater item) | Revokes this person's access |
 
-**Not yet built**: the invited person's own "accept invite" landing page/flow — `account-users.jsw`'s
-`acceptAccountInvite(inviteId)` exists and is ready to call, but no page calls it yet. Needs a small new
-page (or a section added to an existing one) that reads an `?invite=` query param and calls it once the
-invited person is signed in. Also, the Triggered Email that actually notifies an invited person isn't
-set up yet — see `DRAWPRO_NEXT_STEPS.md`.
+**UPDATED 2026-07-27**: the invited person's own "accept invite" flow is now its own separate page
+(`accept-account-invite.js`) rather than a section here — see Page 6 below. Still not yet built: the
+Triggered Email that actually notifies an invited person — see `DRAWPRO_NEXT_STEPS.md`.
+
+### Subscription (NEW, added 2026-07-27)
+Answers a real question: Steer Me already has a complete, real Subscribe screen
+(`app/subscription.tsx`, gated only on the external RevenueCat/App Store setup step) — Draw Pro had
+**no equivalent page at all** until this section. Tier pricing/labels shown here are always pulled live
+from `backend/payments.jsw`'s `getSeatTierOptions()` — never hardcode a price directly into this page's
+text, since that's exactly the kind of drift that causes a mismatch between what's shown and what's
+actually charged.
+
+| ID | Type | Notes |
+|---|---|---|
+| `#textSubCurrentStatus` | Text | e.g. "Active — 3 users plan, renews Aug 1, 2027" or "Not subscribed" |
+| `#radioSubTier` | Radio button group | Options populated dynamically — don't hand-enter them in the Editor |
+| `#btnSubscribe` | Button | Label switches to "Change Plan" once already subscribed. Redirects to PayPal's hosted checkout on click — this page temporarily navigates away and back |
+| `#btnCancelSubscription` | Button | Hidden unless currently subscribed |
+| `#textSubActionStatus` | Text | Status/error messages for subscribe/cancel actions specifically — kept separate from `#textSubCurrentStatus` |
+
+**Real external dependency, same shape as Steer Me's**: this is fully coded and ready, but won't
+actually work until `createSubscriptionProduct()` and `createSubscriptionPlan(productId, seatTier)`
+(once per tier — 3 times total) are run with **real PayPal credentials**, which don't exist yet pending
+the PayPal for Platforms application approval — see `DRAWPRO_NEXT_STEPS.md`.
 
 No Tour Overlay elements on this page. Also worth adding a plain Editor-native Link element on
 Producer Event Setup pointing here once this page exists — no custom code needed for that, since the
