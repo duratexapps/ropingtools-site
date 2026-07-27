@@ -70,3 +70,22 @@ producer with the relevant audit log entries.]
 [ — placeholder, dependent on whether guest entrants are permitted to submit paid
 entries at all, or whether paid entry requires a full account. This affects both
 this policy and the guest-entry cap design.]
+
+## 7. Producer Subscription Cancellation
+
+**NEW section, added 2026-07-27 — this policy previously said nothing about the
+producer annual subscription at all**, only about entry fees. Now that a real
+subscription (see Terms of Service Section 8.5 — $149/$199/$249 tiers) exists,
+this needs an explicit answer, not silence:
+
+- [ — placeholder: does canceling a subscription mid-cycle refund any unused
+  portion, or does access simply continue through the already-paid period with
+  no refund, the same model Steer Me uses for its athlete subscriptions
+  (Section 4 of Steer Me's Terms of Service)? Recommend matching that existing
+  precedent for consistency across the product suite unless there's a specific
+  reason to diverge.]
+- [ — placeholder: if a producer downgrades from a higher seat tier
+  (team3/unlimited) to a lower one mid-cycle, what happens to team members
+  already over the new tier's seat limit? The software does not currently
+  automatically remove anyone — this is a business/policy decision, not
+  something already resolved in the code.]

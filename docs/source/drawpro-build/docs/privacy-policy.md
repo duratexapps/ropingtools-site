@@ -48,6 +48,9 @@ indefinite storage].
 - Actions you take in Draw Pro that are logged for accountability, including manual
   draw-sheet overrides and any attempted pairing that would have exceeded an event's
   cap (rejected, but logged)
+- **NEW, added 2026-07-27** — if you invite additional users ("team members") to
+  help manage your events, their name/email (used to send the invite) and
+  their account's activity on your events, logged the same way your own is
 
 ### From guest entrants (no account)
 - The same entrant information above
@@ -64,6 +67,11 @@ indefinite storage].
 ## 3. How We Use This Information
 
 - To run the draw and assign team numbers
+- **NEW, added 2026-07-27** — to determine run order, when a producer enables
+  "first to enter, last to rope" sequencing for their class: the timestamp of
+  when you entered is used to place earlier entries later in the run order
+  (see Terms of Service Section 4). Otherwise, the timestamp is retained but
+  not used to affect your run order.
 - To notify you of your team number, partner, and (in the future) other event
   logistics, by email or, once available, text message you've opted into
 - To let office staff verify scanned card information before it's used in a draw
@@ -105,6 +113,26 @@ We only share what each service needs to perform its specific function, and we
 require these providers to handle your information securely. [ — placeholder for a
 standard "we don't allow them to use your data for their own purposes" clause,
 confirmed against each vendor's actual data processing agreement.]
+
+### CSV export by the producer running your event
+
+**NEW, added 2026-07-27.** A producer may export their event's team/run-order
+information as a CSV file, which includes your name, classification number,
+and entry timestamp, for their own recordkeeping or for use in other event
+software they run alongside Draw Pro. **Once a producer exports this file, it
+is no longer within Draw Pro's control** — it is subject to whatever that
+producer, or the other software they import it into, does with it, not this
+Privacy Policy. We do not control or track what a producer does with an
+export after it leaves Draw Pro.
+
+### Team members on a producer's account
+
+**NEW, added 2026-07-27.** If the producer running your event has invited
+additional users to help manage their events (see Terms of Service Section
+8.5), those users have the same access to your entrant information — name,
+classification number, contact information, and entry timestamp — as the
+producer themselves. Draw Pro does not separately notify entrants when a
+producer adds a team member.
 
 ## 7. Minors
 

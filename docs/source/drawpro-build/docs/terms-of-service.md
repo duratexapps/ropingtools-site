@@ -48,6 +48,14 @@ is not responsible for, and expressly disclaims liability for:
   among solo entrants is random, constrained only by the producer's stated
   classification cap. Draw Pro does not guarantee any particular pairing, running
   order, or outcome.
+- **Run order — random by default, or by entry time if the producer opts in.**
+  **NEW, added 2026-07-27.** A producer may enable "first to enter, last to
+  rope" sequencing for a class, in which case run order is determined by
+  entry timestamp (earlier entries run later) instead of a random shuffle,
+  subject to the same 10-team spacing rule below. This is a per-class
+  producer setting, disclosed as part of that class's entry rules — Draw Pro
+  does not guarantee this feature is enabled for any given class unless the
+  producer has configured it.
 - **The cap rule is absolute.** No pairing — automated or manually entered by a
   producer — will be created if the combined classification exceeds the event's
   stated cap. This rule cannot be waived by a producer, an entrant, or Draw Pro staff.
@@ -94,6 +102,38 @@ Where an entrant is a minor, a parent or legal guardian must be the one submitti
 the entry and agreeing to these Terms, and is responsible for the accuracy of the
 information submitted and for the minor's participation in the event itself. See the
 Minor & Parental Consent Addendum for details.
+
+## 8.5. Producer Subscription & Multi-User Accounts
+
+**NEW section, added 2026-07-27** — flagging clearly that this entire section was
+previously MISSING, not just incomplete: a real, live billing mechanism
+existed in the product with zero mention in this document until now.
+
+- **Annual subscription.** Producers may subscribe to an annual plan covering
+  cash-event execution charges (see the Refund & Extra-Run Policy's related
+  note on execution fees) and, at higher tiers, additional user seats. Pricing
+  as of this draft: $149/year (1 user), $199/year (3 users), $249/year
+  (unlimited users). [Confirm these are still current at time of counsel
+  review — they are set as plain, easily-adjustable configuration values in
+  the software, not hardcoded into a contract, so they may change before
+  launch.]
+- **Auto-renewal.** Subscriptions renew automatically at the then-current
+  price for the selected tier unless canceled before the renewal date. [ —
+  placeholder: confirm cancellation mechanics and whether any refund applies
+  to the unused portion of a canceled subscription; the Refund & Extra-Run
+  Policy does not currently address subscription cancellation at all, only
+  entry-fee/extra-run handling — this needs to be added there before launch.]
+- **Multi-user accounts ("team members").** A producer may invite additional
+  users to help manage their events, subject to the seat limit of their
+  subscription tier above. An invited user who accepts has the **same level
+  of access to that producer's events and entrant information as the
+  producer themselves** — including entrant contact information, classification
+  numbers, and draw results. The producer who owns the account is
+  responsible for who they invite and for removing access when appropriate;
+  Draw Pro does not vet or supervise who a producer chooses to invite.
+- **Only the account owner can add or remove team members** — an invited
+  user cannot grant or revoke another person's access, even though they can
+  otherwise act on the account's events.
 
 ## 9. Fees
 
