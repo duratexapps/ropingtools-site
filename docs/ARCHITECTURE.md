@@ -1234,3 +1234,53 @@ Plans already support multiple plans under one product, so this would
 extend `payments.jsw`'s existing `createSubscriptionPlan()` pattern
 rather than needing new payment infrastructure, whenever this is
 prioritized.
+
+---
+
+## Draw Pro tours: added real screen previews (2026-07-27)
+
+Direct feedback from real people who took the tour: "just stuff to
+read," not impressive. Both existing copies of the tour carousel -
+`public/drawpro/home-intro.html` (the new, not-yet-live producer
+dashboard page) AND `public/drawpro/index.html` (the still-live "Coming
+Soon" page - the one real testers would have actually seen, per
+DRAWPRO_NEXT_STEPS.md's "don't flip prematurely" rule) - got the same
+treatment: each slide now shows a real screenshot plus 2 short "what to
+notice" hint lines, instead of eyebrow/title/body text alone.
+
+**Screenshots are real UI, not stock images or invented mockups.**
+Headless-rendered (Playwright driving the machine's already-installed
+Chrome, no new browser download needed) from this project's own existing
+reference mockups (`docs/mockups/*.html`,
+`docs/source/drawpro-build/ui/*.html`) - the same visual specs the real
+Wix Editor pages were built to match. One gap found and fixed along the
+way: `docs/source/drawpro-build/ui/producer-dashboard-mockup.html` turned
+out to be stale/mistitled - it actually depicts the Draw Sheet Review
+screen, not the real multi-event Producer Dashboard `drawpro-home.js`
+builds (Active Events / Past Events lists). Rather than screenshot
+something that would mislead a prospective producer, built a fresh,
+accurate mockup (`docs/mockups/drawpro-producer-dashboard-mockup.html`)
+matching what that real page actually renders, and flagged the stale
+file's header so nobody reuses it by mistake.
+
+**Delivery mechanism**: both tour files are plain HTML strings Justin
+manually pastes into a Wix HTML Embed element (no git sync to the live
+site) - consistent with that existing workflow, images are base64-
+inlined directly in the file rather than hosted externally, so there's
+still only one self-contained file to copy/paste. Each file grew from
+~10KB to ~450KB as a result (4 JPEGs, resized to 960px wide and
+compressed to keep the total reasonable) - worth testing that pasting
+that much text into the Wix Editor's HTML Embed field still works
+smoothly before assuming it's a non-issue.
+
+**Real bug found and fixed during testing, not just cosmetic**: adding
+a screenshot made the tour card taller than a real small-phone viewport
+(confirmed at 375x667) - the Next button got pushed below the fold with
+no way to reach it, which would have made the tour un-completable on
+some phones. Fixed by switching `.tour-overlay` from
+`align-items: center` (clips overflow) to `align-items: flex-start` plus
+`overflow-y: auto` (scrolls instead), and capping screenshot height via
+a `max-height: 700px` media query so it's rarely even needed. Verified
+live via Playwright at both a comfortable (500x900) and a tight
+(375x667) viewport, including confirming the Next button is reachable
+by scroll in the worst case.

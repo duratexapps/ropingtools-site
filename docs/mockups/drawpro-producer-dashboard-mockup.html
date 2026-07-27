@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draw Pro — Producer Dashboard (visual mockup, not functional)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  /* NEW, added 2026-07-27, for the site-tour screenshot redesign - see
+     docs/ARCHITECTURE.md's entry that day. The OLDER file in this folder
+     called "producer-dashboard-mockup.html" (docs/source/drawpro-build/ui/)
+     is stale/mistitled - it actually depicts the Draw Sheet Review screen,
+     predating the real multi-event Producer Dashboard that
+     velo/pages/drawpro-real/drawpro-home.js builds (Active Events / Past
+     Events repeaters). This file is a fresh, accurate mockup of THAT real
+     page, built specifically so the marketing tour shows something that
+     actually matches what a signed-in producer sees, not a mismatched
+     older screen. Palette from ropingtools-design-tokens.md, same as the
+     other mockups in this folder. */
+  :root {
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --green: #4B5A3C;
+    --brass-light: #C9A54F;
+    --oxblood: #5C2430;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background: var(--cream);
+    min-height: 100vh;
+  }
+
+  .mockup-banner {
+    background: var(--oxblood);
+    color: var(--cream);
+    text-align: center;
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    padding: 0.5rem;
+  }
+
+  .topbar {
+    background: var(--leather);
+    background-image: radial-gradient(circle at 90% -30%, rgba(169,129,46,0.30), transparent 55%);
+    padding: 1.6rem 2.5rem;
+    color: var(--cream);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: 1.7rem;
+  }
+  .topbar .subtitle {
+    font-size: 0.85rem;
+    color: var(--tan);
+    margin-top: 0.2rem;
+  }
+  .topbar-actions { display: flex; gap: 0.75rem; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--cream);
+    border: 1px solid var(--rope);
+    border-radius: 6px;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--brass-light);
+    color: var(--leather-dark);
+    border: none;
+    border-radius: 6px;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .content { padding: 2rem 2.5rem; max-width: 1000px; }
+  .section-heading {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: var(--ink);
+    margin-bottom: 1rem;
+  }
+  .event-list { display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 2.25rem; }
+  .event-card {
+    background: var(--tan-light);
+    border: 1px solid var(--rope);
+    border-left: 4px solid var(--brass-light);
+    border-radius: 8px;
+    padding: 1.1rem 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .event-card.past { border-left-color: var(--rope); opacity: 0.85; }
+  .event-title { font-weight: 700; color: var(--ink); font-size: 1.05rem; }
+  .event-meta { color: var(--rope); font-size: 0.85rem; margin-top: 0.2rem; }
+  .event-manage {
+    color: var(--oxblood);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: none;
+    border: 1px solid var(--oxblood);
+    border-radius: 6px;
+    padding: 0.45rem 0.9rem;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-banner">VISUAL MOCKUP ONLY — not functional code, not for pasting into Wix. Reference for the signed-in Producer Dashboard (drawpro-home.js).</div>
+
+<div class="topbar">
+  <div>
+    <h1>Welcome back, Circle T Ropings</h1>
+    <div class="subtitle">Your events, all in one place</div>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn-ghost" type="button">Edit Profile</button>
+    <button class="btn-primary" type="button">+ Create Event</button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="section-heading">Active Events</div>
+  <div class="event-list">
+    <div class="event-card">
+      <div>
+        <div class="event-title">Saturday Jackpot</div>
+        <div class="event-meta">Aug 1, 2026 · Hallettsville, TX</div>
+      </div>
+      <a class="event-manage" href="#">Manage &rarr;</a>
+    </div>
+    <div class="event-card">
+      <div>
+        <div class="event-title">Labor Day Ropin'</div>
+        <div class="event-meta">Sep 5, 2026 · Gonzales, TX</div>
+      </div>
+      <a class="event-manage" href="#">Manage &rarr;</a>
+    </div>
+  </div>
+
+  <div class="section-heading">Past Events</div>
+  <div class="event-list">
+    <div class="event-card past">
+      <div>
+        <div class="event-title">Fourth of July Roping</div>
+        <div class="event-meta">Jul 4, 2026 · Hallettsville, TX</div>
+      </div>
+      <a class="event-manage" href="#">Manage &rarr;</a>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
