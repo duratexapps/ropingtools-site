@@ -59,6 +59,19 @@
  *                          page among the other account-management controls rather than
  *                          as a nav item. Opens the Legal page (see velo/pages/
  *                          drawpro-real/drawpro-legal.js) in a new tab.)
+ *
+ *   -- Sign-in prompt (NEW, added 2026-07-28) --
+ *   Real gap found live: landing on this page directly (not via the Draw Pro home
+ *   page's own sign-up flow) with no session left #btnSaveProfile permanently
+ *   disabled with no way to actually sign up FROM this page - a dead end, not a
+ *   save-logic bug. Same verified pattern as accept-account-invite.js's own
+ *   sign-in prompt (authentication.promptLogin()).
+ *   #boxSignInPrompt     (container - shown only when no member is signed in)
+ *   #btnSignIn           (button, inside #boxSignInPrompt - can be a plain Wix
+ *                         "Member Login"/"Sign Up" widget instead, same note as
+ *                         drawpro-home.js's #btnSignUp/#btnLogIn - opens Wix's
+ *                         hosted login lightbox, which already includes a
+ *                         "Sign up" path, no separate custom signup form needed)
  */
 
 import wixLocation from 'wix-location';
@@ -68,12 +81,18 @@ import {
     getSubscription, getSeatTierOptions, startProducerSubscription,
     checkSubscriptionStatus, cancelSubscription
 } from 'backend/payments.jsw';
-import { currentMember } from 'wix-members-frontend';
+import { currentMember, authentication } from 'wix-members-frontend';
 
 let currentProducerId = null;
 
 $w.onReady(async function () {
-    $w('#btnSaveProfile').onClick(handleSave);
+    // FIXED live 2026-07-28: #btnSaveProfile.onClick() was the one wiring
+    // call on this page NOT wrapped in safeCall(), inconsistent with every
+    // other button here - same class of bug already fixed on
+    // producer-event-setup.js the same day (an unwrapped call throwing
+    // silently kills every wiring call after it, since $w.onReady() is
+    // synchronous until its first await).
+    safeCall(() => $w('#btnSaveProfile').onClick(handleSave));
     safeCall(() => $w('#btnInviteUser').onClick(handleInviteUser));
     safeCall(() => $w('#btnSubscribe').onClick(handleSubscribeClick));
     safeCall(() => $w('#btnCancelSubscription').onClick(handleCancelClick));
@@ -81,6 +100,7 @@ $w.onReady(async function () {
     // than a plain <a> since this is a native Wix element, not HTML embed
     // content; "legal" is the Legal page's URL slug (see drawpro-legal.js).
     safeCall(() => $w('#linkLegal').onClick(() => wixLocation.to('/legal')));
+    safeCall(() => $w('#boxSignInPrompt').collapse());
     await loadExistingProfile();
     await loadTeamSection();
     await loadSubscriptionSection();
@@ -101,8 +121,20 @@ function safeCall(fn) {
 async function loadExistingProfile() {
     const member = await currentMember.getMember().catch(() => null);
     if (!member) {
-        setStatus('Sign in as a producer to set up your profile.', true);
+        // FIXED live 2026-07-28: this used to just disable Save and show
+        // an error, with no way to actually sign up FROM this page -
+        // reported as "Save Profile doesn't work no matter what I fill
+        // in," but the real cause was landing here with no session at
+        // all (e.g. via a direct URL, never having gone through the
+        // Draw Pro home page's own sign-up flow first), not a save-logic
+        // bug. Same verified authentication.promptLogin() pattern as
+        // accept-account-invite.js - opens Wix's hosted login lightbox
+        // (which already includes a "Sign up" path), then re-runs this
+        // same load once they're actually signed in.
+        setStatus('Sign in (or create a free account) to set up your producer profile.', true);
         $w('#btnSaveProfile').disable();
+        safeCall(() => $w('#boxSignInPrompt').expand());
+        safeCall(() => $w('#btnSignIn').onClick(handleSignInThenLoad));
         return;
     }
     currentProducerId = member._id;
@@ -114,6 +146,26 @@ async function loadExistingProfile() {
         $w('#inputContactPhone').value = profile.contactPhone || '';
         $w('#inputLogoUrl').value = profile.logoUrl || '';
     }
+}
+
+// Same verified pattern as accept-account-invite.js's handleSignInThenAccept()
+// - authentication.promptLogin({ mode: 'login' }) opens Wix's own hosted
+// login lightbox (already includes a "Sign up" path) and resolves once the
+// visitor is actually logged in. Rejects if they close it without
+// completing, in which case this just leaves the sign-in prompt up rather
+// than erroring - closing the lightbox isn't a failure, just "not now."
+async function handleSignInThenLoad() {
+    try {
+        await authentication.promptLogin({ mode: 'login' });
+    } catch (e) {
+        return;
+    }
+    safeCall(() => $w('#boxSignInPrompt').collapse());
+    setStatus('');
+    $w('#btnSaveProfile').enable();
+    await loadExistingProfile();
+    await loadTeamSection();
+    await loadSubscriptionSection();
 }
 
 async function handleSave() {
