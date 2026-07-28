@@ -490,11 +490,39 @@ async function showNotYetOpenState() {
     $w('#boxNotYetOpen').expand();
     // Everything below this form is collapsed rather than just left
     // unwired, so a visitor can't fill out fields that won't submit.
-    $w('#dropdownClass').collapse();
-    $w('#checkboxAddPartner').collapse();
-    $w('#boxPartnerFields').collapse();
-    $w('#btnSubmitEntry').collapse();
-    $w('#checkboxGuestEntry').collapse();
+    //
+    // FIXED live 2026-07-28: this comment already said "everything," but
+    // the code only ever collapsed the class/partner/guest/submit
+    // elements - the entire "Your Info" entrant-identity section
+    // (#inputFirstName through #inputPhone, plus the draw-in count/role
+    // and the fee display, which are meaningless with nothing to submit)
+    // was left fully visible and editable the whole time. Confirmed live
+    // via a headless-browser render: a visitor landing on a not-yet-open
+    // event saw a real, fillable-looking form sitting right next to the
+    // "hasn't opened yet" message, with no way to actually submit it -
+    // exactly the kind of half-finished-looking page this function's own
+    // comment was trying to prevent.
+    // Wrapped in safeCall individually - same defensive reasoning as the
+    // rest of this file (a real element sometimes turns out not to be
+    // the type its name implies, e.g. #boxAddClass on Producer Event
+    // Setup - one surprise here shouldn't stop the rest from collapsing.
+    safeCall(() => $w('#dropdownClass').collapse());
+    safeCall(() => $w('#textEventCap').collapse());
+    safeCall(() => $w('#checkboxAddPartner').collapse());
+    safeCall(() => $w('#boxPartnerFields').collapse());
+    safeCall(() => $w('#radioRole').collapse());
+    safeCall(() => $w('#inputFirstName').collapse());
+    safeCall(() => $w('#inputLastName').collapse());
+    safeCall(() => $w('#inputClassification').collapse());
+    safeCall(() => $w('#inputGlobalId').collapse());
+    safeCall(() => $w('#inputEmail').collapse());
+    safeCall(() => $w('#inputPhone').collapse());
+    safeCall(() => $w('#inputEntryCount').collapse());
+    safeCall(() => $w('#radioDrawInRole').collapse());
+    safeCall(() => $w('#textFeeAmount').collapse());
+    safeCall(() => $w('#textSteerMeNudge').collapse());
+    safeCall(() => $w('#btnSubmitEntry').collapse());
+    safeCall(() => $w('#checkboxGuestEntry').collapse());
 
     // No open class — find the soonest entryOpenDateTime across every
     // class in this event for the "opens at" message, since classes now
