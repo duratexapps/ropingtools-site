@@ -1,0 +1,237 @@
+// backend/demoDataGenerator.jsw
+//
+// ============================================================
+// REMOVABLE DEMO FEATURE - built for onboarding demos only, not
+// meant to be permanent. See docs/ARCHITECTURE.md's "Demo data
+// generator (removable)" entry for exactly how to remove this
+// cleanly later:
+//   1. Delete this file.
+//   2. Remove the two buttons + status text this wires up on
+//      Producer Draw Sheet Review (search that file for "REMOVABLE
+//      DEMO FEATURE" to find the exact block) and the matching
+//      Editor elements (#btnGenerateDemoEntrants, #inputDemoEntrantCount,
+//      #btnClearDemoEntrants, #textDemoStatus).
+//   3. Nothing else needs to change - generated rows are plain,
+//      real-shaped DrawProEntrants records (built the exact same way
+//      event-setup.jsw's buildEntrantRecord() does) with ONE
+//      distinguishing marker: source: 'demo_generated' (a new value
+//      for the EXISTING source field, not a new schema column) - so
+//      there's no schema change to undo, and clearDemoEntrants()
+//      below already gives you a one-click way to remove the data
+//      itself before removing the feature.
+// ============================================================
+//
+// Real ask, directly from the user: showing a prospective/onboarding
+// producer the actual speed/accuracy/organization of a real draw at
+// volume (a few hundred entrants), without hand-typing fake names one
+// at a time. Deliberately generates REAL-SHAPED entrant records that
+// flow through the ACTUAL matching-engine.jsw/finalizeDrawSheet()
+// pipeline unmodified - this demos the real production logic at
+// volume, not a separately faked shortcut. That's also just a better,
+// more convincing demo than pre-faking "teams" directly would be.
+
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+import { assertProducerAccess } from 'backend/account-users.jsw';
+
+const CLASSES = 'DrawProEventClasses';
+const EVENTS = 'DrawProEvents';
+const ENTRANTS = 'DrawProEntrants';
+
+const DEMO_SOURCE = 'demo_generated';
+const BULK_CHUNK_SIZE = 100; // wix-data bulkInsert is happier in smaller batches for a few hundred rows
+
+// Plain, realistic-sounding Western/roping-culture names - deliberately
+// NOT literally "Demo Contestant #1" style, since the whole point is a
+// convincing volume demo. source: 'demo_generated' (not the name) is
+// what makes these safely identifiable/removable, so there's no need to
+// sacrifice realism for that.
+const FIRST_NAMES = [
+    'Cody', 'Wyatt', 'Colt', 'Tanner', 'Dalton', 'Brody', 'Jesse', 'Gunner',
+    'Levi', 'Trace', 'Rowdy', 'Cash', 'Beau', 'Rhett', 'Slade', 'Dutton',
+    'Kaycee', 'Reata', 'Shelby', 'Josey', 'Brynn', 'Paisley', 'Mackenzie',
+    'Kinsley', 'Marley', 'Presley', 'Journey', 'Remington', 'Sage', 'Dakota',
+    'Colby', 'Reese', 'Kaden', 'Sawyer', 'Maddox', 'Gage', 'Kash', 'Tatum',
+    'Rylan', 'Ty'
+];
+const LAST_NAMES = [
+    'Hutto', 'Calhoun', 'Pruitt', 'Briggs', 'Lassiter', 'Teague', 'Winslow',
+    'Renner', 'Kirkland', 'Ashcroft', 'Griggs', 'Dunmore', 'Steadman',
+    'Hatfield', 'Cutler', 'Voss', 'Pemberton', 'Vantrease', 'Beckham',
+    'Holloway', 'Marlow', 'Ruiz', 'Overholt', 'Delacruz', 'Fenn', 'Sanders',
+    'Rowe', 'Whitfield', 'Holt', 'Bracken', 'Combs', 'Modlin', 'Bach',
+    'Jones', 'Rasco', 'Boatright', 'Cauthen', 'Feild', 'Prather', 'Wisdom'
+];
+
+function randomFrom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomName() {
+    return { firstName: randomFrom(FIRST_NAMES), lastName: randomFrom(LAST_NAMES) };
+}
+
+// Real valid ranges - MAX_HEADER_NUMBER (9) / MAX_HEELER_NUMBER (10),
+// same constants Steer Me's own matching.ts uses, in 0.5 increments.
+function randomHeaderNumber() {
+    return Math.round((0.5 + Math.random() * 8.5) * 2) / 2;
+}
+function randomHeelerNumber() {
+    return Math.round((0.5 + Math.random() * 9.5) * 2) / 2;
+}
+
+async function assertAccessAndGetClass(classId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const cls = await wixData.get(CLASSES, classId);
+    if (!cls) throw new Error('Class not found.');
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+    return cls;
+}
+
+function randomEntryTimestamp() {
+    // Spread across the last 3 days so "first to enter, last to rope"
+    // sequencing (see matching-engine.jsw) has something real to sort by,
+    // instead of every demo entry sharing one identical instant.
+    const threeDaysMs = 1000 * 60 * 60 * 24 * 3;
+    return new Date(Date.now() - Math.floor(Math.random() * threeDaysMs));
+}
+
+function buildDemoEntrant(cls, person, role, entryType, groupId) {
+    const emailSlug = `${person.firstName}.${person.lastName}.${Math.random().toString(36).slice(2, 7)}`.toLowerCase();
+    return {
+        eventId: cls.eventId,
+        classId: cls._id,
+        submissionGroupId: groupId,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        classificationNumber: person.classificationNumber,
+        globalMembershipId: null,
+        email: `${emailSlug}@ropingtools-demo.test`,
+        phone: null,
+        role,
+        entryType,
+        teamPartnerEntrantId: null, // linked after insert for preformed_team pairs - see generateDemoEntrants()
+        partnerEmailOnly: null,
+        partnerInviteStatus: null,
+        isGuestEntry: false,
+        guestContactHash: null,
+        source: DEMO_SOURCE,
+        scanVerified: false,
+        rawOcrText: null,
+        ocrConfidence: null,
+        sourceImageUrl: null,
+        requiresManualContact: false,
+        requestedEntryCount: 1,
+        feeOwed: entryType === 'solo'
+            ? cls.pricePerEntry + (cls.drawInSurchargeFee || 0)
+            : (cls.pricePerPreformedTeamEntry || cls.pricePerEntry),
+        isFeeResponsible: true,
+        paymentStatus: 'unpaid',
+        paymentReferenceNumber: null,
+        entryTimestamp: randomEntryTimestamp()
+    };
+}
+
+async function bulkInsertChunked(records) {
+    for (let i = 0; i < records.length; i += BULK_CHUNK_SIZE) {
+        await wixData.bulkInsert(ENTRANTS, records.slice(i, i + BULK_CHUNK_SIZE));
+    }
+}
+
+/**
+ * Generates realistic demo entrants for one class - roughly 35% as
+ * pre-formed pairs (a valid combo under the class's own cap most of the
+ * time, so most of the field draws cleanly and shows as real teams once
+ * finalized) and the rest as solo draw-in entrants (a realistic mix, and
+ * enough of them that the real matching algorithm has genuine work to
+ * do - including some that won't pair perfectly, which is exactly what
+ * demos the unmatched-entrant / manual-pairing handling too, not just
+ * the happy path).
+ *
+ * @param {string} classId
+ * @param {number} [totalEntrants] - defaults to 300, clamped to 2-1000
+ * @returns {Promise<{created: number}>}
+ */
+export async function generateDemoEntrants(classId, totalEntrants) {
+    const cls = await assertAccessAndGetClass(classId);
+    const count = Math.max(2, Math.min(1000, Math.floor(totalEntrants || 300)));
+
+    const now = Date.now();
+    const records = [];
+    const pairGroupIds = [];
+
+    const pairEntrants = Math.floor(count * 0.35 / 2) * 2; // keep it even
+    const pairCount = pairEntrants / 2;
+
+    for (let i = 0; i < pairCount; i++) {
+        const header = randomHeaderNumber();
+        // Bias the heeler's number toward staying at/under this class's
+        // cap most of the time - realistic, not maximally adversarial.
+        const headroom = Math.max(0.5, cls.capNumber - header);
+        const heeler = Math.round((0.5 + Math.random() * Math.max(0, headroom - 0.5)) * 2) / 2;
+
+        const groupId = `demo_${now}_pair_${i}`;
+        pairGroupIds.push(groupId);
+
+        records.push(buildDemoEntrant(cls, { ...randomName(), classificationNumber: header }, 'header', 'preformed_team', groupId));
+        records.push(buildDemoEntrant(cls, { ...randomName(), classificationNumber: heeler }, 'heeler', 'preformed_team', groupId));
+    }
+
+    const soloCount = count - pairEntrants;
+    for (let i = 0; i < soloCount; i++) {
+        const role = Math.random() < 0.5 ? 'header' : 'heeler';
+        const number = role === 'header' ? randomHeaderNumber() : randomHeelerNumber();
+        const groupId = `demo_${now}_solo_${i}`;
+        records.push(buildDemoEntrant(cls, { ...randomName(), classificationNumber: number }, role, 'solo', groupId));
+    }
+
+    await bulkInsertChunked(records);
+
+    // Link each pre-formed pair's two rows to each other, same as
+    // event-setup.jsw's submitPreformedTeamFull() does for a real
+    // submission - needs the real _ids Wix Data just assigned, so this
+    // has to happen as a second pass after the bulk insert above.
+    for (const groupId of pairGroupIds) {
+        const result = await wixData.query(ENTRANTS).eq('submissionGroupId', groupId).find();
+        if (result.items.length !== 2) continue; // defensive - shouldn't happen, but don't half-link if it does
+        const [a, b] = result.items;
+        await wixData.update(ENTRANTS, { ...a, teamPartnerEntrantId: b._id });
+        await wixData.update(ENTRANTS, { ...b, teamPartnerEntrantId: a._id });
+    }
+
+    return { created: records.length };
+}
+
+/**
+ * Removes every demo-generated entrant for this class (identified by
+ * source: 'demo_generated' - never touches real entrants). Does NOT
+ * change the class's own status - if it's already been finalized/drawn
+ * using demo data, use the class's normal manual controls to reset that
+ * separately before regenerating.
+ */
+export async function clearDemoEntrants(classId) {
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in as the producer.');
+    const cls = await wixData.get(CLASSES, classId);
+    if (!cls) throw new Error('Class not found.');
+    const event = await wixData.get(EVENTS, cls.eventId);
+    await assertProducerAccess(event.producerId, member._id);
+
+    const result = await wixData.query(ENTRANTS).eq('classId', classId).eq('source', DEMO_SOURCE).find();
+    let removed = 0;
+    for (const item of result.items) {
+        await wixData.remove(ENTRANTS, item._id);
+        removed++;
+    }
+    return { removed };
+}
+
+/** For the UI to show "N demo entrants currently on this class." */
+export async function countDemoEntrants(classId) {
+    // .find()'s totalCount rather than a separate .count() call - simpler
+    // and already the established pattern elsewhere in this codebase.
+    const result = await wixData.query(ENTRANTS).eq('classId', classId).eq('source', DEMO_SOURCE).limit(1).find();
+    return result.totalCount;
+}

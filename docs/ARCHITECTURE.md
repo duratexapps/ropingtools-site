@@ -1494,3 +1494,64 @@ directly) for the concrete next steps: (1) create the
 `coursePreferences.jsw`'s file header), (2) build the actual focus-
 picker UI and wire it to `setFocusPreference()`, (3) continue the
 chapter-by-chapter audit for the remaining flagged/unchecked chapters.
+
+## Demo data generator (removable) (2026-07-28)
+
+Real ask, directly from the user: show a prospective/onboarding producer
+the actual speed/accuracy/organization of a real draw at volume (a few
+hundred entrants), without hand-typing fake names one at a time -
+demoing the Draw Sheet Review page's finalize/draw/export/rotation/
+spacing-flag/incentive-flag functions the way they'd actually look with
+a real-sized field. Explicit, upfront requirement from the user: this
+must be cleanly removable later, once onboarding demos are no longer
+needed, without damaging anything else.
+
+**Built as `backend/demoDataGenerator.jsw` + a small block on Producer
+Draw Sheet Review, deliberately isolated so removal is trivial:**
+
+- Generated entrants are plain, real-shaped `DrawProEntrants` records,
+  built the exact same way `event-setup.jsw`'s `buildEntrantRecord()`
+  does (same fields, same pre-formed-team linking via
+  `teamPartnerEntrantId` after insert) - they flow through the ACTUAL
+  `matching-engine.jsw` finalize/draw pipeline unmodified. This demos
+  the real production logic at volume, not a separately faked
+  shortcut - also just a more convincing, honest demo.
+- The ONLY marker distinguishing a demo entrant from a real one is
+  `source: 'demo_generated'` - a new value for the EXISTING `source`
+  field (real entries use `'self_entry'`), not a new schema column.
+  Nothing to undo in the collection schema when this feature is
+  removed - `clearDemoEntrants()` already gives a one-click way to
+  remove the data itself first.
+- ~35% of generated entrants are pre-formed pairs (biased to land at/
+  under the class's own cap, so most draw cleanly into real teams);
+  the rest are solo draw-in entrants, including some that won't pair
+  perfectly - deliberately, so the unmatched-entrant/manual-pairing
+  flow gets demoed too, not just the happy path.
+- Realistic-sounding Western/roping-culture names (not literally "Demo
+  Contestant #1") - the `source` field is what makes these safely
+  identifiable/removable, so there's no need to sacrifice how
+  convincing the demo looks.
+
+**To remove this feature entirely:**
+1. Delete `backend/demoDataGenerator.jsw`.
+2. In `producer-draw-sheet-review.js`, delete everything between the
+   `REMOVABLE DEMO FEATURE` / `END REMOVABLE DEMO FEATURE` markers,
+   plus the two `safeCall()` wiring lines for
+   `#btnGenerateDemoEntrants`/`#btnClearDemoEntrants` just above that
+   block, plus the one `await refreshDemoEntrantCount();` call inside
+   `handleClassChanged()`, plus the `generateDemoEntrants`/
+   `clearDemoEntrants`/`countDemoEntrants` import line.
+3. Remove the 4 Editor elements this feature added
+   (`#inputDemoEntrantCount`, `#btnGenerateDemoEntrants`,
+   `#btnClearDemoEntrants`, `#textDemoStatus`) from the Producer Draw
+   Sheet Review page in the Wix Editor.
+4. Optionally, run `clearDemoEntrants(classId)` (or a direct Content
+   Manager filter on `source = 'demo_generated'`) against any class
+   that still has demo entrants on it, if not already cleared before
+   this point.
+5. Mirror the deletion into `roping-tools` (remove
+   `src/backend/demoDataGenerator.jsw` and revert the matching page-code
+   file), same two-repo rule as every other change.
+
+That's the whole removal - no other file, table, or column needs to
+change.

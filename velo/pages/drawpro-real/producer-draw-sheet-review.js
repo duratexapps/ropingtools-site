@@ -82,10 +82,29 @@
  *   #navDashboard   (Button/Link) - links to /producer-dashboard
  *   #navCreateEvent (Button/Link) - links to /producer-event-setup
  *   #navMyProfile   (Button/Link) - links to /producer-profile
+ *
+ *   -- REMOVABLE DEMO FEATURE (NEW, added 2026-07-28) --
+ *   Bulk-generates realistic demo entrants for the SELECTED class, for
+ *   showing a prospective/onboarding producer the real speed/accuracy/
+ *   organization of a full draw at volume without hand-typing fake names.
+ *   See backend/demoDataGenerator.jsw's own file header for exactly how
+ *   to remove this feature entirely later - it's deliberately isolated to
+ *   that one backend file + this one block of elements/wiring, with zero
+ *   changes anywhere else, so removal never risks the real product.
+ *   #inputDemoEntrantCount   (Text input, numeric - how many entrants to
+ *                            generate, e.g. defaults to "300" as a
+ *                            placeholder)
+ *   #btnGenerateDemoEntrants (Button)
+ *   #btnClearDemoEntrants    (Button - removes only demo-generated
+ *                            entrants for the selected class, never real
+ *                            ones)
+ *   #textDemoStatus          (Text - status messages + current demo
+ *                            entrant count for the selected class)
  */
 
 import wixLocation from 'wix-location';
 import wixData from 'wix-data';
+import { generateDemoEntrants, clearDemoEntrants, countDemoEntrants } from 'backend/demoDataGenerator.jsw';
 import {
     finalizeDrawSheet, signOffDrawSheet, manualPairEntrants,
     swapTeamPositions, acknowledgeSpacingConflict, getUnresolvedSpacingConflicts
@@ -167,7 +186,69 @@ function wireButtons() {
     safeCall(() => $w('#btnDismissRotationSuggestion').onClick(() => $w('#boxRotationSuggestion').collapse()));
     safeCall(() => $w('#btnSwapSelected').disable());
     safeCall(() => $w('#btnExportCSV').onClick(handleExportCSV));
+
+    // REMOVABLE DEMO FEATURE - see this file's header comment and
+    // backend/demoDataGenerator.jsw for the full reasoning and exact
+    // removal steps.
+    safeCall(() => $w('#btnGenerateDemoEntrants').onClick(handleGenerateDemoEntrants));
+    safeCall(() => $w('#btnClearDemoEntrants').onClick(handleClearDemoEntrants));
 }
+
+/* ================================================================ */
+/* REMOVABLE DEMO FEATURE - see this file's header comment and       */
+/* backend/demoDataGenerator.jsw for the full reasoning and exact     */
+/* removal steps. Nothing outside this block + the two safeCall()     */
+/* wiring lines above it needs to change to remove this feature.      */
+/* ================================================================ */
+
+async function handleGenerateDemoEntrants() {
+    if (!currentClassId) {
+        safeCall(() => { $w('#textDemoStatus').text = 'Select a class first.'; });
+        return;
+    }
+    const requested = Number($w('#inputDemoEntrantCount').value) || 300;
+    safeCall(() => { $w('#textDemoStatus').text = `Generating ~${requested} demo entrants… this can take a moment.`; });
+    safeCall(() => $w('#btnGenerateDemoEntrants').disable());
+    try {
+        const { created } = await generateDemoEntrants(currentClassId, requested);
+        safeCall(() => { $w('#textDemoStatus').text = `Created ${created} demo entrants.`; });
+        await loadEntrantList();
+    } catch (err) {
+        safeCall(() => { $w('#textDemoStatus').text = `Failed to generate demo entrants: ${err.message}`; });
+    } finally {
+        safeCall(() => $w('#btnGenerateDemoEntrants').enable());
+    }
+}
+
+async function handleClearDemoEntrants() {
+    if (!currentClassId) {
+        safeCall(() => { $w('#textDemoStatus').text = 'Select a class first.'; });
+        return;
+    }
+    safeCall(() => { $w('#textDemoStatus').text = 'Removing demo entrants…'; });
+    safeCall(() => $w('#btnClearDemoEntrants').disable());
+    try {
+        const { removed } = await clearDemoEntrants(currentClassId);
+        safeCall(() => { $w('#textDemoStatus').text = `Removed ${removed} demo entrants.`; });
+        await loadEntrantList();
+    } catch (err) {
+        safeCall(() => { $w('#textDemoStatus').text = `Failed to remove demo entrants: ${err.message}`; });
+    } finally {
+        safeCall(() => $w('#btnClearDemoEntrants').enable());
+    }
+}
+
+async function refreshDemoEntrantCount() {
+    if (!currentClassId) return;
+    const count = await countDemoEntrants(currentClassId).catch(() => null);
+    if (count != null) {
+        safeCall(() => { $w('#textDemoStatus').text = `${count} demo entrant(s) currently on this class.`; });
+    }
+}
+
+/* ================================================================ */
+/* END REMOVABLE DEMO FEATURE                                        */
+/* ================================================================ */
 
 /**
  * Every class in this event, closed or beyond — a still-'open' class
@@ -214,6 +295,8 @@ async function handleClassChanged() {
     if (cls) updateEntrantsHeading(cls);
 
     await loadEntrantList();
+    // REMOVABLE DEMO FEATURE - see this file's header comment.
+    await refreshDemoEntrantCount();
 }
 
 async function loadEntrantList() {
