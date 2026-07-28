@@ -85,9 +85,11 @@ async function tryAccept(inviteId) {
         await acceptAccountInvite(inviteId);
         setStatus("You're in! You now have access to this producer's events.");
         safeCall(() => $w('#btnGoToDashboard').expand());
-        safeCall(() => $w('#btnGoToDashboard').onClick(() => wixLocation.to('/drawpro-home')));
-        // Adjust the path above once the real Producer Dashboard page URL
-        // is known, same note as drawpro-home.js's own button wiring.
+        // FIXED live 2026-07-28: confirmed real URL is /producer-dashboard
+        // (the page displays as "Draw Pro" in the site menu now, but
+        // renaming a page's display name doesn't change its URL slug -
+        // same real gap found on the homepage's own Draw Pro link).
+        safeCall(() => $w('#btnGoToDashboard').onClick(() => wixLocation.to('/producer-dashboard')));
     } catch (err) {
         setStatus(err.message, true);
     }

@@ -73,11 +73,32 @@ import wixData from 'wix-data';
 import wixLocation from 'wix-location';
 import { currentMember } from 'wix-members-frontend';
 import { getAccessibleProducerIds } from 'backend/account-users.jsw';
+import { getProducerProfile } from 'backend/producerProfiles.jsw';
 
 $w.onReady(async function () {
     const member = await currentMember.getMember().catch(() => null);
 
+    // FIXED live 2026-07-28, real gap flagged directly by the user: this
+    // used to treat "signed in" and "ready to see the dashboard" as the
+    // same thing. A brand-new member who just signed up has no
+    // DrawProProducerProfiles row yet (that's a separate step, filled in
+    // on the Producer Profile page) - landing them on this dashboard
+    // showed an empty "0 active events" view with no indication they
+    // still need to set up their profile first, instead of actually
+    // guiding them there. Three real states now, not two:
+    //   - not signed in -> marketing + sign-up (unchanged)
+    //   - signed in, no producer profile yet -> straight to Producer
+    //     Profile to finish setup (this is the actual "new producer"
+    //     path - Producer Profile itself already has its own
+    //     authentication.promptLogin() prompt for landing there with no
+    //     session at all, so both directions of this handoff are covered)
+    //   - signed in, profile already exists -> the real dashboard
     if (member) {
+        const profile = await getProducerProfile(member._id).catch(() => null);
+        if (!profile) {
+            wixLocation.to('/producer-profile');
+            return;
+        }
         safeCall(() => $w('#boxVisitorCTA').collapse());
         safeCall(() => $w('#boxProducerDashboard').expand());
         wireDashboardButtons();
@@ -167,10 +188,13 @@ function renderEventRepeater(repeaterId, emptyTextId, events, itemIds) {
         $item(itemIds.date).text = new Date(event.eventDate).toLocaleDateString();
         $item(itemIds.location).text = event.location;
         $item(itemIds.manage).onClick(() =>
-            wixLocation.to(`/producer-draw-sheet-review?event=${event._id}`)
+            wixLocation.to(`/drawpro-producer-review?event=${event._id}`)
         );
-        // Adjust this path once the real Producer Draw Sheet Review page
-        // URL is known - it already expects an ?event= query param, per
-        // that page's own $w.onReady() (reads wixLocation.query.event).
+        // FIXED live 2026-07-28: confirmed real URL is /drawpro-producer-review,
+        // not /producer-draw-sheet-review as originally guessed here - part of
+        // a full audit of every hardcoded page path in this codebase against
+        // the actual URLs, done after discovering the homepage's own Draw Pro
+        // link was pointing at the wrong page for the same reason (a renamed
+        // page's display name doesn't change its URL slug).
     });
 }
