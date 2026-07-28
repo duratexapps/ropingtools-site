@@ -1,0 +1,111 @@
+// backend/steerMeHandoff.jsw
+//
+// The other direction of steerMeSync.jsw's one-directional event sync:
+// resolves a short-lived, single-use "entry handoff" row Steer Me created
+// (migration 0036_entry_handoffs.sql, in steer-me-app) so entrant-entry-
+// form.js can prefill an entrant's (and, if they'd already confirmed a
+// partner there, that partner's) info instead of making them retype
+// everything - real friction flagged directly by the user.
+//
+// Reuses the exact same Supabase credentials already in Wix Secrets
+// Manager for steerMeSync.jsw's writes (steerme-supabase-url /
+// steerme-supabase-service-role-key) - this just reads (and then marks
+// consumed) instead of writing.
+//
+// Deliberately marks the row consumed via PATCH immediately after a
+// successful read, not just relying on expires_at - a handoff carries
+// another real person's name/classification/contact (the partner
+// fields), so it shouldn't be re-fetchable even within its 1-hour
+// window once it's actually been used once.
+
+import { getSecret } from 'wix-secrets-backend';
+
+const STEERME_SUPABASE_URL_SECRET = 'steerme-supabase-url';
+const STEERME_SUPABASE_SERVICE_KEY_SECRET = 'steerme-supabase-service-role-key';
+
+/**
+ * @param {string} handoffId - the `handoff` query param entrant-entry-form.js reads off its own URL
+ * @returns {Promise<Object|null>} the prefill payload, or null if the id is missing/expired/already consumed/not found - entrant-entry-form.js treats null as "just show the normal blank form," never as an error to surface to the entrant.
+ */
+export async function resolveEntryHandoff(handoffId) {
+    if (!handoffId) return null;
+
+    try {
+        const supabaseUrl = await getSecret(STEERME_SUPABASE_URL_SECRET);
+        const serviceKey = await getSecret(STEERME_SUPABASE_SERVICE_KEY_SECRET);
+        if (!supabaseUrl || !serviceKey) {
+            console.warn('[steerMeHandoff] skipped - Supabase credentials not found in Secrets Manager.');
+            return null;
+        }
+
+        const headers = {
+            'Content-Type': 'application/json',
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`
+        };
+
+        const getUrl = `${supabaseUrl}/rest/v1/entry_handoffs?id=eq.${encodeURIComponent(handoffId)}&select=*`;
+        const res = await fetch(getUrl, { headers });
+        const body = await res.text();
+        if (!res.ok) {
+            console.error(`[steerMeHandoff] lookup failed with status ${res.status}: ${body}`);
+            return null;
+        }
+
+        const rows = JSON.parse(body);
+        if (!rows || rows.length === 0) {
+            console.log(`[steerMeHandoff] no row found for handoff ${handoffId} (already consumed, expired-and-cleaned-up, or invalid id).`);
+            return null;
+        }
+
+        const row = rows[0];
+
+        if (row.consumed_at) {
+            console.log(`[steerMeHandoff] handoff ${handoffId} already consumed at ${row.consumed_at} - refusing to reuse.`);
+            return null;
+        }
+        if (new Date(row.expires_at).getTime() < Date.now()) {
+            console.log(`[steerMeHandoff] handoff ${handoffId} expired at ${row.expires_at} - refusing to use.`);
+            return null;
+        }
+
+        // Mark consumed immediately, before returning anything to the
+        // caller - a failed/slow render on the entrant's device shouldn't
+        // leave a still-valid, still-fetchable handoff sitting around.
+        const patchRes = await fetch(`${supabaseUrl}/rest/v1/entry_handoffs?id=eq.${encodeURIComponent(handoffId)}`, {
+            method: 'PATCH',
+            headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({ consumed_at: new Date().toISOString() })
+        });
+        if (!patchRes.ok) {
+            console.error(`[steerMeHandoff] failed to mark handoff ${handoffId} consumed: ${patchRes.status}`);
+            // Still return the data below - failing to mark it consumed
+            // shouldn't block the one legitimate use it's already serving.
+        }
+
+        return {
+            eventId: row.event_id,
+            me: {
+                firstName: row.me_first_name,
+                lastName: row.me_last_name,
+                classification: row.me_classification,
+                globalMembershipId: row.me_global_membership_id,
+                contact: row.me_contact,
+                role: row.me_role
+            },
+            partner: row.partner_first_name
+                ? {
+                      firstName: row.partner_first_name,
+                      lastName: row.partner_last_name,
+                      classification: row.partner_classification,
+                      globalMembershipId: row.partner_global_membership_id,
+                      contact: row.partner_contact,
+                      role: row.partner_role
+                  }
+                : null
+        };
+    } catch (err) {
+        console.error(`[steerMeHandoff] threw for handoff ${handoffId}: ${err.message}`);
+        return null;
+    }
+}

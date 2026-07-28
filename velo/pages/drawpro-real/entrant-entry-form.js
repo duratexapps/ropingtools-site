@@ -4,6 +4,16 @@
  * dataset connection — adjust getEventIdFromContext() to match however
  * this page is actually routed.
  *
+ * NEW, added 2026-07-28 - also reads an optional `?handoff=<id>` param
+ * (see applyEntryHandoff() near the bottom of this file) to prefill an
+ * entrant's info, and their already-confirmed partner's info if they
+ * have one, when this link came from Steer Me's "Enter the Draw" rather
+ * than a bare QR-code scan. Real friction flagged directly by the user:
+ * a Steer Me user shouldn't have to retype what's already known. No new
+ * Editor elements needed for this - it only ever sets .value on fields
+ * that already exist per the list below.
+ *
+
  * REWRITTEN 2026-07-21 for the multi-class redesign (see
  * docs/ARCHITECTURE.md's "Draw Pro multi-class redesign" entry), THEN
  * REVISED again the same day for a second real scenario: one person's
@@ -111,6 +121,7 @@ import { subscribeToEntryAlert } from 'backend/qr-and-alerts.jsw';
 import { createPayPalOrder, capturePayPalOrder, calculateEntrantCharge } from 'backend/payments.jsw';
 import { hasSeenTour, markTourCompleted, markTourDismissed } from 'backend/onboarding.jsw';
 import { runTour } from 'public/onboarding-engine.js';
+import { resolveEntryHandoff } from 'backend/steerMeHandoff.jsw';
 import wixData from 'wix-data';
 
 const GUEST_TOUR_STORAGE_KEY = 'drawpro_entrant_tour_seen';
@@ -199,12 +210,111 @@ $w.onReady(async function () {
     safeCall(() => togglePartnerFields());
     safeCall(() => togglePartnerMode());
     safeCall(() => toggleDrawInRoleVisibility());
+
+    // NEW, added 2026-07-28 - real friction flagged directly by the user:
+    // a Steer Me user (and their already-confirmed partner, if they have
+    // one) shouldn't have to retype everything here. Runs AFTER the
+    // partner-box visibility defaults above are set, since a successful
+    // handoff with partner data deliberately overrides that default (see
+    // applyEntryHandoff() below) - and BEFORE updateFeePreview() so a
+    // prefilled partner's classification counts toward the fee shown.
+    await applyEntryHandoff();
+
     await updateFeePreview();
 
     if (!(await hasSeenEntrantTour())) {
         startEntrantTour();
     }
 });
+
+/**
+ * Reads `?handoff=<id>` (present only when this link came from Steer
+ * Me's "Enter the Draw" - see EventCard.tsx / my-requests.tsx in
+ * steer-me-app), resolves it via backend/steerMeHandoff.jsw, and
+ * prefills whatever it returns. A handoff can carry just the entrant's
+ * own info (plain "Enter the Draw" tap, no confirmed partner yet) or
+ * both people's info (an already-accepted Steer Me partner request for
+ * this exact event) - see migration 0036_entry_handoffs.sql in
+ * steer-me-app for the full reasoning on why this is a short-lived,
+ * single-use server-side handoff rather than raw data in the URL.
+ *
+ * Deliberately silent on failure/absence - a missing, expired, or
+ * already-used handoff just means "show the normal blank form," never
+ * an error surfaced to the entrant. This is a convenience, not a
+ * requirement to enter.
+ */
+async function applyEntryHandoff() {
+    const handoffId = wixLocation.query.handoff;
+    if (!handoffId) return;
+
+    let payload;
+    try {
+        payload = await resolveEntryHandoff(handoffId);
+    } catch (err) {
+        console.error(`[entrant-entry-form] resolveEntryHandoff threw: ${err.message}`);
+        return;
+    }
+    if (!payload) return;
+
+    const { me, partner } = payload;
+
+    safeCall(() => { $w('#inputFirstName').value = me.firstName ?? ''; });
+    safeCall(() => { $w('#inputLastName').value = me.lastName ?? ''; });
+    if (me.classification != null) {
+        safeCall(() => { $w('#inputClassification').value = String(me.classification); });
+    }
+    if (me.globalMembershipId) {
+        safeCall(() => { $w('#inputGlobalId').value = me.globalMembershipId; });
+    }
+    // Steer Me collects one freeform "phone or email" field, not two
+    // separate ones (real, confirmed data-model gap - see steer-me-app's
+    // sign-up.tsx) - a simple @ check is the best available heuristic for
+    // which of Draw Pro's two separate fields it belongs in. Whichever
+    // field it doesn't look like stays blank for the entrant to fill in
+    // themselves, same as if no handoff had ever run.
+    if (me.contact) {
+        safeCall(() => {
+            if (me.contact.includes('@')) {
+                $w('#inputEmail').value = me.contact;
+            } else {
+                $w('#inputPhone').value = me.contact;
+            }
+        });
+    }
+
+    if (!partner) return;
+
+    // A handoff only ever carries partner data for an ALREADY-ACCEPTED
+    // Steer Me partner request (see create_entry_handoff() in migration
+    // 0036) - so checking this and filling fullDetails mode is safe to
+    // do unconditionally, not something the entrant needs to opt into
+    // first the way a fresh, un-prefilled visitor would.
+    safeCall(() => { $w('#checkboxAddPartner').checked = true; });
+    safeCall(() => togglePartnerFields());
+    safeCall(() => { $w('#radioPartnerMode').value = 'fullDetails'; });
+    safeCall(() => togglePartnerMode());
+    if (me.role) {
+        safeCall(() => { $w('#radioRole').value = me.role; });
+    }
+
+    safeCall(() => { $w('#inputPartnerFirstName').value = partner.firstName ?? ''; });
+    safeCall(() => { $w('#inputPartnerLastName').value = partner.lastName ?? ''; });
+    if (partner.classification != null) {
+        safeCall(() => { $w('#inputPartnerClassification').value = String(partner.classification); });
+    }
+    if (partner.globalMembershipId) {
+        safeCall(() => { $w('#inputPartnerGlobalId').value = partner.globalMembershipId; });
+    }
+    if (partner.contact) {
+        safeCall(() => {
+            if (partner.contact.includes('@')) {
+                $w('#inputPartnerEmail').value = partner.contact;
+            } else {
+                $w('#inputPartnerPhone').value = partner.contact;
+            }
+        });
+    }
+}
 
 // Runs fn() and swallows/logs any error instead of letting it propagate -
 // same pattern established in producer-event-setup.js after #boxAddClass
