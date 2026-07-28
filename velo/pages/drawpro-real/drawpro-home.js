@@ -67,6 +67,24 @@
  *                          #textPastEventDate, #textPastEventLocation, #linkPastManageEvent)
  *   #textNoPastEvents     (Text, inside #boxProducerDashboard — shown if
  *                          #repeaterPastEvents is empty)
+ *
+ *   -- Producer nav strip (NEW, added 2026-07-28) --
+ *   Real gap flagged directly by the user: Producer Event Setup, Producer
+ *   Draw Sheet Review, and Producer Profile were all only reachable via
+ *   the site's main public nav menu (confusing - mixed in alongside HOME/
+ *   Course/Legal) or a handful of one-off buttons, with no consistent way
+ *   to move between them once on one of them. This same 3-link strip is
+ *   duplicated identically on all 4 producer pages (Dashboard, Event
+ *   Setup, Draw Sheet Review, Profile) - Wix's classic Editor has no true
+ *   shared-component mechanism, same reasoning as the Tour Overlay
+ *   elements duplicated across pages elsewhere in this project. Always
+ *   visible on all 4 (not conditionally shown only when signed in) -
+ *   simpler, and harmless even for a signed-out visitor who somehow lands
+ *   on one of these pages, since every actual action is still gated
+ *   server-side regardless.
+ *   #navDashboard   (Button/Link) - links to /producer-dashboard
+ *   #navCreateEvent (Button/Link) - links to /producer-event-setup
+ *   #navMyProfile   (Button/Link) - links to /producer-profile
  */
 
 import wixData from 'wix-data';
@@ -76,6 +94,7 @@ import { getAccessibleProducerIds } from 'backend/account-users.jsw';
 import { getProducerProfile } from 'backend/producerProfiles.jsw';
 
 $w.onReady(async function () {
+    wireProducerNav();
     const member = await currentMember.getMember().catch(() => null);
 
     // FIXED live 2026-07-28, real gap flagged directly by the user: this
@@ -129,6 +148,14 @@ function safeCall(fn) {
     } catch (err) {
         console.error(`[drawpro-home] setup step failed (page keeps working): ${err.message}`);
     }
+}
+
+// NEW, added 2026-07-28 - see this file's header comment for the full
+// reasoning. Duplicated identically on all 4 producer pages.
+function wireProducerNav() {
+    safeCall(() => $w('#navDashboard').onClick(() => wixLocation.to('/producer-dashboard')));
+    safeCall(() => $w('#navCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')));
+    safeCall(() => $w('#navMyProfile').onClick(() => wixLocation.to('/producer-profile')));
 }
 
 // FIXED live 2026-07-28: confirmed the exact scenario this function's own

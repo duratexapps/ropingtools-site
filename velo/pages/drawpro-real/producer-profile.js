@@ -72,6 +72,13 @@
  *                         drawpro-home.js's #btnSignUp/#btnLogIn - opens Wix's
  *                         hosted login lightbox, which already includes a
  *                         "Sign up" path, no separate custom signup form needed)
+ *
+ *   -- Producer nav strip (NEW, added 2026-07-28 - see drawpro-home.js's
+ *      matching comment for the full reasoning; duplicated identically
+ *      on all 4 producer pages) --
+ *   #navDashboard   (Button/Link) - links to /producer-dashboard
+ *   #navCreateEvent (Button/Link) - links to /producer-event-setup
+ *   #navMyProfile   (Button/Link) - links to /producer-profile
  */
 
 import wixLocation from 'wix-location';
@@ -86,6 +93,7 @@ import { currentMember, authentication } from 'wix-members-frontend';
 let currentProducerId = null;
 
 $w.onReady(async function () {
+    wireProducerNav();
     // FIXED live 2026-07-28: #btnSaveProfile.onClick() was the one wiring
     // call on this page NOT wrapped in safeCall(), inconsistent with every
     // other button here - same class of bug already fixed on
@@ -116,6 +124,14 @@ function safeCall(fn) {
     } catch (err) {
         console.error(`[producer-profile] setup step failed (page keeps working): ${err.message}`);
     }
+}
+
+// NEW, added 2026-07-28 - see drawpro-home.js's matching comment for the
+// full reasoning. Duplicated identically on all 4 producer pages.
+function wireProducerNav() {
+    safeCall(() => $w('#navDashboard').onClick(() => wixLocation.to('/producer-dashboard')));
+    safeCall(() => $w('#navCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')));
+    safeCall(() => $w('#navMyProfile').onClick(() => wixLocation.to('/producer-profile')));
 }
 
 async function loadExistingProfile() {

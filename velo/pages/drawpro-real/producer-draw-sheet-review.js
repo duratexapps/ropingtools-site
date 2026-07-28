@@ -75,6 +75,13 @@
  *                             See csv-export.jsw's file header for why the column layout is a plain
  *                             generic format rather than matching a specific competitor product.)
  *   #textStatus
+ *
+ *   -- Producer nav strip (NEW, added 2026-07-28 - see drawpro-home.js's
+ *      matching comment for the full reasoning; duplicated identically
+ *      on all 4 producer pages) --
+ *   #navDashboard   (Button/Link) - links to /producer-dashboard
+ *   #navCreateEvent (Button/Link) - links to /producer-event-setup
+ *   #navMyProfile   (Button/Link) - links to /producer-profile
  */
 
 import wixLocation from 'wix-location';
@@ -101,6 +108,7 @@ let teamPendingAck = null;
 let allClasses = [];
 
 $w.onReady(async function () {
+    wireProducerNav();
     eventId = wixLocation.query.event;
     if (!eventId) {
         setStatus('No event specified.', true);
@@ -124,6 +132,14 @@ function safeCall(fn) {
     } catch (err) {
         console.error(`[producer-draw-sheet-review] setup step failed (page keeps working): ${err.message}`);
     }
+}
+
+// NEW, added 2026-07-28 - see drawpro-home.js's matching comment for the
+// full reasoning. Duplicated identically on all 4 producer pages.
+function wireProducerNav() {
+    safeCall(() => $w('#navDashboard').onClick(() => wixLocation.to('/producer-dashboard')));
+    safeCall(() => $w('#navCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')));
+    safeCall(() => $w('#navMyProfile').onClick(() => wixLocation.to('/producer-profile')));
 }
 
 // FIXED live 2026-07-28: this is the exact same crash pattern just found

@@ -108,9 +108,17 @@
  *   -- Tour overlay elements (see public/onboarding-engine.js) --
  *   #tourOverlay, #tourHighlightBox, #tourTooltip, #tourTitle, #tourBody,
  *   #textTourStepCount, #btnTourNext, #btnTourBack, #btnTourSkip
+ *
+ *   -- Producer nav strip (NEW, added 2026-07-28 - see drawpro-home.js's
+ *      matching comment for the full reasoning; duplicated identically
+ *      on all 4 producer pages) --
+ *   #navDashboard   (Button/Link) - links to /producer-dashboard
+ *   #navCreateEvent (Button/Link) - links to /producer-event-setup
+ *   #navMyProfile   (Button/Link) - links to /producer-profile
  */
 
 import wixData from 'wix-data';
+import wixLocation from 'wix-location';
 import { createEvent, createEventClass, openClass, closeClass } from 'backend/event-setup.jsw';
 import { generateEventQrCode, getAlertSubscriberCount } from 'backend/qr-and-alerts.jsw';
 import { getPayoutProfile } from 'backend/payments.jsw';
@@ -168,6 +176,7 @@ const PRODUCER_TOUR_STEPS = [
 let currentEventId = null;
 
 $w.onReady(async function () {
+    wireProducerNav();
     // Click handlers are wired FIRST, before any cosmetic show/hide setup
     // below. This page has twice now had a cosmetic setup call throw on
     // #boxAddClass (first .disable(), then .collapse() - both "is not a
@@ -228,6 +237,14 @@ function safeCall(fn) {
     } catch (err) {
         console.error(`[producer-event-setup] setup step failed (page keeps working): ${err.message}`);
     }
+}
+
+// NEW, added 2026-07-28 - see drawpro-home.js's matching comment for the
+// full reasoning. Duplicated identically on all 4 producer pages.
+function wireProducerNav() {
+    safeCall(() => $w('#navDashboard').onClick(() => wixLocation.to('/producer-dashboard')));
+    safeCall(() => $w('#navCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')));
+    safeCall(() => $w('#navMyProfile').onClick(() => wixLocation.to('/producer-profile')));
 }
 
 function startProducerTour() {
