@@ -175,17 +175,28 @@ $w.onReady(async function () {
     // which, because $w.onReady() is a single synchronous-until-await
     // function, silently killed everything after it INCLUDING every
     // onClick binding below - every button on the page looked completely
-    // dead with zero visible error anywhere on the page itself. Wiring
-    // clicks first means a cosmetic-setup failure can never do that again,
-    // regardless of which element turns out to be the next surprise.
-    $w('#btnCreateEvent').onClick(handleCreateEvent);
-    $w('#btnAddClass').onClick(handleAddClass);
-    $w('#btnGenerateQr').onClick(handleGenerateQr);
-    $w('#btnReplayTutorial').onClick(startProducerTour);
-    $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields);
-    $w('#radioPaymentMethod').onChange(checkPayoutReadiness);
-    $w('#inputEventLocation').onInput(handleLocationInput);
-    $w('#inputEventSite').onInput(handleVenueInput);
+    // dead with zero visible error anywhere on the page itself.
+    //
+    // FIXED live 2026-07-28: moving the wiring earlier only moved WHERE
+    // this exact failure mode could strike next - it didn't eliminate it.
+    // Confirmed live via the browser console: a `$w(...).onClick is not a
+    // function` TypeError was thrown from somewhere in this exact block,
+    // which silently prevented #inputEventLocation's own .onInput() call
+    // a few lines down from ever running - reported as "location
+    // suggestions never appear," but the real cause was an earlier,
+    // unrelated element in this same synchronous block, not the location
+    // search feature itself. Every wiring call below is now individually
+    // wrapped in safeCall(), same as the cosmetic setup already was -
+    // one bad element can never again take any of the others down with
+    // it, regardless of which specific element it turns out to be next.
+    safeCall(() => $w('#btnCreateEvent').onClick(handleCreateEvent));
+    safeCall(() => $w('#btnAddClass').onClick(handleAddClass));
+    safeCall(() => $w('#btnGenerateQr').onClick(handleGenerateQr));
+    safeCall(() => $w('#btnReplayTutorial').onClick(startProducerTour));
+    safeCall(() => $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields));
+    safeCall(() => $w('#radioPaymentMethod').onChange(checkPayoutReadiness));
+    safeCall(() => $w('#inputEventLocation').onInput(handleLocationInput));
+    safeCall(() => $w('#inputEventSite').onInput(handleVenueInput));
 
     // Cosmetic/starting-state setup - each wrapped in safeCall() so one
     // element behaving unexpectedly (wrong widget type, unsupported
