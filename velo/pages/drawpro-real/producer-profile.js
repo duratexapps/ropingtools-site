@@ -224,11 +224,17 @@ async function loadTeamSection() {
 
         safeCall(() => {
             $w('#repeaterTeamUsers').data = users;
-            $w('#repeaterTeamUsers').onItemReady(($item, user) => {
+            // FIXED live 2026-07-28: the outer safeCall() only catches an
+            // error thrown while REGISTERING onItemReady - the callback
+            // itself runs later, asynchronously, once per rendered item,
+            // outside that synchronous scope. Wrapping the callback body
+            // itself is the part that actually protects against a bad
+            // element inside any given row.
+            $w('#repeaterTeamUsers').onItemReady(($item, user) => safeCall(() => {
                 $item('#textTeamEmail').text = user.inviteEmail;
                 $item('#textTeamStatus2').text = user.status;
                 $item('#btnRemoveTeamUser').onClick(() => handleRemoveTeamUser(user._id));
-            });
+            }));
         });
     } catch (err) {
         // Not fatal to the rest of the page (profile save still works) -

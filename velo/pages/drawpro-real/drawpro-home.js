@@ -131,20 +131,26 @@ function safeCall(fn) {
     }
 }
 
+// FIXED live 2026-07-28: confirmed the exact scenario this function's own
+// old comment predicted - #btnSignUp/#btnLogIn turned out to BE Wix's
+// native Member Login/Sign Up widgets (confirmed live: clicking them opens
+// Wix's own hosted lightbox), and calling .onClick() on a native Members
+// widget throws ("... .onClick is not a function"). This was UNCAUGHT -
+// unlike every other wiring call on this page, these two weren't wrapped
+// in safeCall() - and since $w.onReady() is synchronous until its first
+// await, the throw here killed the rest of that render pass, producing a
+// fully blank page for any anonymous visitor. Wrapping in safeCall() both
+// stops the crash AND is the complete fix - these lines are genuinely
+// unnecessary no-ops for a native widget, which already handles its own
+// click/navigation behavior with no custom code required.
 function wireVisitorButtons() {
-    $w('#btnSignUp').onClick(() => wixLocation.to('/signup'));
-    $w('#btnLogIn').onClick(() => wixLocation.to('/login'));
-    // Adjust the two paths above once the real sign-up/login page URLs
-    // are known - if #btnSignUp/#btnLogIn are Wix's own native Member
-    // Login widgets instead of custom buttons, this whole function isn't
-    // needed at all, since those widgets handle navigation themselves.
+    safeCall(() => $w('#btnSignUp').onClick(() => wixLocation.to('/signup')));
+    safeCall(() => $w('#btnLogIn').onClick(() => wixLocation.to('/login')));
 }
 
 function wireDashboardButtons() {
-    $w('#btnCreateEvent').onClick(() => wixLocation.to('/producer-event-setup'));
-    $w('#linkEditProfile').onClick(() => wixLocation.to('/producer-profile'));
-    // Adjust both paths once the real page URLs are known, same note as
-    // wireVisitorButtons() above.
+    safeCall(() => $w('#btnCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')));
+    safeCall(() => $w('#linkEditProfile').onClick(() => wixLocation.to('/producer-profile')));
 }
 
 async function loadProducerEvents(producerIds) {
@@ -183,7 +189,7 @@ function renderEventRepeater(repeaterId, emptyTextId, events, itemIds) {
     safeCall(() => $w(emptyTextId).collapse());
     safeCall(() => $w(repeaterId).expand());
     $w(repeaterId).data = events;
-    $w(repeaterId).onItemReady(($item, event) => {
+    $w(repeaterId).onItemReady(($item, event) => safeCall(() => {
         $item(itemIds.title).text = event.title;
         $item(itemIds.date).text = new Date(event.eventDate).toLocaleDateString();
         $item(itemIds.location).text = event.location;
@@ -196,5 +202,5 @@ function renderEventRepeater(repeaterId, emptyTextId, events, itemIds) {
         // the actual URLs, done after discovering the homepage's own Draw Pro
         // link was pointing at the wrong page for the same reason (a renamed
         // page's display name doesn't change its URL slug).
-    });
+    }));
 }

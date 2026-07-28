@@ -535,7 +535,11 @@ async function showNotYetOpenState() {
     const opensAt = soonest ? new Date(soonest).toLocaleString() : 'soon';
     $w('#textNotYetOpenMessage').text = `Entries for ${currentEvent.title} haven't opened yet. Opens ${opensAt}.`;
 
-    $w('#btnSubscribeAlert').onClick(() => handleSubscribeAlert(eventId));
+    // FIXED live 2026-07-28: same class of bug found and fixed elsewhere
+    // this same day (drawpro-home.js, producer-draw-sheet-review.js) -
+    // this call wasn't wrapped in safeCall() like everything else on this
+    // page is.
+    safeCall(() => $w('#btnSubscribeAlert').onClick(() => handleSubscribeAlert(eventId)));
 }
 
 async function handleSubscribeAlert(eventIdForAlert) {
@@ -761,7 +765,8 @@ async function showPaymentStep(result) {
     $w('#boxOnlinePayment').expand();
     $w('#textOnlineAmount').text =
         `$${totalChargedToEntrant.toFixed(2)} due ($${totalFeeOwed.toFixed(2)} entry fees + $${(totalChargedToEntrant - totalFeeOwed).toFixed(2)} processing)`;
-    $w('#btnPayNow').onClick(() => handlePayNow(paymentEntrant._id));
+    // FIXED live 2026-07-28: same safeCall gap as #btnSubscribeAlert above.
+    safeCall(() => $w('#btnPayNow').onClick(() => handlePayNow(paymentEntrant._id)));
     setStatus("You're entered — pay now to confirm your spot.");
 }
 

@@ -126,19 +126,30 @@ function safeCall(fn) {
     }
 }
 
+// FIXED live 2026-07-28: this is the exact same crash pattern just found
+// and fixed live on drawpro-home.js - ten wiring calls in a row, only the
+// very last one (#btnExportCSV) actually wrapped in safeCall(). Since
+// $w.onReady() is synchronous until its first await, ANY of the first ten
+// throwing (wrong widget type, mistyped ID, etc.) would have silently
+// killed every wiring call after it - on THIS page specifically, that
+// means the entire draw-review/finalize/sign-off/manual-pair/notify flow,
+// not just one button. Never actually triggered yet because this page
+// hadn't been tested live with real entrants as of this writing - found
+// proactively by auditing every other Draw Pro page for the same pattern
+// right after drawpro-home.js's version of it caused a real blank page.
 function wireButtons() {
-    $w('#dropdownClass').onChange(handleClassChanged);
-    $w('#btnFinalize').onClick(handleFinalize);
-    $w('#btnSignOff').onClick(() => $w('#boxSignOffConfirm').expand());
-    $w('#btnCancelSignOff').onClick(() => $w('#boxSignOffConfirm').collapse());
-    $w('#btnConfirmSignOff').onClick(handleSignOff);
-    $w('#btnManualPair').onClick(handleManualPair);
-    $w('#btnSendNotifications').onClick(handleSendNotifications);
-    $w('#btnSwapSelected').onClick(handleSwapSelected);
-    $w('#btnConfirmAcknowledge').onClick(handleConfirmAcknowledge);
-    $w('#btnApplyRotationSize').onClick(handleApplyRotationSize);
-    $w('#btnDismissRotationSuggestion').onClick(() => $w('#boxRotationSuggestion').collapse());
-    $w('#btnSwapSelected').disable();
+    safeCall(() => $w('#dropdownClass').onChange(handleClassChanged));
+    safeCall(() => $w('#btnFinalize').onClick(handleFinalize));
+    safeCall(() => $w('#btnSignOff').onClick(() => $w('#boxSignOffConfirm').expand()));
+    safeCall(() => $w('#btnCancelSignOff').onClick(() => $w('#boxSignOffConfirm').collapse()));
+    safeCall(() => $w('#btnConfirmSignOff').onClick(handleSignOff));
+    safeCall(() => $w('#btnManualPair').onClick(handleManualPair));
+    safeCall(() => $w('#btnSendNotifications').onClick(handleSendNotifications));
+    safeCall(() => $w('#btnSwapSelected').onClick(handleSwapSelected));
+    safeCall(() => $w('#btnConfirmAcknowledge').onClick(handleConfirmAcknowledge));
+    safeCall(() => $w('#btnApplyRotationSize').onClick(handleApplyRotationSize));
+    safeCall(() => $w('#btnDismissRotationSuggestion').onClick(() => $w('#boxRotationSuggestion').collapse()));
+    safeCall(() => $w('#btnSwapSelected').disable());
     safeCall(() => $w('#btnExportCSV').onClick(handleExportCSV));
 }
 
@@ -192,11 +203,11 @@ async function handleClassChanged() {
 async function loadEntrantList() {
     const result = await wixData.query('DrawProEntrants').eq('classId', currentClassId).find();
     $w('#repeaterEntrants').data = result.items;
-    $w('#repeaterEntrants').onItemReady(($item, entrant) => {
+    $w('#repeaterEntrants').onItemReady(($item, entrant) => safeCall(() => {
         $item('#textEntrantName').text = `${entrant.firstName} ${entrant.lastName}`;
         $item('#textEntrantRole').text = entrant.role;
         $item('#textEntrantClass').text = String(entrant.classificationNumber);
-    });
+    }));
 
     // At-a-glance count, e.g. sitting in the bottom corner of the
     // Entrants box - each DrawProEntrants record is one individual
@@ -344,7 +355,11 @@ async function loadDrawnTeams() {
     const teamsWithRotations = assignRotations(teams, cls ? cls.rotationSize : null);
 
     $w('#repeaterTeams').data = teamsWithRotations;
-    $w('#repeaterTeams').onItemReady(($item, team) => {
+    // Wrapped in safeCall - this is the densest per-item callback on the
+    // page (a dozen+ element touches per row), so it's the most likely
+    // place a single bad element type would otherwise take down
+    // rendering for every OTHER team row too.
+    $w('#repeaterTeams').onItemReady(($item, team) => safeCall(() => {
         const header = entrantsById.get(team.headerEntrantId);
         const heeler = entrantsById.get(team.heelerEntrantId);
         $item('#textTeamNumber').text = String(team.teamNumber);
@@ -382,7 +397,7 @@ async function loadDrawnTeams() {
         }
 
         $item('#checkboxSwapSelect').onChange(() => toggleSwapSelection(team._id, $item('#checkboxSwapSelect').checked));
-    });
+    }));
 }
 
 function toggleSwapSelection(teamId, isChecked) {
@@ -452,9 +467,9 @@ async function refreshUnresolvedCount() {
 
 async function loadUnmatchedEntrants(unmatchedEntrants) {
     $w('#repeaterUnmatched').data = unmatchedEntrants;
-    $w('#repeaterUnmatched').onItemReady(($item, entrant) => {
+    $w('#repeaterUnmatched').onItemReady(($item, entrant) => safeCall(() => {
         $item('#textEntrantName').text = `${entrant.firstName} ${entrant.lastName} (${entrant.role}, #${entrant.classificationNumber})`;
-    });
+    }));
 
     // Populate manual-pair dropdowns from the same unmatched pool.
     const headers = unmatchedEntrants.filter(e => e.role === 'header');

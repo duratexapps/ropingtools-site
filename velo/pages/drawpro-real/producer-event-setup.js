@@ -301,13 +301,13 @@ function handleLocationInput() {
             return;
         }
         $w('#repeaterLocationSuggestions').data = matches.map((label, i) => ({ _id: String(i), label }));
-        $w('#repeaterLocationSuggestions').onItemReady(($item, item) => {
+        $w('#repeaterLocationSuggestions').onItemReady(($item, item) => safeCall(() => {
             $item('#btnLocationSuggestion').label = item.label;
             $item('#btnLocationSuggestion').onClick(() => {
                 $w('#inputEventLocation').value = item.label;
                 safeCall(() => $w('#repeaterLocationSuggestions').hide());
             });
-        });
+        }));
         safeCall(() => $w('#repeaterLocationSuggestions').show());
     }, TYPEAHEAD_DEBOUNCE_MS);
 }
@@ -345,7 +345,7 @@ function handleVenueInput() {
             location: v.location,
             link: v.link
         }));
-        $w('#repeaterVenueSuggestions').onItemReady(($item, item) => {
+        $w('#repeaterVenueSuggestions').onItemReady(($item, item) => safeCall(() => {
             $item('#btnVenueSuggestion').label = item.location ? `${item.name} (${item.location})` : item.name;
             $item('#btnVenueSuggestion').onClick(() => {
                 $w('#inputEventSite').value = item.name;
@@ -359,7 +359,7 @@ function handleVenueInput() {
                 }
                 safeCall(() => $w('#repeaterVenueSuggestions').hide());
             });
-        });
+        }));
         safeCall(() => $w('#repeaterVenueSuggestions').show());
     }, TYPEAHEAD_DEBOUNCE_MS);
 }
@@ -499,7 +499,7 @@ function clearClassForm() {
 async function refreshClassList() {
     const result = await wixData.query('DrawProEventClasses').eq('eventId', currentEventId).find();
     $w('#repeaterClasses').data = result.items;
-    $w('#repeaterClasses').onItemReady(($item, cls) => {
+    $w('#repeaterClasses').onItemReady(($item, cls) => safeCall(() => {
         $item('#textClassLabel').text = cls.label;
         $item('#textClassStatus').text = cls.status;
 
@@ -516,7 +516,7 @@ async function refreshClassList() {
 
         $item('#btnClassOpen').onClick(() => handleOpenClass(cls._id));
         $item('#btnClassClose').onClick(() => handleCloseClass(cls._id));
-    });
+    }));
 }
 
 async function handleOpenClass(classId) {
