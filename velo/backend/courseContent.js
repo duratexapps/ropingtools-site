@@ -150,7 +150,8 @@ export const quizData = {
       "fb": "A static loop lacks both the momentum that feeding builds and the size adjustment ability. Feeding simultaneously loads the tip and grows the loop to the correct delivery size."
     },
     {
-      "q": "What is the most common tip angle error seen in beginning ropers?",
+      "role": "heeler",
+      "q": "What is the most common tip angle error seen in beginning heelers?",
       "opts": [
         "Tip pointed too far to the right",
         "Tip angled upward — too high — creating an excessive drop on delivery",
@@ -158,7 +159,19 @@ export const quizData = {
         "Tip pointed too far to the left on the heeling swing"
       ],
       "ans": 1,
-      "fb": "Beginners focus on loop shape and ignore tip angle. They build a large loop with the tip too high in the air, then attempt to deliver it by dropping down 6–8 feet — an error that produces misses even when everything else looks right."
+      "fb": "Beginning heelers focus on loop shape and ignore tip angle. They build a large loop with the tip too high in the air, then attempt to deliver it by dropping down 6–8 feet — an error that produces misses even when everything else looks right."
+    },
+    {
+      "role": "header",
+      "q": "What is the most common tip angle error seen in beginning headers?",
+      "opts": [
+        "Tip pointed too far to the right",
+        "Tip angled downward — too low — failing to clear the horns correctly",
+        "Tip pointed too far to the left",
+        "Tip angled upward — too high, the same mistake heelers make"
+      ],
+      "ans": 1,
+      "fb": "Beginning headers commonly carry their tip too low — the opposite tendency from heeling, where the common beginner mistake is too high. A tip angled too low doesn't give the loop the clearance it needs over the horns for a clean head catch."
     }
   ],
   "1-2": [

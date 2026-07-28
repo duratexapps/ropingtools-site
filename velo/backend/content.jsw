@@ -15,6 +15,7 @@
 import { currentMember } from 'wix-members-backend';
 import wixData from 'wix-data';
 import { chapterContent, quizData } from 'backend/courseContent.js';
+import { getFocusPreference, filterQuizByRole } from 'backend/coursePreferences.jsw';
 
 const PURCHASES_COLLECTION = 'Purchases';
 const SUBSCRIPTIONS_COLLECTION = 'Subscriptions';
@@ -30,8 +31,17 @@ export async function getChapterContent(params) {
     throw new Error('Unknown chapter: ' + chapterId);
   }
 
+  // NEW, added 2026-07-27 - see coursePreferences.jsw's file header for
+  // the full reasoning (a confirmed content bug where the "correct"
+  // answer to some questions actually differs by header/heeler role).
+  // getFocusPreference() returns null for a signed-out visitor or anyone
+  // who hasn't chosen a focus yet; filterQuizByRole() treats null the
+  // same as 'both' (show everything), so nobody's content is ever hidden
+  // just because they haven't made a choice.
+  const focus = await getFocusPreference();
+
   if (chapterId === FREE_PREVIEW_CHAPTER) {
-    return { locked: false, html: chapterContent[chapterId], quiz: quizData[chapterId] };
+    return { locked: false, html: chapterContent[chapterId], quiz: filterQuizByRole(quizData[chapterId], focus) };
   }
 
   let member;
@@ -44,7 +54,7 @@ export async function getChapterContent(params) {
   const entitled = await isEntitled(member._id);
   if (!entitled) return { locked: true };
 
-  return { locked: false, html: chapterContent[chapterId], quiz: quizData[chapterId] };
+  return { locked: false, html: chapterContent[chapterId], quiz: filterQuizByRole(quizData[chapterId], focus) };
 }
 
 // NOTE: as of this writing, no checkout flow exists yet (see

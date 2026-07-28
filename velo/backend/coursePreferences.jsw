@@ -1,0 +1,90 @@
+// backend/coursePreferences.jsw
+//
+// NEW, added 2026-07-27 - real content bug found and confirmed: the course
+// teaches heading and heeling technique together without differentiating
+// which end a given piece of content/quiz question applies to, even
+// though the actual correct answer sometimes differs by role (confirmed
+// example: the most common beginner tip-angle mistake is "too high" for
+// heelers, "too low" for headers - a single "correct" answer marks half
+// the real audience wrong for correctly describing their own actual
+// mistake). See courseContent.js's Chapter 1.1 quiz for the first fixed
+// example, tagged with a new "role" field ('header' | 'heeler' | absent
+// = applies to both).
+//
+// This module stores which focus a member has chosen - changeable at any
+// time, not a one-time locked decision, per the confirmed product
+// direction. 'both' is a real, first-class choice (not just "undecided"),
+// for switch riders/anyone who wants everything - see
+// getChapterContent()'s filterQuizByRole() for how this drives what's
+// actually shown.
+//
+// REQUIRES a new Wix Data Collection, not yet created:
+//   CourseFocusPreferences
+//     memberId    (text)
+//     focus       (text enum: 'header' | 'heeler' | 'both')
+//     updatedDate (date/time - Wix-managed)
+// This file assumes that collection already exists - create it via the
+// Wix Editor's Content Manager (3 fields, quick to add manually) or via
+// the REST API pattern documented in data-collections/SCHEMA.md, same as
+// every other collection this project has needed.
+
+import { currentMember } from 'wix-members-backend';
+import wixData from 'wix-data';
+
+const COLLECTION = 'CourseFocusPreferences';
+export const VALID_FOCUS_VALUES = ['header', 'heeler', 'both'];
+
+/**
+ * Returns the signed-in member's chosen focus, or null if they haven't
+ * chosen one yet (including anonymous visitors, who can't have a saved
+ * preference at all). null is a meaningful, real state - the caller
+ * should treat it the same as 'both' for content-filtering purposes
+ * (show everything) rather than erroring, since forcing a choice before
+ * any content is visible isn't the intended UX - see the "Choose Your
+ * Focus" UI note below.
+ */
+export async function getFocusPreference() {
+    const member = await currentMember.getMember().catch(() => null);
+    if (!member) return null;
+
+    const result = await wixData.query(COLLECTION).eq('memberId', member._id).find();
+    return result.items.length > 0 ? result.items[0].focus : null;
+}
+
+/**
+ * Sets (or changes) the signed-in member's focus. Changeable at any
+ * time, per the confirmed product decision - this is a plain upsert, not
+ * a one-time "locked in" action, and doesn't reset or affect quiz
+ * history (QuizAttempts) in progress.jsw at all.
+ */
+export async function setFocusPreference(focus) {
+    if (!VALID_FOCUS_VALUES.includes(focus)) {
+        throw new Error(`focus must be one of: ${VALID_FOCUS_VALUES.join(', ')}`);
+    }
+
+    const member = await currentMember.getMember();
+    if (!member) throw new Error('Must be signed in to set a course focus.');
+
+    const existing = await wixData.query(COLLECTION).eq('memberId', member._id).find();
+    if (existing.items.length > 0) {
+        return wixData.update(COLLECTION, { ...existing.items[0], focus });
+    }
+    return wixData.insert(COLLECTION, { memberId: member._id, focus });
+}
+
+/**
+ * Filters a chapter's quiz question list down to what a given focus
+ * should actually see. Exported so content.jsw can use it directly.
+ *
+ * - A question with no "role" field applies to everyone - unaffected by
+ *   focus, always included. This is the default/backward-compatible case
+ *   for the ~318 of 320 existing questions not yet audited/tagged.
+ * - A question tagged role: 'header' or 'heeler' is included only for
+ *   that focus, OR for focus 'both'/null (both/undecided sees
+ *   everything - the "merged" experience, per the confirmed decision
+ *   that 'both' isn't second-class, it's the full picture).
+ */
+export function filterQuizByRole(questions, focus) {
+    if (!focus || focus === 'both') return questions;
+    return questions.filter((q) => !q.role || q.role === focus);
+}

@@ -1425,3 +1425,72 @@ fully coded and ready, but won't work until `createSubscriptionProduct()`
 and `createSubscriptionPlan(productId, seatTier)` (once per tier) are run
 with real PayPal credentials, which don't exist yet pending the PayPal
 for Platforms application approval - see `DRAWPRO_NEXT_STEPS.md`.
+
+---
+
+## Course: real content bug found - header/heeler technique conflated (2026-07-27)
+
+User-reported and confirmed with the actual data: the course teaches
+heading and heeling together without differentiating which end a given
+piece of content or quiz question applies to - and the "correct"
+technique sometimes genuinely differs by role. Confirmed example:
+Chapter 1.1's quiz asked "What is the most common tip angle error seen
+in beginning ropers?" with ONE universal answer ("too high") - true for
+heelers, but backwards for headers, whose common beginner mistake is the
+tip being too LOW. A heading-focused user got marked wrong for correctly
+describing their own actual common mistake.
+
+**First-pass audit** (9 of 32 chapters checked closely - the early
+technical ones, where role differences actually bite; partnership/
+mental-game/horsemanship chapters 6.x-8.x deprioritized as much less
+likely to have this problem) found more than the one reported instance:
+
+- **Chapter 1.1**: the confirmed tip-angle question, plus a second
+  likely instance (Q6, arm position) not yet fixed - flagged, pending
+  the user's confirmation of the correct header-side answer (unlike the
+  tip-angle case, the user hadn't already stated what heading's correct
+  arm-position technique actually is, so this wasn't fixed rather than
+  guessed at).
+- **Chapter 3.1 ("The Point of Release — Where It All Happens")** - the
+  bigger structural finding. Generic-sounding title, but EVERY question
+  in it is explicitly about heeling ("the single most important aspect
+  of *heeling* is...", "a *heeler's* eyes..."). No header equivalent
+  exists anywhere in the course for release/delivery-focus technique.
+- **Chapter 4.1 (Lane System)** - 9 of 10 questions are heeler-specific;
+  headers get one tacked-on question. Thin, not wrong.
+- **Chapter 1.4 (Breakover)** is the model to replicate: already
+  correctly splits header clock position (1 o'clock) from heeler clock
+  position (12 o'clock) as two distinct, correctly-labeled questions.
+
+**Confirmed product direction**: let a user choose their focus (Header /
+Heeler / Both) at any time, not a one-time locked decision, with course
+content and quizzes following that choice. 'Both' is a first-class
+choice (shows everything merged), not just "undecided." Framed
+explicitly as a durable architecture, not a one-off fix, since planned
+future tie-down/breakaway roping content will need the same
+discipline-selector pattern.
+
+**Built so far**: a `role` field on quiz questions (`'header'` |
+`'heeler'` | absent = applies to everyone) - Chapter 1.1's confirmed
+tip-angle question is the first real example, fixed in both places it
+lives (`courseContent.js` and `course-embed.html`'s duplicated free-
+preview copy - see that file's own note on keeping the two in sync).
+New `backend/coursePreferences.jsw`: `getFocusPreference()`/
+`setFocusPreference()`/`filterQuizByRole()`, wired into
+`content.jsw`'s `getChapterContent()` so filtering already works
+server-side. Safe interim default: no focus set (or focus `'both'`)
+shows ALL role-tagged content, so nothing is hidden from anyone until
+the real selector UI exists.
+
+**Not yet built, by deliberate choice given how much else shipped
+tonight**: the actual "Choose Your Focus" UI. `course-embed.html` is a
+single 3600+ line monolithic HTML/JS file with no build step (see this
+doc's earlier entry on a single unescaped apostrophe once breaking the
+entire page) - adding a new UI flow there deserves focused, careful,
+isolated attention rather than being rushed at the end of a long
+session. See `DRAWPRO_NEXT_STEPS.md`-equivalent tracking (or ask
+directly) for the concrete next steps: (1) create the
+`CourseFocusPreferences` collection (3 fields - documented in
+`coursePreferences.jsw`'s file header), (2) build the actual focus-
+picker UI and wire it to `setFocusPreference()`, (3) continue the
+chapter-by-chapter audit for the remaining flagged/unchecked chapters.
