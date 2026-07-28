@@ -2,13 +2,13 @@
 
 **DRAFT — NOT LEGAL ADVICE. Written by an AI assistant as a starting structure. Must be reviewed and finalized by a licensed attorney in your jurisdiction before real users rely on it.**
 
-*Last updated: [DATE] · Applies to: [PRODUCT NAME] (the "Platform," "we," "us")*
+*Last updated: July 28, 2026 · Applies to: Hondo (the "Platform," "we," "us")*
 
 ---
 
 ## 1. Acceptance of terms
 
-By creating an account, purchasing access, or otherwise using the Platform, you agree to these Terms of Service, our [Privacy Policy], and our [Assumption of Risk & Disclaimer]. If you do not agree, do not use the Platform. You must be at least [13/16/18 — pick per jurisdiction] years old to create an account; if you are a minor in your jurisdiction, a parent or legal guardian must review and agree to these terms on your behalf and supervise your use of the Platform.
+By creating an account, purchasing access, or otherwise using the Platform, you agree to these Terms of Service, our Privacy Policy, and our Assumption of Risk & Disclaimer. If you do not agree, do not use the Platform. You must be at least 18 years old to create an account; if you are between 13 and 17, a parent or legal guardian must create the account, review and agree to these terms on your behalf, and supervise your use of the Platform.
 
 ## 2. What the Platform is
 
@@ -16,15 +16,15 @@ The Platform provides instructional video-roping content, quizzes, and an AI-bas
 
 ## 3. Accounts
 
-You're responsible for maintaining the confidentiality of your login credentials and for all activity under your account. Notify us immediately at [CONTACT EMAIL] of any unauthorized use.
+You're responsible for maintaining the confidentiality of your login credentials and for all activity under your account. Notify us immediately at support@ropingtools.com of any unauthorized use.
 
 ## 4. Purchases, subscriptions, and credits
 
 - **Whole Course** purchases are one-time payments that grant permanent access to purchased content, including future content updates, subject to these Terms.
 - **Annual subscriptions** renew automatically at the then-current price unless canceled before the renewal date. You can cancel at any time; access continues through the end of the paid period.
-- **AI-coaching credits** are purchased in packs or included with a subscription tier, are non-transferable, and [do / do not — decide before launch] expire. Included subscription credits refresh monthly and do not roll over unless stated otherwise at time of purchase.
-- All prices are listed in [CURRENCY] and are subject to change for future purchases; changes do not affect a purchase already completed.
-- Refund policy: [DEFINE THIS — e.g., "all sales are final except as required by law" or a specific refund window. Not drafted here since it's a business decision, not a legal one — but pick something and state it clearly.]
+- **AI-coaching credits** are purchased in packs or included with a subscription tier, are non-transferable, and do not expire once purchased. Included subscription credits refresh monthly and do not roll over unless stated otherwise at time of purchase.
+- All prices are listed in USD and are subject to change for future purchases; changes do not affect a purchase already completed.
+- Refund policy: all sales are final, except as required by applicable law. Canceling a subscription stops future renewal charges but does not refund the current paid period; see Section 4 above.
 
 ## 5. Acceptable use
 
@@ -41,7 +41,7 @@ When you upload a video for AI coaching feedback, you retain ownership of that v
 
 ## 7. Intellectual property
 
-All course content, the "coach" voice and materials, quizzes, and Platform design are owned by [COMPANY NAME] or its licensors. You're granted a personal, non-transferable license to access purchased content for your own learning use — nothing here transfers ownership to you.
+All course content, the "coach" voice and materials, quizzes, and Platform design are owned by Duratex Instrument & Electric, LLC dba Duratex Applications or its licensors. You're granted a personal, non-transferable license to access purchased content for your own learning use — nothing here transfers ownership to you.
 
 ## 8. Feedback
 
@@ -61,8 +61,8 @@ We may update these Terms from time to time. Material changes will be posted on 
 
 ## 12. Governing law & disputes
 
-These Terms are governed by the laws of [STATE/COUNTRY], without regard to conflict-of-law principles. [ADD: dispute resolution / arbitration clause if desired — a real decision for your attorney, not drafted here.]
+These Terms are governed by the laws of the State of Texas, without regard to conflict-of-law principles. Any dispute arising out of or relating to these Terms or your use of the Platform will be resolved through binding, individual arbitration administered in Angleton, Texas, under the rules of the American Arbitration Association (or another mutually agreed arbitration administrator), rather than in court — except that either party may bring an individual claim in small claims court where eligible, and either party may seek injunctive relief in court for misuse of intellectual property. You and we each waive the right to a jury trial and to bring or participate in a class, collective, or representative action.
 
 ## 13. Contact
 
-Questions about these Terms: [CONTACT EMAIL]
+Questions about these Terms: support@ropingtools.com

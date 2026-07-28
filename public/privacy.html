@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy | Hondo | RopingTools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+  :root {
+    --brown: #171C24;
+    --tan-light: #E9EDF1;
+    --cream: #F4F5F7;
+    --gold: #EA580C;
+    --gold-light: #FB923C;
+    --text: #14181C;
+    --text-mid: #475569;
+    --border: #E2E5EA;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem 1.25rem 4rem;
+  }
+  .legal-wrap { max-width: 720px; margin: 0 auto; }
+  .legal-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+  }
+  .legal-nav a { color: var(--gold); text-decoration: underline; }
+  .legal-nav span.current { color: var(--text-mid); font-weight: 600; }
+  .ack-banner {
+    background: var(--brown);
+    color: var(--tan-light);
+    border-left: 4px solid var(--gold);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    margin-bottom: 1.5rem;
+  }
+  .ack-banner strong { color: var(--gold-light); }
+  .doc-content {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.75rem 1.5rem;
+  }
+  .doc-content h1 { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.4rem; color: var(--brown); margin-bottom: 0.75rem; }
+  .doc-content h2 { font-size: 1.1rem; color: var(--brown); margin: 1.5rem 0 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  .doc-content h3 { font-size: 0.98rem; color: var(--text-mid); margin: 1.1rem 0 0.4rem; }
+  .doc-content p { font-size: 0.92rem; line-height: 1.65; margin-bottom: 0.85rem; }
+  .doc-content p.meta { font-size: 0.85rem; color: var(--text-mid); margin-bottom: 0.35rem; }
+  .doc-content ul, .doc-content ol { margin: 0 0 0.85rem 1.4rem; }
+  .doc-content li { font-size: 0.92rem; line-height: 1.6; margin-bottom: 0.4rem; }
+  .doc-content strong { color: var(--brown); }
+  .back-link { display: inline-block; margin-top: 1.75rem; color: var(--text-mid); font-size: 0.85rem; text-decoration: underline; }
+
+</style>
+</head>
+<body>
+<div class="legal-wrap">
+  <div class="legal-nav">
+    <a href="terms.html">Terms of Service</a>
+    <span class="current">Privacy Policy</span>
+    <a href="disclaimer.html">Assumption of Risk & Disclaimer</a>
+  </div>
+  <div class="ack-banner">
+    <strong>Acknowledgment:</strong> The use of Coaching (Hondo) serves as your acknowledgment of the rules &amp; regulations outlined here.
+  </div>
+  <div class="doc-content">
+<h1>Privacy Policy</h1>
+<p class="meta">Last updated: July 28, 2026 · Applies to: Hondo (the "Platform")</p>
+<h2>1. What we collect</h2>
+<ul>
+<li><strong>Account information</strong>: name, email, password (stored hashed, never in plain text)</li>
+<li><strong>Payment information</strong>: handled entirely by our payment processor (Stripe); we do not store your full card number ourselves</li>
+<li><strong>Course activity</strong>: quiz scores, attempts, completion status, and video-coaching usage history (chapter, tier used, timestamp) — this is what powers the "My Progress" report feature</li>
+<li><strong>Uploaded video</strong>: video you submit to the AI coaching feature. Frames are extracted from your video entirely in your own browser (your device loads the video locally and captures still frames from it) before anything is sent anywhere — the full video file itself is never uploaded to or stored on our servers; only the extracted still frames leave your device</li>
+<li><strong>Feedback submissions</strong>: anything you submit through the feedback form, including your email if you provide it</li>
+<li><strong>Basic technical data</strong>: IP address, browser/device type, and similar standard web log data</li>
+</ul>
+<h2>2. How we use it</h2>
+<ul>
+<li>To provide and maintain your access to purchased content</li>
+<li>To generate AI coaching feedback (your submitted frames are sent to our AI service provider, Anthropic, solely to generate that feedback — see Section 3)</li>
+<li>To track and display your course progress back to you</li>
+<li>To respond to feedback and support requests</li>
+<li>To process payments and manage subscriptions/renewals</li>
+<li>To improve the Platform's content and features over time</li>
+</ul>
+<h2>3. Third parties we share data with</h2>
+<ul>
+<li><strong>Stripe</strong> (or equivalent payment processor) — for payment processing. We do not see or store your full payment card details.</li>
+<li><strong>Anthropic</strong> — the AI service provider used to generate video-coaching feedback. Video frames and the context you provide (skill level, goal, chapter) are sent to Anthropic's API solely to generate your feedback.</li>
+<li><strong>Wix</strong> (platform host) — stores account, progress, and credit-ledger data on our behalf, as the underlying hosting/database provider for the Platform.</li>
+</ul>
+<p>We do not sell your personal information to third parties.</p>
+<h2>4. Data retention</h2>
+<ul>
+<li>Account and progress data is retained for as long as your account is active, plus 12 months after closure, unless you request earlier deletion.</li>
+<li>Uploaded video frames used for AI coaching are processed to generate your feedback and then deleted within 24 hours; the full video itself is never uploaded in the first place (see Section 1).</li>
+<li>Feedback submissions are retained for 24 months, then deleted.</li>
+</ul>
+<h2>5. Your rights</h2>
+<p>Depending on where you live, you may have rights to access, correct, export, or delete your personal data, and to object to or restrict certain processing. To exercise these rights, contact support@ropingtools.com. We will respond within the timeframe required by applicable law.</p>
+<h2>6. Children's privacy</h2>
+<p>This Platform is not intended for use by children under 13 without a parent or guardian's involvement, consistent with the age requirement in the Terms of Service. We do not knowingly collect personal information from children below that age without appropriate consent.</p>
+<h2>7. Security</h2>
+<p>We use reasonable technical and organizational measures to protect your data, including encrypted storage of passwords and secure transmission (HTTPS) of data between your browser and our servers. No system is perfectly secure, and we cannot guarantee absolute security.</p>
+<h2>8. Cookies and similar technologies</h2>
+<p>We use essential cookies to keep you logged in and to remember your session, provided by Wix as our platform host. We do not currently use third-party advertising or tracking cookies.</p>
+<h2>9. International data transfers</h2>
+<p>The Platform is operated from, and your information is stored and processed in, the United States. If you access the Platform from outside the United States, your information will be transferred to and processed in the United States, which may not have the same data protection laws as your home country. By using the Platform, you consent to this transfer.</p>
+<h2>10. Changes to this policy</h2>
+<p>We may update this Privacy Policy from time to time. Material changes will be posted on the Platform with an updated effective date.</p>
+<h2>11. Contact</h2>
+<p>Questions about this Privacy Policy or your data: support@ropingtools.com</p>
+
+  </div>
+  <a class="back-link" href="course-embed.html">Back to the Course</a>
+</div>
+</body>
+</html>

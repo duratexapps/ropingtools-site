@@ -2,7 +2,7 @@
 
 **DRAFT — NOT LEGAL ADVICE. This document was written by an AI assistant to give you a starting structure and does not constitute legal advice. It must be reviewed and finalized by a licensed attorney — ideally one with equine liability experience — in your jurisdiction before this platform is used by real customers.**
 
-*Last updated: [DATE] · Applies to: [PRODUCT NAME] (the "Platform")*
+*Last updated: July 28, 2026 · Applies to: Hondo (the "Platform")*
 
 ---
 
@@ -31,7 +31,7 @@ The video-analysis "coach" feature uses an AI model to review still frames extra
 
 By creating an account, purchasing access, or otherwise using this Platform, you voluntarily and knowingly assume all risks associated with team roping, horsemanship, and any other equestrian activity you engage in, whether or not directly connected to content on this Platform, including but not limited to the risk of serious injury, death, and damage to property or animals.
 
-You agree that [COMPANY NAME], its owners, employees, contractors, and any individuals whose documented technique informs this course's teaching, are not responsible or liable for any injury, death, loss, or damage arising from your participation in equestrian activities, whether or not related to your use of this Platform.
+You agree that Duratex Instrument & Electric, LLC dba Duratex Applications, its owners, employees, contractors, and any individuals whose documented technique informs this course's teaching, are not responsible or liable for any injury, death, loss, or damage arising from your participation in equestrian activities, whether or not related to your use of this Platform.
 
 ## 5. What we recommend, and expect, of you
 
@@ -47,11 +47,11 @@ This Platform and its content are provided "as is," without warranty of any kind
 
 ## 7. Limitation of liability
 
-To the maximum extent permitted by law, [COMPANY NAME] shall not be liable for any direct, indirect, incidental, special, consequential, or exemplary damages, including but not limited to personal injury, death, or property or animal damage, resulting from your use of, or inability to use, this Platform or any content within it.
+To the maximum extent permitted by law, Duratex Instrument & Electric, LLC dba Duratex Applications shall not be liable for any direct, indirect, incidental, special, consequential, or exemplary damages, including but not limited to personal injury, death, or property or animal damage, resulting from your use of, or inability to use, this Platform or any content within it.
 
 ## 8. State and international equine liability law
 
-**[FOR YOUR ATTORNEY: 47–48 U.S. states have some form of Equine Activity Liability Act, generally limiting liability for the "inherent risks" of equine activity. Most of these statutes were written for in-person facilities, instructors, and event sponsors, and many require specific statutory warning language and/or posted physical signage to gain the statute's protection. It is not settled how these statutes apply to a purely online educational product with no physical premises, and the required language differs by state (a small number of states — including California and Maryland — have no such statute at all). This needs jurisdiction-specific review, and if the business operates internationally, equivalent research is needed for each relevant country.]**
+Many U.S. states have enacted an Equine Activity Liability Act or similar statute limiting liability for the inherent risks of equine activity; a small number of states (including California and Maryland) have no such statute. These laws vary by state, and how they apply to a purely online educational product like this Platform has not been established in any jurisdiction. This section reflects our general disclaimer above and does not depend on any particular state's statute for its effect; it will be updated to reflect jurisdiction-specific language following attorney review.
 
 ## 9. Severability
 
@@ -63,4 +63,4 @@ Use of this Platform constitutes your acknowledgment that you have read, underst
 
 ---
 
-*Contact: [LEGAL/SUPPORT EMAIL]*
+*Contact: support@ropingtools.com*
