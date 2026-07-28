@@ -6,8 +6,8 @@
 > product context instead of a generic template. Have licensed counsel review and
 > finalize before this goes live with real users. Placeholders are marked `[ ]`.
 
-**Effective Date:** [ ]
-**Operator:** [RopingTools legal entity name], operating Draw Pro as part of ropingtools.com
+**Effective Date:** July 28, 2026
+**Operator:** Duratex Instrument & Electric, LLC dba Duratex Applications, operating Draw Pro as part of ropingtools.com
 
 ---
 
@@ -20,7 +20,7 @@ The producer running the event is solely responsible for the event itself.
 
 ## 2. Who Can Use Draw Pro
 
-- You must be at least [ ] years old to create a RopingTools account.
+- You must be at least 18 years old to create a RopingTools account. If you are between 13 and 17, a parent or legal guardian must create and manage the account on your behalf.
 - If you are entering a minor into an event (see Section 8), you — the parent or
   legal guardian — are the one agreeing to these Terms on the minor's behalf, not the minor.
 - Producers must have the authority to run the event they configure in Draw Pro,
@@ -105,24 +105,20 @@ Minor & Parental Consent Addendum for details.
 
 ## 8.5. Producer Subscription & Multi-User Accounts
 
-**NEW section, added 2026-07-27** — flagging clearly that this entire section was
-previously MISSING, not just incomplete: a real, live billing mechanism
-existed in the product with zero mention in this document until now.
+<!-- internal note (not published): this section was added 2026-07-27 to
+     cover a real, live billing mechanism that previously had zero mention
+     in this document. -->
 
 - **Annual subscription.** Producers may subscribe to an annual plan covering
   cash-event execution charges (see the Refund & Extra-Run Policy's related
   note on execution fees) and, at higher tiers, additional user seats. Pricing
   as of this draft: $149/year (1 user), $199/year (3 users), $249/year
-  (unlimited users). [Confirm these are still current at time of counsel
-  review — they are set as plain, easily-adjustable configuration values in
-  the software, not hardcoded into a contract, so they may change before
-  launch.]
-- **Auto-renewal.** Subscriptions renew automatically at the then-current
-  price for the selected tier unless canceled before the renewal date. [ —
-  placeholder: confirm cancellation mechanics and whether any refund applies
-  to the unused portion of a canceled subscription; the Refund & Extra-Run
-  Policy does not currently address subscription cancellation at all, only
-  entry-fee/extra-run handling — this needs to be added there before launch.]
+  (unlimited users).
+- **Auto-renewal and cancellation.** Subscriptions renew automatically at the
+  then-current price for the selected tier unless canceled before the renewal
+  date. There are no refunds, prorated or otherwise, for subscription
+  cancellations — if you cancel, your access continues through the end of
+  your current billing period, and you will not be charged again after that.
 - **Multi-user accounts ("team members").** A producer may invite additional
   users to help manage their events, subject to the seat limit of their
   subscription tier above. An invited user who accepts has the **same level
@@ -137,14 +133,25 @@ existed in the product with zero mention in this document until now.
 
 ## 9. Fees
 
-[Placeholder — Draw Pro's transaction-fee structure was not finalized as of this
-draft. Once set, this section should state: what's charged, when, to whom (producer
-vs. entrant), and how it's disclosed before an entrant submits a paid entry.]
+- **Entry fees** for a specific event/class are set by the producer running it and
+  disclosed to you on that event's entry page before you submit a paid entry.
+- **Producer subscription.** Producers may subscribe to an annual plan ($149/year
+  for 1 user, $199/year for 3 users, or $249/year for unlimited users) covering
+  cash-event execution charges and additional team-member seats — see Section 8.5.
+- **Execution charges.** For cash-payment events, Draw Pro charges the producer a
+  per-team execution fee once a class's draw runs, covering teams beyond a free
+  threshold included with an active subscription. This charge is between Draw Pro
+  and the producer, not the entrant.
+- **Online-payment events** are processed through the producer's connected payment
+  account; Draw Pro's platform fee for that flow is disclosed to the producer when
+  they set up online payments, and to the entrant as part of the total charged at
+  checkout.
 
 ## 10. Guest Entries
 
 You may enter certain events without creating a RopingTools account ("guest entry"),
-subject to a limit on how often you can do so. [Frequency TBD.] Guest entries are
+subject to a limit of 3 guest entries within any rolling 90-day period, after which
+you'll need to create a free account to continue entering. Guest entries are
 subject to the same accuracy and conduct requirements as account-holder entries.
 
 ## 11. Account & Data
@@ -159,20 +166,27 @@ To the maximum extent permitted by law, Draw Pro and its operator are not liable
 indirect, incidental, or consequential damages arising from use of the software,
 including but not limited to: missed notifications, drawing errors, entry data
 errors, or event outcomes. Draw Pro's total liability for any claim arising from use
-of the software is limited to [the amount of fees paid to Draw Pro for the event in
-question / $0 for free usage — placeholder pending fee model].
+of the software is limited to the amount of fees you paid to Draw Pro (not the
+producer) in the 12 months before the claim arose, or $0 if you used Draw Pro
+without any fee being charged to you directly.
 
 ## 13. Changes to These Terms
 
-[ ] — standard "we may update these terms, we'll notify you of material changes" language.
+We may update these Terms from time to time. We'll update the effective date above
+and notify you of material changes.
 
 ## 14. Governing Law & Disputes
 
-[ ] — placeholder for governing state/jurisdiction and dispute resolution
-(arbitration clause, venue, etc.) — this should be set by counsel and should be
-consistent with the Terms used across Steer Me and the coaching course, if those
-already have this defined.
+These Terms are governed by the laws of the State of Texas, without regard to its
+conflict-of-laws principles. Any dispute arising out of or relating to these Terms
+or your use of Draw Pro will be resolved through binding, individual arbitration
+administered in Angleton, Texas, under the rules of the American Arbitration
+Association (or another mutually agreed arbitration administrator), rather than in
+court — except that either party may bring an individual claim in small claims
+court where eligible, and either party may seek injunctive relief in court for
+misuse of intellectual property. You and Draw Pro each waive the right to a jury
+trial and to bring or participate in a class, collective, or representative action.
 
 ## 15. Contact
 
-Questions about these Terms: [ ]
+Questions about these Terms: support@ropingtools.com

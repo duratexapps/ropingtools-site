@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legal | Draw Pro | RopingTools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  /* Draw Pro's Legal page - a discoverable-but-not-conspicuous reference
+     page, linked from the site footer / dashboard rather than a primary
+     nav item. Same palette as home-intro.html for brand consistency, but
+     a light reading surface (long legal text on a dark background is
+     hard to read for an extended sitting) with leather/rust accents
+     instead of the marketing page's dark hero treatment. */
+  :root {
+    --tan: #E4DAC6;
+    --tan-light: #FBF8F1;
+    --leather: #1E140F;
+    --leather-dark: #120C08;
+    --rust: #A9812E;
+    --rope: #7C6448;
+    --ink: #2A2420;
+    --cream: #F4EFE4;
+    --green: #4B5A3C;
+    --brass-light: #C9A54F;
+    --oxblood: #5C2430;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background: var(--tan-light);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 2rem 1.25rem 4rem;
+  }
+  .legal-wrap { max-width: 720px; margin: 0 auto; }
+
+  h1.legal-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: clamp(1.6rem, 5vw, 2.1rem);
+    color: var(--leather);
+    margin-bottom: 0.35rem;
+  }
+  .legal-sub {
+    color: var(--rope);
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .ack-banner {
+    background: var(--leather);
+    color: var(--cream);
+    border-left: 4px solid var(--brass-light);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    margin-bottom: 1.5rem;
+  }
+  .ack-banner strong { color: var(--brass-light); }
+
+  .doc-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .doc-tab {
+    background: transparent;
+    border: 1.5px solid var(--rust);
+    color: var(--leather);
+    border-radius: 999px;
+    padding: 0.45rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .doc-tab.active {
+    background: var(--rust);
+    color: var(--tan-light);
+  }
+  .doc-tab:hover:not(.active) { background: rgba(169,129,46,0.12); }
+
+  .doc-panel { display: none; }
+  .doc-panel.active { display: block; }
+
+  .doc-content {
+    background: #fff;
+    border: 1px solid var(--tan);
+    border-radius: 8px;
+    padding: 1.75rem 1.5rem;
+  }
+  .doc-content h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--leather);
+    margin-bottom: 0.75rem;
+  }
+  .doc-content h2 {
+    font-size: 1.1rem;
+    color: var(--leather);
+    margin: 1.5rem 0 0.6rem;
+    border-bottom: 1px solid var(--tan);
+    padding-bottom: 0.3rem;
+  }
+  .doc-content h3 {
+    font-size: 0.98rem;
+    color: var(--rope);
+    margin: 1.1rem 0 0.4rem;
+  }
+  .doc-content p { font-size: 0.92rem; line-height: 1.65; margin-bottom: 0.85rem; }
+  .doc-content p.meta {
+    font-size: 0.85rem;
+    color: var(--rope);
+    margin-bottom: 0.35rem;
+  }
+  .doc-content ul, .doc-content ol { margin: 0 0 0.85rem 1.4rem; }
+  .doc-content li { font-size: 0.92rem; line-height: 1.6; margin-bottom: 0.4rem; }
+  .doc-content strong { color: var(--leather); }
+  .doc-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+  .doc-content th, .doc-content td {
+    border: 1px solid var(--tan);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  .doc-content th {
+    background: var(--tan-light);
+    color: var(--leather);
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-top: 1.75rem;
+    color: var(--rope);
+    font-size: 0.85rem;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div class="legal-wrap">
+  <h1 class="legal-title">Legal</h1>
+  <p class="legal-sub">Terms, privacy, and policies for Draw Pro.</p>
+
+  <div class="ack-banner">
+    <strong>Acknowledgment:</strong> The use of Draw Pro serves as your acknowledgment of the rules &amp; regulations outlined here.
+  </div>
+
+  <div class="doc-tabs" role="tablist">
+    <button class="doc-tab active" data-doc="terms" onclick="drawProLegalShow('terms', this)">Terms of Service</button>
+    <button class="doc-tab" data-doc="privacy" onclick="drawProLegalShow('privacy', this)">Privacy Policy</button>
+    <button class="doc-tab" data-doc="minor" onclick="drawProLegalShow('minor', this)">Minor &amp; Parental Consent</button>
+    <button class="doc-tab" data-doc="refund" onclick="drawProLegalShow('refund', this)">Refund &amp; Extra-Run Policy</button>
+  </div>
+
+  <div id="doc-terms" class="doc-panel active">
+    <div class="doc-content">
+<h1>Draw Pro — Terms of Service </h1>
+<p class="meta">Effective Date:** July 28, 2026</p>
+<p class="meta">Operator:** Duratex Instrument &amp; Electric, LLC dba Duratex Applications, operating Draw Pro as part of ropingtools.com</p>
+<h2>1. What Draw Pro Is</h2>
+<p>Draw Pro is software that helps producers run team roping draws and notify entrants of their team assignments. Draw Pro does not organize, sanction, judge, or supervise any event, and is not a party to any event's rules, payouts, or on-site operations. The producer running the event is solely responsible for the event itself.</p>
+<h2>2. Who Can Use Draw Pro</h2>
+<ul>
+<li>You must be at least 18 years old to create a RopingTools account. If you are between 13 and 17, a parent or legal guardian must create and manage the account on your behalf.</li>
+<li>If you are entering a minor into an event (see Section 8), you — the parent or legal guardian — are the one agreeing to these Terms on the minor's behalf, not the minor.</li>
+<li>Producers must have the authority to run the event they configure in Draw Pro, including any permits, insurance, or sanctioning body approval required to do so.</li>
+</ul>
+<h2>3. Assumption of Risk</h2>
+<p>Team roping involves live animals, horses, and inherent physical risk of injury to participants, animals, and bystanders. <strong>By using Draw Pro to enter an event, you acknowledge and accept these risks are part of the sport itself, independent of and unrelated to Draw Pro's software.</strong> Draw Pro's role is limited to administrative functions — collecting entries, running the draw, and sending notifications. Draw Pro is not responsible for, and expressly disclaims liability for:</p>
+<ul>
+<li>Injury to any person, animal, or property occurring at an event</li>
+<li>The condition of livestock, arenas, equipment, or event grounds</li>
+<li>A producer's compliance (or non-compliance) with safety rules, permits, insurance, or governing-body requirements</li>
+<li>Any dispute between entrants, or between an entrant and a producer, arising from the conduct of the event itself</li>
+</ul>
+<h2>4. The Draw Process</h2>
+<ul>
+<li><strong>Random pairing.</strong> Where Draw Pro runs an automated draw, header/heeler pairing among solo entrants is random, constrained only by the producer's stated classification cap. Draw Pro does not guarantee any particular pairing, running order, or outcome.</li>
+<li><strong>Run order — random by default, or by entry time if the producer opts in.</strong> A producer may enable "first to enter, last to rope" sequencing for a class, in which case run order is determined by entry timestamp (earlier entries run later) instead of a random shuffle, subject to the same 10-team spacing rule below. This is a per-class producer setting, disclosed as part of that class's entry rules — Draw Pro does not guarantee this feature is enabled for any given class unless the producer has configured it.</li>
+<li><strong>The cap rule is absolute.</strong> No pairing — automated or manually entered by a producer — will be created if the combined classification exceeds the event's stated cap. This rule cannot be waived by a producer, an entrant, or Draw Pro staff.</li>
+<li><strong>Unmatched entrants.</strong> If the algorithm cannot find a valid partner for an entrant within the field as entered, that entrant may require an additional, unpaid run to complete the draw ("extra run"), or may need to be manually paired by the producer consistent with the cap rule. See the Refund &amp; Extra-Run Policy for how fees are handled in this case.</li>
+<li><strong>Manual overrides.</strong> A producer may manually adjust the draw sheet after the automated draw runs. Every manual override is logged, together with the producer's acknowledgment, for accountability purposes. Draw Pro is not responsible for a producer's manual pairing decisions, only for enforcing the cap rule against them.</li>
+<li><strong>Run-order spacing.</strong> Draw Pro attempts to space a repeat entrant's runs at least ten (10) teams apart. Where field size makes this mathematically impossible, Draw Pro flags the conflict for the producer rather than guessing; the producer is responsible for resolving it.</li>
+</ul>
+<h2>5. Entry Information You Provide</h2>
+<p>You're responsible for the accuracy of the information you (or, for scanned-card entries, the office staff entering it on your behalf) provide, including your name, classification number, and contact information. Entering a false or outdated classification number to gain an unfair pairing is a violation of these Terms and may be reported to the relevant governing body.</p>
+<h2>6. Notifications</h2>
+<p>Draw Pro notifies entrants of their team number and partner assignment by email (and, in the future, SMS if you've opted in and provided a phone number). Delivery is not guaranteed — if you don't receive a notification, it is your responsibility to check with event staff for your team number and run order.</p>
+<h2>7. Scanned Card Entries</h2>
+<p>Where a producer's office staff scans a handwritten entry card, that image and the information extracted from it are handled per the Privacy Policy. Staff verify and correct machine-read (OCR) information before it's used in the draw, but Draw Pro does not guarantee the office staff's transcription is error-free; entrants should confirm their own information is correct wherever it's displayed to them.</p>
+<h2>8. Minors</h2>
+<p>Where an entrant is a minor, a parent or legal guardian must be the one submitting the entry and agreeing to these Terms, and is responsible for the accuracy of the information submitted and for the minor's participation in the event itself. See the Minor &amp; Parental Consent Addendum for details.</p>
+<h2>8.5. Producer Subscription &amp; Multi-User Accounts</h2>
+<ul>
+<li><strong>Annual subscription.</strong> Producers may subscribe to an annual plan covering cash-event execution charges (see the Refund &amp; Extra-Run Policy's related note on execution fees) and, at higher tiers, additional user seats. Pricing as of this draft: $149/year (1 user), $199/year (3 users), $249/year (unlimited users).</li>
+<li><strong>Auto-renewal and cancellation.</strong> Subscriptions renew automatically at the then-current price for the selected tier unless canceled before the renewal date. There are no refunds, prorated or otherwise, for subscription cancellations — if you cancel, your access continues through the end of your current billing period, and you will not be charged again after that.</li>
+<li><strong>Multi-user accounts ("team members").</strong> A producer may invite additional users to help manage their events, subject to the seat limit of their subscription tier above. An invited user who accepts has the <strong>same level of access to that producer's events and entrant information as the producer themselves</strong> — including entrant contact information, classification numbers, and draw results. The producer who owns the account is responsible for who they invite and for removing access when appropriate; Draw Pro does not vet or supervise who a producer chooses to invite.</li>
+<li><strong>Only the account owner can add or remove team members</strong> — an invited user cannot grant or revoke another person's access, even though they can otherwise act on the account's events.</li>
+</ul>
+<h2>9. Fees</h2>
+<ul>
+<li><strong>Entry fees</strong> for a specific event/class are set by the producer running it and disclosed to you on that event's entry page before you submit a paid entry.</li>
+<li><strong>Producer subscription.</strong> Producers may subscribe to an annual plan ($149/year for 1 user, $199/year for 3 users, or $249/year for unlimited users) covering cash-event execution charges and additional team-member seats — see Section 8.5.</li>
+<li><strong>Execution charges.</strong> For cash-payment events, Draw Pro charges the producer a per-team execution fee once a class's draw runs, covering teams beyond a free threshold included with an active subscription. This charge is between Draw Pro and the producer, not the entrant.</li>
+<li><strong>Online-payment events</strong> are processed through the producer's connected payment account; Draw Pro's platform fee for that flow is disclosed to the producer when they set up online payments, and to the entrant as part of the total charged at checkout.</li>
+</ul>
+<h2>10. Guest Entries</h2>
+<p>You may enter certain events without creating a RopingTools account ("guest entry"), subject to a limit of 3 guest entries within any rolling 90-day period, after which you'll need to create a free account to continue entering. Guest entries are subject to the same accuracy and conduct requirements as account-holder entries.</p>
+<h2>11. Account &amp; Data</h2>
+<p>Creating a RopingTools account gives you access to Draw Pro, Steer Me, and the coaching course under a single login. See the Privacy Policy for what's collected and how it's used across these products.</p>
+<h2>12. Limitation of Liability</h2>
+<p>To the maximum extent permitted by law, Draw Pro and its operator are not liable for indirect, incidental, or consequential damages arising from use of the software, including but not limited to: missed notifications, drawing errors, entry data errors, or event outcomes. Draw Pro's total liability for any claim arising from use of the software is limited to the amount of fees you paid to Draw Pro (not the producer) in the 12 months before the claim arose, or $0 if you used Draw Pro without any fee being charged to you directly.</p>
+<h2>13. Changes to These Terms</h2>
+<p>We may update these Terms from time to time. We'll update the effective date above and notify you of material changes.</p>
+<h2>14. Governing Law &amp; Disputes</h2>
+<p>These Terms are governed by the laws of the State of Texas, without regard to its conflict-of-laws principles. Any dispute arising out of or relating to these Terms or your use of Draw Pro will be resolved through binding, individual arbitration administered in Angleton, Texas, under the rules of the American Arbitration Association (or another mutually agreed arbitration administrator), rather than in court — except that either party may bring an individual claim in small claims court where eligible, and either party may seek injunctive relief in court for misuse of intellectual property. You and Draw Pro each waive the right to a jury trial and to bring or participate in a class, collective, or representative action.</p>
+<h2>15. Contact</h2>
+<p>Questions about these Terms: support@ropingtools.com</p>
+
+    </div>
+  </div>
+  <div id="doc-privacy" class="doc-panel">
+    <div class="doc-content">
+<h1>Draw Pro — Privacy Policy </h1>
+<p class="meta">Effective Date:** July 28, 2026</p>
+<p class="meta">Operator:** Duratex Instrument &amp; Electric, LLC dba Duratex Applications, operating Draw Pro as part of ropingtools.com</p>
+<h2>1. What This Covers</h2>
+<p>This policy explains what information Draw Pro collects when you create an event, enter an event, or interact with a producer's event through Draw Pro (including via a QR code from a flier), and what happens to that information.</p>
+<h2>2. Information We Collect</h2>
+<h3>From entrants (whether self-entered or scanned from a card)</h3>
+<ul>
+<li>Name</li>
+<li>Classification number</li>
+<li>Global membership ID <em>(only if the producer running your event requires it — not all producers do)</em></li>
+<li>Email address <em>(required — used to send your team number and partner assignment)</em></li>
+<li>Phone number <em>(optional — collected now for a future text-message notification option; not used to send text messages yet)</em></li>
+<li>Whether you entered solo or as a pre-formed team, and your chosen role (header/heeler)</li>
+</ul>
+<h3>From scanned entry cards specifically</h3>
+<ul>
+<li>A photo of the physical card you or office staff submitted</li>
+<li>Machine-read (OCR) text extracted from that photo</li>
+<li>A confidence score indicating how certain the extraction was</li>
+</ul>
+<p>We store the card image and OCR text so office staff can verify what was read against the original, and so there's a record to resolve a dispute about what a card actually said. <strong>Retention:</strong> for the length of the event season the card was used for, plus 12 months, after which it's deleted unless you request earlier deletion.</p>
+<h3>From producers</h3>
+<ul>
+<li>Name and contact information tied to your RopingTools account</li>
+<li>Event details you configure (title, date, cap, entry windows)</li>
+<li>Actions you take in Draw Pro that are logged for accountability, including manual draw-sheet overrides and any attempted pairing that would have exceeded an event's cap (rejected, but logged)</li>
+<li>if you invite additional users ("team members") to help manage your events, their name/email (used to send the invite) and their account's activity on your events, logged the same way your own is</li>
+</ul>
+<h3>From guest entrants (no account)</h3>
+<ul>
+<li>The same entrant information above</li>
+<li>A one-way hashed version of your email/phone, used only to enforce a limit on how many times you can enter as a guest before being asked to create a free account. This hash cannot be reversed back into your email or phone number.</li>
+</ul>
+<h3>From visitors who scan a QR code before an event opens</h3>
+<ul>
+<li>If you choose to leave an email for a "notify me when entries open" alert, we store that email against the specific event, and use it only to send that one alert (and, per Section 5, potentially to understand how this channel converts to RopingTools accounts).</li>
+</ul>
+<h2>3. How We Use This Information</h2>
+<ul>
+<li>To run the draw and assign team numbers</li>
+<li>to determine run order, when a producer enables "first to enter, last to rope" sequencing for their class: the timestamp of when you entered is used to place earlier entries later in the run order (see Terms of Service Section 4). Otherwise, the timestamp is retained but not used to affect your run order.</li>
+<li>To notify you of your team number, partner, and (in the future) other event logistics, by email or, once available, text message you've opted into</li>
+<li>To let office staff verify scanned card information before it's used in a draw</li>
+<li>To enforce the classification cap rule and prevent entries above a producer's stated limit</li>
+<li>To maintain an accountability record of manual draw-sheet changes</li>
+<li>To notify you when an event you're waiting on opens for entries</li>
+</ul>
+<h2>4. What We Don't Do</h2>
+<ul>
+<li>We don't sell your information.</li>
+<li>We don't use your classification number, contact info, or entry history for advertising unrelated to RopingTools' own products.</li>
+<li>We don't text you unless you've explicitly opted in to SMS notifications (feature not yet live) and provided a phone number for that purpose — providing a phone number for future use does not by itself constitute that consent.</li>
+</ul>
+<h2>5. Email Alerts &amp; Lead Tracking</h2>
+<p>If you sign up for a "notify me when entries open" alert via a QR code or entry link, we may track whether that email later becomes a full RopingTools account, to help us understand whether this is a useful way for people to discover the platform. This tracking is limited to a yes/no flag tied to the alert record — it does not affect how your account, if you create one, otherwise functions.</p>
+<h2>6. Information Shared With Third Parties</h2>
+<p>Draw Pro uses outside services to do its job, and your information passes through them as follows:</p>
+<table>
+<thead><tr><th>Service</th><th>What is Shared</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Email delivery provider (e.g., SendGrid)</td><td>Your email address, team number, partner name</td><td>Sending your draw notification</td></tr>
+<tr><td>OCR / image-recognition provider (e.g., Google Cloud Vision)</td><td>The photo of a scanned entry card</td><td>Extracting entry information from handwritten cards</td></tr>
+<tr><td>SMS provider, once that feature is built</td><td>Your phone number, team number</td><td>Sending your draw notification by text</td></tr>
+<tr><td>Wix (platform host)</td><td>All of the above, as the underlying hosting/database provider</td><td>Running the RopingTools platform itself</td></tr>
+</tbody>
+</table>
+<p>We only share what each service needs to perform its specific function, and we require these providers to handle your information securely, and we do not authorize them to use your information for their own independent purposes beyond providing the service to us.</p>
+<h3>CSV export by the producer running your event</h3>
+<p>A producer may export their event's team/run-order information as a CSV file, which includes your name, classification number, and entry timestamp, for their own recordkeeping or for use in other event software they run alongside Draw Pro. <strong>Once a producer exports this file, it is no longer within Draw Pro's control</strong> — it is subject to whatever that producer, or the other software they import it into, does with it, not this Privacy Policy. We do not control or track what a producer does with an export after it leaves Draw Pro.</p>
+<h3>Team members on a producer's account</h3>
+<p>If the producer running your event has invited additional users to help manage their events (see Terms of Service Section 8.5), those users have the same access to your entrant information — name, classification number, contact information, and entry timestamp — as the producer themselves. Draw Pro does not separately notify entrants when a producer adds a team member.</p>
+<h2>7. Minors</h2>
+<p>If you are a parent or legal guardian submitting an entry for a minor, you are providing that minor's information to us, and you're confirming you have the authority to do so. See the Minor &amp; Parental Consent Addendum for more detail on how minor entrant data is handled.</p>
+<h2>8. Your Choices</h2>
+<ul>
+<li><strong>Guest entrants</strong> can create a free account at any time, which does not change what information is collected but does remove the guest-entry frequency limit.</li>
+<li><strong>Correcting your information:</strong> if something about your entry is wrong — including a misread scanned card — contact the producer running your event or support@ropingtools.com to have it corrected before the draw runs.</li>
+<li><strong>Opting out of future SMS:</strong> once text notifications are available, you'll be able to opt out at any time; email notifications (required for entry) cannot be turned off, since they're how you receive your team assignment.</li>
+</ul>
+<h2>9. Data Retention</h2>
+<ul>
+<li><strong>Entrant records</strong> are retained for the length of the event season plus 12 months after the event concludes, unless you request earlier deletion.</li>
+<li><strong>Scanned card images</strong> are retained per Section 2's Retention note above.</li>
+<li><strong>Audit log entries</strong> (manual draw-sheet overrides, cap-violation attempts) are retained for 12 months for accountability purposes, then deleted.</li>
+</ul>
+<h2>10. Changes to This Policy</h2>
+<p>We may update this Policy from time to time. We'll update the effective date above and notify you of material changes.</p>
+<h2>11. Contact</h2>
+<p>Questions about this policy or your information: support@ropingtools.com</p>
+
+    </div>
+  </div>
+  <div id="doc-minor" class="doc-panel">
+    <div class="doc-content">
+<h1>Draw Pro — Minor &amp; Parental Consent Addendum </h1>
+<p class="meta">Applies to:** any entrant under the age of 18 (or the age of majority in their</p>
+<p>jurisdiction, if different).</p>
+<h2>1. Who Enters a Minor's Information</h2>
+<p>A minor may <strong>not</strong> submit their own entry through Draw Pro's self-service entry form. A parent or legal guardian must be the one who:</p>
+<ul>
+<li>Creates or uses the account (or guest entry) the minor's entry is submitted under</li>
+<li>Enters the minor's classification number, contact information, and role</li>
+<li>Agrees to the Terms of Service and this Addendum on the minor's behalf</li>
+</ul>
+<p><strong>Product implication:</strong> the entry form should include an age/minor declaration step before allowing submission, rather than relying on the Terms of Service alone to catch this after the fact. This isn't yet reflected in the entry form built so far and should be added before public launch.</p>
+<h2>2. Whose Contact Information Is Used for Notifications</h2>
+<p>The email address used to notify a minor entrant of their team number and partner should be the <strong>parent or guardian's</strong> email, not the minor's own — even if the minor has their own email address. This keeps Draw Pro from directly texting or emailing a minor without a parent in the loop.</p>
+<p><strong>Product implication:</strong> the entry form should not assume the email field is the entrant's own address when a minor is being entered — worth a distinct "parent/ guardian contact" field in that flow rather than reusing the standard entrant email field as-is.</p>
+<h2>3. Scanned Cards Involving Minors</h2>
+<p>Where a minor's information is collected via a scanned handwritten card (Option 1), the same image-retention and OCR-handling rules in the Privacy Policy apply.</p>
+<h2>4. What We Do Not Do</h2>
+<ul>
+<li>We do not knowingly allow a minor to create their own RopingTools account or submit their own entry unaccompanied by a parent/guardian's account or consent.</li>
+<li>We do not send SMS or email notifications directly to a minor's own contact information via Draw Pro; notifications go to the parent/guardian contact on file.</li>
+<li>We do not use a minor's classification history or entry data for any purpose beyond running the draw and event notifications.</li>
+</ul>
+<h2>5. If a Minor's Information Was Entered Incorrectly</h2>
+<p>A parent or guardian may contact support@ropingtools.com to correct or remove a minor's information from Draw Pro at any time, subject to the event's own entry-correction deadlines set by the producer.</p>
+<h2>6. Producer Responsibility</h2>
+<p>Producers using Draw Pro to run an event with minor entrants are responsible for their own compliance with any age-related eligibility rules, waivers, or sanctioning-body requirements specific to their event — Draw Pro's role here is limited to how the software itself collects and handles a minor's data, not the event's own participation rules.</p>
+
+    </div>
+  </div>
+  <div id="doc-refund" class="doc-panel">
+    <div class="doc-content">
+<h1>Draw Pro — Refund &amp; Extra-Run Policy </h1>
+<p class="meta">Applies to:** entry fees collected for events run through Draw Pro. See the</p>
+<p>Terms of Service Section 9 for Draw Pro's own fee structure (execution charges and producer subscriptions); this policy covers what happens to entry fees specifically when the matching algorithm can't pair everyone.</p>
+<h2>1. Unmatched Entrants ("Extra Runs")</h2>
+<p>If Draw Pro's automated draw cannot find a valid partner for a solo entrant within the cap constraints of the field as entered, that entrant may end up completing the event via an additional, unpaid run rather than a paid entry — a known limitation of blind random-draw matching when the field doesn't divide evenly.</p>
+<ul>
+<li><strong>This entrant is not charged an additional entry fee for the extra run.</strong></li>
+<li><strong>The producer does not collect the entry fee they would have for that pairing</strong>, since no second paying partner existed to complete it. This is a real cost to the producer, not to Draw Pro or to the entrant — see Section 3.</li>
+<li>Draw Pro does not compensate producers for this shortfall. It is a structural outcome of blind-draw matching that Steer Me (pre-formed partner matching) is intended to reduce over time, not something Draw Pro's fee model offsets directly.</li>
+</ul>
+<h2>2. Manually Paired Entrants</h2>
+<p>Where a producer manually pairs an otherwise-unmatched entrant (per the Terms of Service's manual override provision), normal entry fee handling applies as if that pairing had been drawn automatically — the cap rule still applies, and no fee waiver applies simply because the pairing was manual rather than automated.</p>
+<h2>3. Producer-Side Financial Responsibility</h2>
+<p>Draw Pro's role is limited to running the draw and reporting its outcome, including who is unmatched. <strong>Setting entry fees, collecting them, and handling any refund a producer chooses to offer an entrant is the producer's responsibility</strong>, not Draw Pro's, for cash-payment events. For online-payment events processed through a producer's connected payment account, refunds are still initiated by the producer, though the payment processor facilitates the actual transfer.</p>
+<h2>4. Cancelled or Postponed Events</h2>
+<ul>
+<li><strong>Cancelled before the draw runs:</strong> no draw occurred, so fee handling (refund or otherwise) is between the entrant and the producer, per the producer's own policy for that event.</li>
+<li><strong>Cancelled after the draw has run and notifications sent:</strong> the same applies — fee handling is between the entrant and producer. Entrants already know their team/partner assignment at that point, but that assignment has no further effect once the event itself is cancelled.</li>
+<li><strong>Postponed to a new date:</strong> the producer decides whether the existing draw sheet carries forward to the new date or a new draw is run; either way, Draw Pro notifies entrants of whichever the producer chooses.</li>
+</ul>
+<h2>5. Disputing a Draw Outcome</h2>
+<p>An entrant who believes their draw result was affected by an error — a card misread during scanning, an incorrect classification number on file, or a manual override they believe violated the cap — should raise it with the producer running the event in the first instance, since the producer has sign-off authority over the draw sheet and the accountability log of any manual changes. Draw Pro does not independently investigate or adjudicate disputes between an entrant and a producer, but will provide the producer with the relevant audit log entries to support their own review.</p>
+<h2>6. Guest Entry Fees</h2>
+<p>Guest (no-account) entries follow the same entry-fee and payment rules as account-holder entries, where the event's payment method and the producer's own rules permit it. Creating a free account at any time removes the guest-entry frequency limit described in the Privacy Policy, but does not otherwise change how your entry fee is handled.</p>
+<h2>7. Producer Subscription Cancellation</h2>
+<p>Now that a real subscription (see Terms of Service Section 8.5 — $149/$199/$249 tiers) exists, this section addresses it directly:</p>
+<ul>
+<li><strong>Cancellation:</strong> there are no refunds, prorated or otherwise, for subscription cancellations. If a producer cancels, their access continues through the end of the current billing period, consistent with how Steer Me's athlete subscriptions work.</li>
+<li><strong>Downgrading seat tiers:</strong> if a producer downgrades from a higher seat tier (team3/unlimited) to a lower one, the new tier's seat limit takes effect at the next renewal. If the producer has more team members than the new tier allows, they're responsible for removing enough team members to fit the new limit before that renewal date.</li>
+</ul>
+
+    </div>
+  </div>
+
+  <a class="back-link" href="/">Back to RopingTools</a>
+</div>
+
+<script>
+  function drawProLegalShow(doc, btn) {
+    document.querySelectorAll('.doc-panel').forEach(function (p) { p.classList.remove('active'); });
+    document.querySelectorAll('.doc-tab').forEach(function (t) { t.classList.remove('active'); });
+    document.getElementById('doc-' + doc).classList.add('active');
+    btn.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Deep-link support: ?doc=privacy etc., mirroring the Steer Me app's
+  // /legal?doc= pattern for consistency across platforms.
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    var doc = params.get('doc');
+    if (doc) {
+      var btn = document.querySelector('.doc-tab[data-doc="' + doc + '"]');
+      if (btn) drawProLegalShow(doc, btn);
+    }
+  })();
+</script>
+</body>
+</html>

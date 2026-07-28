@@ -8,7 +8,7 @@
 > this is finalized. Placeholders are marked `[ ]`.
 
 **Applies to:** any entrant under the age of 18 (or the age of majority in their
-jurisdiction, if different — placeholder `[ ]`).
+jurisdiction, if different).
 
 ---
 
@@ -41,10 +41,7 @@ field as-is.
 ## 3. Scanned Cards Involving Minors
 
 Where a minor's information is collected via a scanned handwritten card (Option 1),
-the same image-retention and OCR-handling rules in the Privacy Policy apply, with no
-different treatment for minors' card images at this time — this is a placeholder;
-counsel may recommend additional handling (e.g., shorter retention) specifically
-for minors' scanned data.
+the same image-retention and OCR-handling rules in the Privacy Policy apply.
 
 ## 4. What We Do Not Do
 
@@ -57,7 +54,7 @@ for minors' scanned data.
 
 ## 5. If a Minor's Information Was Entered Incorrectly
 
-A parent or guardian may contact [RopingTools support contact — placeholder] to
+A parent or guardian may contact support@ropingtools.com to
 correct or remove a minor's information from Draw Pro at any time, subject to the
 event's own entry-correction deadlines set by the producer.
 

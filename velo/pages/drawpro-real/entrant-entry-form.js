@@ -77,6 +77,10 @@
  *   #textSteerMeNudge         (shown when a draw-in entry is requested and a team rate is cheaper)
  *   #btnSubmitEntry
  *   #textStatus
+ *   #linkEntryLegal           (NEW, added 2026-07-28 — small/muted link near the submit
+ *                              button, "present but not overly conspicuous" per direct
+ *                              instruction. Opens the Legal page (see velo/pages/
+ *                              drawpro-real/drawpro-legal.js) in a new tab.)
  *
  *   -- Payment step (shown after submit, before entry is considered final) --
  *   #boxCashInstructions      (shown if event.paymentMethod = 'cash')
@@ -171,6 +175,12 @@ $w.onReady(async function () {
     safeCall(() => $w('#inputEntryCount').onInput(() => { toggleDrawInRoleVisibility(); updateFeePreview(); }));
     safeCall(() => $w('#btnSubmitEntry').onClick(handleSubmit));
     safeCall(() => $w('#btnReplayTutorial').onClick(startEntrantTour));
+    // NEW, added 2026-07-28 - small/muted link near the submit button,
+    // "present but not overly conspicuous" per direct instruction. This is
+    // the highest-traffic entrant touchpoint in Draw Pro, so it gets its
+    // own link rather than relying solely on the home page footer / producer
+    // profile link (see drawpro-legal.js for the full rollout).
+    safeCall(() => $w('#linkEntryLegal').onClick(() => wixLocation.to('/legal')));
 
     currentEvent = await loadEventSummary();
     openClasses = await loadOpenClasses();

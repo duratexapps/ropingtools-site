@@ -52,6 +52,13 @@
  *   #textSubActionStatus  (text, status/error messages for subscribe/cancel actions
  *                          specifically - separate from #textSubCurrentStatus, same
  *                          reasoning as #textTeamStatus above)
+ *
+ *   -- Legal (NEW, added 2026-07-28) --
+ *   #linkLegal            (button/link, small/muted styling - "present but not overly
+ *                          conspicuous" per direct instruction, so this sits low on the
+ *                          page among the other account-management controls rather than
+ *                          as a nav item. Opens the Legal page (see velo/pages/
+ *                          drawpro-real/drawpro-legal.js) in a new tab.)
  */
 
 import wixLocation from 'wix-location';
@@ -70,6 +77,10 @@ $w.onReady(async function () {
     safeCall(() => $w('#btnInviteUser').onClick(handleInviteUser));
     safeCall(() => $w('#btnSubscribe').onClick(handleSubscribeClick));
     safeCall(() => $w('#btnCancelSubscription').onClick(handleCancelClick));
+    // NEW, added 2026-07-28 - opens the Legal page. wixLocation.to() rather
+    // than a plain <a> since this is a native Wix element, not HTML embed
+    // content; "legal" is the Legal page's URL slug (see drawpro-legal.js).
+    safeCall(() => $w('#linkLegal').onClick(() => wixLocation.to('/legal')));
     await loadExistingProfile();
     await loadTeamSection();
     await loadSubscriptionSection();

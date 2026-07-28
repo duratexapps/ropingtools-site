@@ -81,6 +81,15 @@
     color: var(--brass-light);
     margin-top: 1.5rem;
   }
+  .legal-footer-link {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--tan);
+    opacity: 0.65;
+    text-decoration: underline;
+    margin-top: 0.75rem;
+  }
+  .legal-footer-link:hover { opacity: 1; }
 
   .tour-overlay {
     display: none;
@@ -260,6 +269,13 @@
 
   <button type="button" class="tour-btn" onclick="openTour()">Take a Tour</button>
   <p class="scroll-hint">Already know Draw Pro? Sign up or log in below.</p>
+  <!-- NEW, added 2026-07-28 - "present but not overly conspicuous": a
+       small muted footer link rather than a nav item or prominent button,
+       consistent with how the Steer Me app surfaces its own Legal page.
+       Relative href + target="_blank" matches the established, already-
+       working pattern for course-embed.html's terms.html/privacy.html/
+       disclaimer.html links (same sibling-file-in-public/ approach). -->
+  <a class="legal-footer-link" href="legal.html" target="_blank" rel="noopener">Terms, Privacy &amp; Policies</a>
 </div>
 
 <div class="tour-overlay" id="tour-overlay" role="dialog" aria-modal="true" aria-label="Draw Pro tour">

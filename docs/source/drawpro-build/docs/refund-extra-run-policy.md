@@ -7,10 +7,10 @@
 > alongside the Terms of Service, since this policy and Section 4 of the ToS cover
 > the same mechanic from different angles. Placeholders are marked `[ ]`.
 
-**Applies to:** entry fees collected for events run through Draw Pro, once Draw
-Pro's transaction-fee model is finalized. [Note: as of this draft, Draw Pro's own
-fee structure has not been set — this policy should be finalized alongside that
-decision, not before it.]
+**Applies to:** entry fees collected for events run through Draw Pro. See the
+Terms of Service Section 9 for Draw Pro's own fee structure (execution charges
+and producer subscriptions); this policy covers what happens to entry fees
+specifically when the matching algorithm can't pair everyone.
 
 ---
 
@@ -41,19 +41,22 @@ applies simply because the pairing was manual rather than automated.
 Draw Pro's role is limited to running the draw and reporting its outcome, including
 who is unmatched. **Setting entry fees, collecting them, and handling any refund a
 producer chooses to offer an entrant is the producer's responsibility**, not Draw
-Pro's, unless and until Draw Pro processes payments directly on a producer's behalf
-[placeholder — depends on the eventual fee model; if Draw Pro ever handles payment
-collection directly the way Steer Me does, this section needs to be rewritten to
-describe Draw Pro's own refund mechanics, not just point to the producer].
+Pro's, for cash-payment events. For online-payment events processed through a
+producer's connected payment account, refunds are still initiated by the producer,
+though the payment processor facilitates the actual transfer.
 
 ## 4. Cancelled or Postponed Events
 
-[ — placeholder. Needs explicit handling for: an event cancelled before the draw
-runs (straightforward — no draw occurred, fee handling is between entrant and
-producer); an event cancelled after the draw has run and notifications sent
-(entrants already know their team/partner — does anything change?); and a
-postponed event (does the same draw sheet carry forward, or does Draw Pro require
-a new draw?).]
+- **Cancelled before the draw runs:** no draw occurred, so fee handling (refund or
+  otherwise) is between the entrant and the producer, per the producer's own
+  policy for that event.
+- **Cancelled after the draw has run and notifications sent:** the same applies —
+  fee handling is between the entrant and producer. Entrants already know their
+  team/partner assignment at that point, but that assignment has no further effect
+  once the event itself is cancelled.
+- **Postponed to a new date:** the producer decides whether the existing draw
+  sheet carries forward to the new date or a new draw is run; either way, Draw Pro
+  notifies entrants of whichever the producer chooses.
 
 ## 5. Disputing a Draw Outcome
 
@@ -61,31 +64,30 @@ An entrant who believes their draw result was affected by an error — a card
 misread during scanning, an incorrect classification number on file, or a manual
 override they believe violated the cap — should raise it with the producer running
 the event in the first instance, since the producer has sign-off authority over the
-draw sheet and the accountability log of any manual changes. [ — placeholder for
-whether/how Draw Pro itself gets involved in a dispute beyond providing the
-producer with the relevant audit log entries.]
+draw sheet and the accountability log of any manual changes. Draw Pro does not
+independently investigate or adjudicate disputes between an entrant and a producer,
+but will provide the producer with the relevant audit log entries to support their
+own review.
 
 ## 6. Guest Entry Fees
 
-[ — placeholder, dependent on whether guest entrants are permitted to submit paid
-entries at all, or whether paid entry requires a full account. This affects both
-this policy and the guest-entry cap design.]
+Guest (no-account) entries follow the same entry-fee and payment rules as
+account-holder entries, where the event's payment method and the producer's own
+rules permit it. Creating a free account at any time removes the guest-entry
+frequency limit described in the Privacy Policy, but does not otherwise change
+how your entry fee is handled.
 
 ## 7. Producer Subscription Cancellation
 
-**NEW section, added 2026-07-27 — this policy previously said nothing about the
-producer annual subscription at all**, only about entry fees. Now that a real
-subscription (see Terms of Service Section 8.5 — $149/$199/$249 tiers) exists,
-this needs an explicit answer, not silence:
+Now that a real subscription (see Terms of Service Section 8.5 — $149/$199/$249
+tiers) exists, this section addresses it directly:
 
-- [ — placeholder: does canceling a subscription mid-cycle refund any unused
-  portion, or does access simply continue through the already-paid period with
-  no refund, the same model Steer Me uses for its athlete subscriptions
-  (Section 4 of Steer Me's Terms of Service)? Recommend matching that existing
-  precedent for consistency across the product suite unless there's a specific
-  reason to diverge.]
-- [ — placeholder: if a producer downgrades from a higher seat tier
-  (team3/unlimited) to a lower one mid-cycle, what happens to team members
-  already over the new tier's seat limit? The software does not currently
-  automatically remove anyone — this is a business/policy decision, not
-  something already resolved in the code.]
+- **Cancellation:** there are no refunds, prorated or otherwise, for subscription
+  cancellations. If a producer cancels, their access continues through the end of
+  the current billing period, consistent with how Steer Me's athlete subscriptions
+  work.
+- **Downgrading seat tiers:** if a producer downgrades from a higher seat tier
+  (team3/unlimited) to a lower one, the new tier's seat limit takes effect at the
+  next renewal. If the producer has more team members than the new tier allows,
+  they're responsible for removing enough team members to fit the new limit before
+  that renewal date.
