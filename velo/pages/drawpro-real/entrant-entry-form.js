@@ -833,7 +833,14 @@ async function handlePaymentApproved(entrantId, orderId) {
     }
 }
 
+// FIXED live 2026-07-28: caught by an automated back-test sweep - an
+// uncaught "Cannot set properties of undefined (setting 'color')"
+// TypeError was thrown from this exact function (identical, unwrapped
+// code in all 6 pages that have their own setStatus()). Wrapped the
+// function's OWN body here rather than every individual setStatus(...)
+// call site, since this function is called from dozens of places per
+// page - one fix here protects all of them at once.
 function setStatus(message, isError) {
-    $w('#textStatus').text = message;
-    $w('#textStatus').style.color = isError ? '#B3261E' : '#2E7D32';
+    safeCall(() => { $w('#textStatus').text = message; });
+    safeCall(() => { $w('#textStatus').style.color = isError ? '#B3261E' : '#2E7D32'; });
 }

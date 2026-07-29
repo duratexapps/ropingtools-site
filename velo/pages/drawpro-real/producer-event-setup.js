@@ -254,9 +254,17 @@ function startProducerTour() {
     });
 }
 
+// FIXED live 2026-07-28: caught by an automated back-test sweep - an
+// UNCAUGHT "$w(...).collapse is not a function" TypeError was thrown from
+// this exact function (or toggleClassCloseModeFields() below - both are
+// called directly from $w.onReady(), unwrapped, before this fix). Same
+// failure class already fixed once for onClick/onChange/onInput wiring
+// earlier the same day - turns out .collapse()/.expand() calls carried
+// the identical risk and were missed in that pass, since that audit only
+// searched for event-handler registration, not every $w method call.
 async function checkPayoutReadiness() {
     if ($w('#radioPaymentMethod').value !== 'online') {
-        $w('#textPayoutWarning').collapse();
+        safeCall(() => $w('#textPayoutWarning').collapse());
         return;
     }
     const member = await currentMember.getMember().catch(() => null);
@@ -264,27 +272,27 @@ async function checkPayoutReadiness() {
 
     const profile = await getPayoutProfile(member._id);
     if (!profile || profile.onboardingStatus !== 'complete') {
-        $w('#textPayoutWarning').text = "You'll need to finish payout setup before this event can accept online payments.";
-        $w('#textPayoutWarning').expand();
+        safeCall(() => { $w('#textPayoutWarning').text = "You'll need to finish payout setup before this event can accept online payments."; });
+        safeCall(() => $w('#textPayoutWarning').expand());
     } else {
-        $w('#textPayoutWarning').collapse();
+        safeCall(() => $w('#textPayoutWarning').collapse());
     }
 }
 
 function toggleClassCloseModeFields() {
     const mode = $w('#radioClassCloseMode').value;
     if (mode === 'time') {
-        $w('#inputClassCloseDate').expand();
-        $w('#inputClassCloseCount').collapse();
+        safeCall(() => $w('#inputClassCloseDate').expand());
+        safeCall(() => $w('#inputClassCloseCount').collapse());
     } else if (mode === 'teamCount') {
-        $w('#inputClassCloseCount').expand();
-        $w('#inputClassCloseDate').collapse();
+        safeCall(() => $w('#inputClassCloseCount').expand());
+        safeCall(() => $w('#inputClassCloseDate').collapse());
     } else {
         // 'manual' — neither auto-close field applies; the producer just
         // clicks Close on this class whenever they decide, same manual
         // action every mode still supports regardless (see event-setup.jsw).
-        $w('#inputClassCloseDate').collapse();
-        $w('#inputClassCloseCount').collapse();
+        safeCall(() => $w('#inputClassCloseDate').collapse());
+        safeCall(() => $w('#inputClassCloseCount').collapse());
     }
 }
 
@@ -399,7 +407,7 @@ async function handleCreateEvent() {
         paymentMethod: $w('#radioPaymentMethod').value
     };
 
-    $w('#btnCreateEvent').disable();
+    safeCall(() => $w('#btnCreateEvent').disable());
 
     try {
         const event = await createEvent(eventInput);
@@ -412,12 +420,12 @@ async function handleCreateEvent() {
                                         // it goes on fliers ahead of time, and early
                                         // scanners get the "notify me when entries open"
                                         // option instead.
-        $w('#btnCreateEvent').label = 'Event Created';
-        $w('#btnCreateEvent').disable(); // one shell per page visit — re-editing the
+        safeCall(() => { $w('#btnCreateEvent').label = 'Event Created'; });
+        safeCall(() => $w('#btnCreateEvent').disable()); // one shell per page visit — re-editing the
                                           // shell itself isn't handled by this pass
     } catch (err) {
         setStatus(err.message, true);
-        $w('#btnCreateEvent').enable();
+        safeCall(() => $w('#btnCreateEvent').enable());
     }
 }
 
@@ -472,7 +480,7 @@ async function handleAddClass() {
         sequenceMode: $w('#checkboxFirstToEnterLastToRope').checked ? 'entry_order' : 'random'
     };
 
-    $w('#btnAddClass').disable();
+    safeCall(() => $w('#btnAddClass').disable());
 
     try {
         await createEventClass(currentEventId, classInput);
@@ -482,7 +490,7 @@ async function handleAddClass() {
     } catch (err) {
         setStatus(err.message, true);
     } finally {
-        $w('#btnAddClass').enable();
+        safeCall(() => $w('#btnAddClass').enable());
     }
 }
 
@@ -564,13 +572,13 @@ async function handleCloseClass(classId) {
 
 async function handleGenerateQr() {
     if (!currentEventId) return;
-    $w('#btnGenerateQr').disable();
+    safeCall(() => $w('#btnGenerateQr').disable());
 
     try {
         const { entryUrl, qrImageUrl } = await generateEventQrCode(currentEventId);
-        $w('#imageQrCode').src = qrImageUrl;
-        $w('#imageQrCode').expand();
-        $w('#textEntryUrl').text = entryUrl;
+        safeCall(() => { $w('#imageQrCode').src = qrImageUrl; });
+        safeCall(() => $w('#imageQrCode').expand());
+        safeCall(() => { $w('#textEntryUrl').text = entryUrl; });
 
         const waitingCount = await getAlertSubscriberCount(currentEventId);
         if (waitingCount > 0) {
@@ -581,11 +589,18 @@ async function handleGenerateQr() {
     } catch (err) {
         setStatus(err.message, true);
     } finally {
-        $w('#btnGenerateQr').enable();
+        safeCall(() => $w('#btnGenerateQr').enable());
     }
 }
 
+// FIXED live 2026-07-28: caught by an automated back-test sweep - an
+// uncaught "Cannot set properties of undefined (setting 'color')"
+// TypeError was thrown from this exact function (identical, unwrapped
+// code in all 6 pages that have their own setStatus()). Wrapped the
+// function's OWN body here rather than every individual setStatus(...)
+// call site, since this function is called from dozens of places per
+// page - one fix here protects all of them at once.
 function setStatus(message, isError) {
-    $w('#textStatus').text = message;
-    $w('#textStatus').style.color = isError ? '#B3261E' : '#2E7D32';
+    safeCall(() => { $w('#textStatus').text = message; });
+    safeCall(() => { $w('#textStatus').style.color = isError ? '#B3261E' : '#2E7D32'; });
 }
