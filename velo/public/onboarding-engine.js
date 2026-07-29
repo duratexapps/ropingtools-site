@@ -28,24 +28,40 @@
  * @param {Function} callbacks.onFinish - called after the last step's Next
  * @param {Function} callbacks.onSkip - called if the user clicks Skip early
  */
+// FIXED live 2026-07-28: caught by an automated back-test sweep - an
+// uncaught "$w(...).expand is not a function" TypeError was thrown from
+// this exact module (shared across every page that has a tour), from the
+// unwrapped $w('#tourOverlay').expand() call below. Since this is public/
+// shared code (not a page file), it has no local safeCall() of its own -
+// added one here so every page using runTour() gets the same protection
+// page-code files already have, in one place rather than duplicated per
+// page.
+function safeCall(fn) {
+    try {
+        fn();
+    } catch (err) {
+        console.error(`[onboarding-engine] tour step failed (tour keeps working): ${err.message}`);
+    }
+}
+
 export function runTour($w, steps, callbacks) {
     let currentStep = 0;
 
-    $w('#tourOverlay').expand();
-    $w('#btnTourNext').onClick(handleNext);
-    $w('#btnTourBack').onClick(handleBack);
-    $w('#btnTourSkip').onClick(handleSkip);
+    safeCall(() => $w('#tourOverlay').expand());
+    safeCall(() => $w('#btnTourNext').onClick(handleNext));
+    safeCall(() => $w('#btnTourBack').onClick(handleBack));
+    safeCall(() => $w('#btnTourSkip').onClick(handleSkip));
 
     showStep(currentStep);
 
     async function showStep(index) {
         const step = steps[index];
-        $w('#tourTitle').text = step.title;
-        $w('#tourBody').text = step.body;
-        $w('#textTourStepCount').text = `Step ${index + 1} of ${steps.length}`;
-        $w('#btnTourBack').disable();
-        if (index > 0) $w('#btnTourBack').enable();
-        $w('#btnTourNext').label = index === steps.length - 1 ? 'Finish' : 'Next';
+        safeCall(() => { $w('#tourTitle').text = step.title; });
+        safeCall(() => { $w('#tourBody').text = step.body; });
+        safeCall(() => { $w('#textTourStepCount').text = `Step ${index + 1} of ${steps.length}`; });
+        safeCall(() => $w('#btnTourBack').disable());
+        if (index > 0) safeCall(() => $w('#btnTourBack').enable());
+        safeCall(() => { $w('#btnTourNext').label = index === steps.length - 1 ? 'Finish' : 'Next'; });
 
         await positionTooltipNear(step.targetId);
     }
@@ -54,22 +70,22 @@ export function runTour($w, steps, callbacks) {
         try {
             const rect = await $w(targetId).getBoundingRect();
             // Frame the target element itself.
-            $w('#tourHighlightBox').show();
-            $w('#tourHighlightBox').x = rect.x - 6;
-            $w('#tourHighlightBox').y = rect.y - 6;
-            $w('#tourHighlightBox').width = rect.width + 12;
-            $w('#tourHighlightBox').height = rect.height + 12;
+            safeCall(() => $w('#tourHighlightBox').show());
+            safeCall(() => { $w('#tourHighlightBox').x = rect.x - 6; });
+            safeCall(() => { $w('#tourHighlightBox').y = rect.y - 6; });
+            safeCall(() => { $w('#tourHighlightBox').width = rect.width + 12; });
+            safeCall(() => { $w('#tourHighlightBox').height = rect.height + 12; });
 
             // Place the tooltip just below the target, falling back to
             // above it if that would run off the bottom of the viewport.
             const tooltipY = rect.y + rect.height + 12;
-            $w('#tourTooltip').x = rect.x;
-            $w('#tourTooltip').y = tooltipY;
+            safeCall(() => { $w('#tourTooltip').x = rect.x; });
+            safeCall(() => { $w('#tourTooltip').y = tooltipY; });
         } catch (err) {
             // Target element isn't visible on this step (e.g. a
             // conditionally-shown field) — show the tooltip centered
             // instead of failing the whole tour over one missing target.
-            $w('#tourHighlightBox').hide();
+            safeCall(() => $w('#tourHighlightBox').hide());
             console.warn(`Tour step target "${targetId}" not found or not visible: ${err.message}`);
         }
     }
@@ -97,7 +113,7 @@ export function runTour($w, steps, callbacks) {
     }
 
     function endTour() {
-        $w('#tourOverlay').collapse();
-        $w('#tourHighlightBox').hide();
+        safeCall(() => $w('#tourOverlay').collapse());
+        safeCall(() => $w('#tourHighlightBox').hide());
     }
 }
