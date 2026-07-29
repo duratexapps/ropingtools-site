@@ -44,6 +44,16 @@
  *                          that's faster to build — either works)
  *   #btnLogIn             (Button, inside #boxVisitorCTA — same note as above)
  *   #boxProducerDashboard (Container — shown when signed in)
+ *   #textWelcome          (Text, inside #boxProducerDashboard — NEW, added 2026-07-28.
+ *                          "Welcome back, [Org Name]," matching
+ *                          docs/mockups/drawpro-producer-dashboard-mockup.html - that
+ *                          mockup had this text, but no code ever actually wrote it
+ *                          until now. IMPORTANT: every element in this
+ *                          #boxProducerDashboard group must be an actual CHILD of that
+ *                          container in the Editor's layers panel, not just visually
+ *                          positioned near it - .expand()/.collapse() only affects the
+ *                          container's own visibility, it doesn't cascade to elements
+ *                          that merely overlap it on screen.)
  *   #btnCreateEvent       (Button, inside #boxProducerDashboard — links to
  *                          Producer Event Setup)
  *   #linkEditProfile      (Button/Link, inside #boxProducerDashboard — links
@@ -120,6 +130,13 @@ $w.onReady(async function () {
         }
         safeCall(() => $w('#boxVisitorCTA').collapse());
         safeCall(() => $w('#boxProducerDashboard').expand());
+        // NEW, added 2026-07-28 - real gap found while comparing the
+        // actual page against docs/mockups/drawpro-producer-dashboard-
+        // mockup.html: that mockup shows "Welcome back, [Org Name]," but
+        // nothing in this file had ever actually written that text -
+        // profile.organizationName was already being fetched two lines
+        // up (for the profile-exists check above), just never displayed.
+        safeCall(() => { $w('#textWelcome').text = `Welcome back, ${profile.organizationName}`; });
         wireDashboardButtons();
         // FIXED 2026-07-27 - this used to query by member._id alone, which
         // meant a signed-in HELPER user (added via account-users.jsw's
