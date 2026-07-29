@@ -43,21 +43,31 @@
  *                          element category instead of a custom button, if
  *                          that's faster to build — either works)
  *   #btnLogIn             (Button, inside #boxVisitorCTA — same note as above)
- *   #boxProducerDashboard (Container — shown when signed in)
- *   #textWelcome          (Text, inside #boxProducerDashboard — NEW, added 2026-07-28.
- *                          "Welcome back, [Org Name]," matching
- *                          docs/mockups/drawpro-producer-dashboard-mockup.html - that
- *                          mockup had this text, but no code ever actually wrote it
- *                          until now. IMPORTANT: every element in this
- *                          #boxProducerDashboard group must be an actual CHILD of that
- *                          container in the Editor's layers panel, not just visually
- *                          positioned near it - .expand()/.collapse() only affects the
- *                          container's own visibility, it doesn't cascade to elements
- *                          that merely overlap it on screen.)
- *   #btnCreateEvent       (Button, inside #boxProducerDashboard — links to
+ *
+ *   -- Signed-in producer view - TWO boxes, matching the mockup's two-tone
+ *      layout (a dark top strip, a lighter box below for the event lists).
+ *      BOTH need their own expand()/collapse() in code - IMPORTANT: any
+ *      element meant to show/hide with sign-in state must be an actual
+ *      CHILD of whichever of these two boxes it belongs to, in the
+ *      Editor's layers panel - not just visually positioned near it.
+ *      .expand()/.collapse() only affects a container's own visibility,
+ *      it never cascades to elements that merely overlap it on screen. --
+ *   #boxProducerTopbar    (Container — NEW, added 2026-07-28. The dark top
+ *                          strip - welcome message + Edit Profile/Create
+ *                          Event buttons, matching
+ *                          docs/mockups/drawpro-producer-dashboard-mockup.html)
+ *   #textWelcome          (Text, inside #boxProducerTopbar — "Welcome back,
+ *                          [Org Name]." That mockup had this text, but no
+ *                          code ever actually wrote it until now -
+ *                          profile.organizationName was already being
+ *                          fetched for the profile-exists check above,
+ *                          just never displayed.)
+ *   #btnCreateEvent       (Button, inside #boxProducerTopbar — links to
  *                          Producer Event Setup)
- *   #linkEditProfile      (Button/Link, inside #boxProducerDashboard — links
+ *   #linkEditProfile      (Button/Link, inside #boxProducerTopbar — links
  *                          to the Producer Profile page)
+ *   #boxProducerDashboard (Container — the lighter box below, holding the
+ *                          event repeaters)
  *   #textActiveEventsHeading (Text, inside #boxProducerDashboard)
  *   #repeaterActiveEvents (Repeater, inside #boxProducerDashboard — item template needs
  *                          #textActiveEventTitle, #textEventDate, #textEventLocation, #linkManageEvent
@@ -130,6 +140,14 @@ $w.onReady(async function () {
         }
         safeCall(() => $w('#boxVisitorCTA').collapse());
         safeCall(() => $w('#boxProducerDashboard').expand());
+        // NEW, added 2026-07-28 - the mockup's design splits the signed-in
+        // view into two boxes (a dark top strip with the welcome message +
+        // Edit Profile/Create Event buttons, and a lighter box below with
+        // the event repeaters) rather than one - #boxProducerTopbar needs
+        // the same expand/collapse treatment as #boxProducerDashboard
+        // itself, or it would never actually hide for a signed-out
+        // visitor / show for a signed-in producer regardless of state.
+        safeCall(() => $w('#boxProducerTopbar').expand());
         // NEW, added 2026-07-28 - real gap found while comparing the
         // actual page against docs/mockups/drawpro-producer-dashboard-
         // mockup.html: that mockup shows "Welcome back, [Org Name]," but
@@ -150,6 +168,7 @@ $w.onReady(async function () {
         await loadProducerEvents(producerIds);
     } else {
         safeCall(() => $w('#boxProducerDashboard').collapse());
+        safeCall(() => $w('#boxProducerTopbar').collapse());
         safeCall(() => $w('#boxVisitorCTA').expand());
         wireVisitorButtons();
     }
