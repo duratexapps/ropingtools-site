@@ -40,13 +40,22 @@
  *                            once the event shell is created, as an on-page confirmation of which event
  *                            you're configuring below)
  *   #inputEventDate        (date picker)
- *   #togglePreEntry        (toggle/checkbox)
+ *   #checkboxAllowPreEntry  (RENAMED live 2026-07-29 - the Editor's actual element is
+ *                            #checkboxAllowPreEntry, not #togglePreEntry as originally
+ *                            documented/coded. Confirmed via the Editor's own Layers panel
+ *                            after a live report that the location-suggestion type-ahead
+ *                            had silently stopped working - see setVisible()'s big comment
+ *                            near the top of this file for the related, bigger fix that
+ *                            same day)
  *   #toggleListOnSteerMe    (NEW, added 2026-07-22 — checkbox, checked by default. Cross-posts this event
  *                            to Steer Me so entrants there can discover it, find partners, and hand off
  *                            back here to actually enter — see backend/steerMeSync.jsw. Sync only actually
  *                            fires once at least one class exists, not at shell creation)
  *   #radioPaymentMethod    (radio group: 'cash' | 'online' — applies to the WHOLE event, not per class)
- *   #textPayoutWarning      (shown if 'online' selected but payout profile isn't complete)
+ *   #textPayoutWarning      (shown if 'online' selected but payout profile isn't complete. CONFIRMED
+ *                            MISSING from the Editor as of 2026-07-29 - the code safely no-ops on it via
+ *                            setVisible(), but this text element still needs to actually be added for the
+ *                            payout warning to ever be visible to a producer)
  *   #linkPayoutSetup        (link to the producer payout profile page — not built yet, see note below)
  *   #btnCreateEvent        (button — creates the SHELL only now, not a full event+cap+price)
  *
@@ -103,9 +112,18 @@
  *   #imageQrCode           (image, shown once QR generated)
  *   #textEntryUrl          (text)
  *   #textStatus            (text, status/error messages)
- *   #btnReplayTutorial     (always visible)
+ *   #btnReplayTutorial     (always visible. CONFIRMED as of 2026-07-29: the Editor has an unrenamed
+ *                            "button9" sitting in the visual spot where this button belongs (visible
+ *                            label "Replay Tutorial"), but its actual ID was never changed from Wix's
+ *                            auto-generated default, so $w('#btnReplayTutorial').onClick(...) silently
+ *                            fails - rename that element's ID to btnReplayTutorial in the Editor's
+ *                            Settings panel to wire it up, no code change needed once that's done)
  *
- *   -- Tour overlay elements (see public/onboarding-engine.js) --
+ *   -- Tour overlay elements (see public/onboarding-engine.js). CONFIRMED as of 2026-07-29: NONE of
+ *      these 9 elements exist anywhere on this page yet - the onboarding tour was fully coded but
+ *      never actually built in the Editor. safeCall() keeps this from breaking anything else, but the
+ *      tour itself has never been visible to a real producer. Either build these 9 elements, or comment
+ *      out the `startProducerTour()` call in $w.onReady() to stop it running against nothing. --
  *   #tourOverlay, #tourHighlightBox, #tourTooltip, #tourTitle, #tourBody,
  *   #textTourStepCount, #btnTourNext, #btnTourBack, #btnTourSkip
  *
@@ -113,7 +131,10 @@
  *      matching comment for the full reasoning; duplicated identically
  *      on all 4 producer pages) --
  *   #navDashboard   (Button/Link) - links to /producer-dashboard
- *   #navCreateEvent (Button/Link) - links to /producer-event-setup
+ *   #navCreateEvent (Button/Link) - links to /producer-event-setup. CONFIRMED MISSING from this
+ *                    particular page as of 2026-07-29 (present on the other 3 producer pages) - low
+ *                    priority since it would just link back to the page you're already on, but add it
+ *                    for consistency with the other 3 pages if convenient
  *   #navMyProfile   (Button/Link) - links to /producer-profile
  */
 
@@ -211,13 +232,13 @@ $w.onReady(async function () {
     // element behaving unexpectedly (wrong widget type, unsupported
     // method, etc.) logs a console error and moves on instead of taking
     // the rest of onReady() down with it.
-    safeCall(() => $w('#boxAddClass').hide());
+    setVisible(() => $w('#boxAddClass'), false);
     safeCall(() => $w('#btnGenerateQr').disable());
-    safeCall(() => $w('#imageQrCode').collapse());
-    safeCall(() => $w('#textPayoutWarning').collapse());
-    safeCall(() => $w('#textEventTitleLocation').collapse());
-    safeCall(() => $w('#repeaterLocationSuggestions').hide());
-    safeCall(() => $w('#repeaterVenueSuggestions').hide());
+    setVisible(() => $w('#imageQrCode'), false);
+    setVisible(() => $w('#textPayoutWarning'), false);
+    setVisible(() => $w('#textEventTitleLocation'), false);
+    setVisible(() => $w('#repeaterLocationSuggestions'), false);
+    setVisible(() => $w('#repeaterVenueSuggestions'), false);
     safeCall(() => { $w('#toggleListOnSteerMe').checked = true; }); // opt-out, not opt-in - continuity is the intended default
 
     toggleClassCloseModeFields();
@@ -236,6 +257,41 @@ function safeCall(fn) {
         fn();
     } catch (err) {
         console.error(`[producer-event-setup] setup step failed (page keeps working): ${err.message}`);
+    }
+}
+
+// FIXED live 2026-07-29 - confirmed live via the Editor's own Developer
+// Console: safeCall() was correctly preventing a CRASH on .hide()/.show()
+// calls for #repeaterLocationSuggestions, #repeaterVenueSuggestions,
+// #boxAddClass, #imageQrCode, and #textEventTitleLocation - but it was
+// also silently swallowing the actual VISIBILITY CHANGE, since these
+// elements turned out not to support hide()/show() as functions at all
+// (same root cause already noted on #boxAddClass elsewhere in this file:
+// "it has thrown 'is not a function' on both .disable() AND .collapse(),
+// so whatever it actually is doesn't behave like a standard Container
+// Box" - different Wix widget types genuinely expose different visibility
+// APIs, hide()/show() vs collapse()/expand(), and there's no way to know
+// which one a given Editor element actually needs without testing it).
+// Confirmed live: the location/venue type-ahead was computing correct
+// results and populating the repeater's data the whole time - it just
+// never physically appeared, because the final .show() call kept failing
+// silently. This tries hide()/show() first and falls back to
+// collapse()/expand() if that throws, so the real visual result lands
+// regardless of which pair this specific element turns out to support -
+// rather than every future page needing its own guess-and-check pass.
+function setVisible(getElement, visible) {
+    try {
+        const el = getElement();
+        if (visible) el.show();
+        else el.hide();
+    } catch (err) {
+        try {
+            const el = getElement();
+            if (visible) el.expand();
+            else el.collapse();
+        } catch (err2) {
+            console.error(`[producer-event-setup] setVisible failed via both hide/show and collapse/expand: ${err2.message}`);
+        }
     }
 }
 
@@ -264,7 +320,7 @@ function startProducerTour() {
 // searched for event-handler registration, not every $w method call.
 async function checkPayoutReadiness() {
     if ($w('#radioPaymentMethod').value !== 'online') {
-        safeCall(() => $w('#textPayoutWarning').collapse());
+        setVisible(() => $w('#textPayoutWarning'), false);
         return;
     }
     const member = await currentMember.getMember().catch(() => null);
@@ -273,26 +329,26 @@ async function checkPayoutReadiness() {
     const profile = await getPayoutProfile(member._id);
     if (!profile || profile.onboardingStatus !== 'complete') {
         safeCall(() => { $w('#textPayoutWarning').text = "You'll need to finish payout setup before this event can accept online payments."; });
-        safeCall(() => $w('#textPayoutWarning').expand());
+        setVisible(() => $w('#textPayoutWarning'), true);
     } else {
-        safeCall(() => $w('#textPayoutWarning').collapse());
+        setVisible(() => $w('#textPayoutWarning'), false);
     }
 }
 
 function toggleClassCloseModeFields() {
     const mode = $w('#radioClassCloseMode').value;
     if (mode === 'time') {
-        safeCall(() => $w('#inputClassCloseDate').expand());
-        safeCall(() => $w('#inputClassCloseCount').collapse());
+        setVisible(() => $w('#inputClassCloseDate'), true);
+        setVisible(() => $w('#inputClassCloseCount'), false);
     } else if (mode === 'teamCount') {
-        safeCall(() => $w('#inputClassCloseCount').expand());
-        safeCall(() => $w('#inputClassCloseDate').collapse());
+        setVisible(() => $w('#inputClassCloseCount'), true);
+        setVisible(() => $w('#inputClassCloseDate'), false);
     } else {
         // 'manual' — neither auto-close field applies; the producer just
         // clicks Close on this class whenever they decide, same manual
         // action every mode still supports regardless (see event-setup.jsw).
-        safeCall(() => $w('#inputClassCloseDate').collapse());
-        safeCall(() => $w('#inputClassCloseCount').collapse());
+        setVisible(() => $w('#inputClassCloseDate'), false);
+        setVisible(() => $w('#inputClassCloseCount'), false);
     }
 }
 
@@ -308,7 +364,7 @@ function handleLocationInput() {
     const query = $w('#inputEventLocation').value;
     if (!query || query.trim().length < 2) {
         locationRequestToken += 1; // invalidate any in-flight search
-        safeCall(() => $w('#repeaterLocationSuggestions').hide());
+        setVisible(() => $w('#repeaterLocationSuggestions'), false);
         return;
     }
     // Real, confirmed lag/flicker cause: with no ordering guard, typing
@@ -322,7 +378,7 @@ function handleLocationInput() {
         const matches = await searchHomeAreas(query).catch(() => []);
         if (myToken !== locationRequestToken) return; // superseded by a newer search
         if (matches.length === 0) {
-            safeCall(() => $w('#repeaterLocationSuggestions').hide());
+            setVisible(() => $w('#repeaterLocationSuggestions'), false);
             return;
         }
         $w('#repeaterLocationSuggestions').data = matches.map((label, i) => ({ _id: String(i), label }));
@@ -330,10 +386,10 @@ function handleLocationInput() {
             $item('#btnLocationSuggestion').label = item.label;
             $item('#btnLocationSuggestion').onClick(() => {
                 $w('#inputEventLocation').value = item.label;
-                safeCall(() => $w('#repeaterLocationSuggestions').hide());
+                setVisible(() => $w('#repeaterLocationSuggestions'), false);
             });
         }));
-        safeCall(() => $w('#repeaterLocationSuggestions').show());
+        setVisible(() => $w('#repeaterLocationSuggestions'), true);
     }, TYPEAHEAD_DEBOUNCE_MS);
 }
 
@@ -352,7 +408,7 @@ function handleVenueInput() {
     const query = $w('#inputEventSite').value;
     if (!query || query.trim().length < 2) {
         venueRequestToken += 1; // invalidate any in-flight search
-        safeCall(() => $w('#repeaterVenueSuggestions').hide());
+        setVisible(() => $w('#repeaterVenueSuggestions'), false);
         return;
     }
     // Same stale-response guard as handleLocationInput() above.
@@ -361,7 +417,7 @@ function handleVenueInput() {
         const matches = await searchVenues(query).catch(() => []);
         if (myToken !== venueRequestToken) return; // superseded by a newer search
         if (matches.length === 0) {
-            safeCall(() => $w('#repeaterVenueSuggestions').hide());
+            setVisible(() => $w('#repeaterVenueSuggestions'), false);
             return;
         }
         $w('#repeaterVenueSuggestions').data = matches.map((v, i) => ({
@@ -382,10 +438,10 @@ function handleVenueInput() {
                 if (item.location && !$w('#inputEventLocation').value) {
                     $w('#inputEventLocation').value = item.location;
                 }
-                safeCall(() => $w('#repeaterVenueSuggestions').hide());
+                setVisible(() => $w('#repeaterVenueSuggestions'), false);
             });
         }));
-        safeCall(() => $w('#repeaterVenueSuggestions').show());
+        setVisible(() => $w('#repeaterVenueSuggestions'), true);
     }, TYPEAHEAD_DEBOUNCE_MS);
 }
 
@@ -402,7 +458,16 @@ async function handleCreateEvent() {
         eventSite: $w('#inputEventSite').value || null,
         eventSiteLink: $w('#inputEventSiteLink').value || null,
         eventDate: $w('#inputEventDate').value,
-        preEntryEnabled: $w('#togglePreEntry').checked,
+        // FIXED live 2026-07-29: confirmed via the Editor's own Layers
+        // panel that this page's real pre-entry checkbox is named
+        // #checkboxAllowPreEntry, not #togglePreEntry as originally
+        // documented/coded - #togglePreEntry doesn't exist on this page
+        // at all, so this was silently reading undefined every time
+        // (a property read on a non-matching $w() reference doesn't
+        // throw the way a method call like .onClick()/.hide() does,
+        // which is why this specific bug never showed up in the
+        // Developer Console the way the visibility bugs above did).
+        preEntryEnabled: $w('#checkboxAllowPreEntry').checked,
         listOnSteerMe: $w('#toggleListOnSteerMe').checked,
         paymentMethod: $w('#radioPaymentMethod').value
     };
@@ -414,8 +479,8 @@ async function handleCreateEvent() {
         currentEventId = event._id;
         setStatus('Event created. Now add at least one class (roping) below.');
         safeCall(() => { $w('#textEventTitleLocation').text = `${event.title} - ${event.location}`; });
-        safeCall(() => $w('#textEventTitleLocation').expand());
-        safeCall(() => $w('#boxAddClass').show());
+        setVisible(() => $w('#textEventTitleLocation'), true);
+        setVisible(() => $w('#boxAddClass'), true);
         safeCall(() => $w('#btnGenerateQr').enable()); // QR can be generated before any class opens —
                                         // it goes on fliers ahead of time, and early
                                         // scanners get the "notify me when entries open"
@@ -577,7 +642,7 @@ async function handleGenerateQr() {
     try {
         const { entryUrl, qrImageUrl } = await generateEventQrCode(currentEventId);
         safeCall(() => { $w('#imageQrCode').src = qrImageUrl; });
-        safeCall(() => $w('#imageQrCode').expand());
+        setVisible(() => $w('#imageQrCode'), true);
         safeCall(() => { $w('#textEntryUrl').text = entryUrl; });
 
         const waitingCount = await getAlertSubscriberCount(currentEventId);
