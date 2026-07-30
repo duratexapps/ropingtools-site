@@ -64,7 +64,15 @@
  *   #boxAcknowledgeConfirm    (confirmation container with a note field)
  *   #inputAcknowledgeNote
  *   #btnConfirmAcknowledge
- *   #repeaterUnmatched        (entrants the algorithm couldn't pair)
+ *   #repeaterUnmatched        (entrants the algorithm couldn't pair - item template needs its OWN
+ *                             distinct #textUnmatchedEntrantName, NOT the plainer #textEntrantName
+ *                             #repeaterEntrants already uses above - CONFIRMED live 2026-07-30 that
+ *                             this file had been reusing #textEntrantName across both repeaters,
+ *                             the exact same "duplicate ID across two different repeaters" bug
+ *                             already documented on drawpro-home.js from 2026-07-25. Fixed here;
+ *                             the Editor's own #repeaterUnmatched item template element still needs
+ *                             its ID changed from #textEntrantName to #textUnmatchedEntrantName to
+ *                             match)
  *   #dropdownManualHeader, #dropdownManualHeeler, #btnManualPair
  *   #boxOverrideConfirm       (must acknowledge before override applies)
  *   #checkboxOverrideAck
@@ -566,8 +574,19 @@ async function refreshUnresolvedCount() {
 
 async function loadUnmatchedEntrants(unmatchedEntrants) {
     $w('#repeaterUnmatched').data = unmatchedEntrants;
+    // FIXED live 2026-07-30, caught by direct instruction to check for the
+    // same pattern that caused the Producer Dashboard duplicate-ID bug
+    // (2026-07-25): this item template was reusing #textEntrantName,
+    // the EXACT SAME ID #repeaterEntrants's own item template already
+    // uses (see loadEntrantList() above) - Wix's classic Editor does not
+    // allow the same Element ID to be reused across two DIFFERENT
+    // repeaters on one page, only within items of the SAME repeater.
+    // Renamed to #textUnmatchedEntrantName, same "_ suffix scoped to
+    // this specific repeater" convention already established for
+    // #textPastEventTitle (drawpro-home.js) and #textTeamStatus2
+    // (producer-profile.js).
     $w('#repeaterUnmatched').onItemReady(($item, entrant) => safeCall(() => {
-        $item('#textEntrantName').text = `${entrant.firstName} ${entrant.lastName} (${entrant.role}, #${entrant.classificationNumber})`;
+        $item('#textUnmatchedEntrantName').text = `${entrant.firstName} ${entrant.lastName} (${entrant.role}, #${entrant.classificationNumber})`;
     }));
 
     // Populate manual-pair dropdowns from the same unmatched pool.
