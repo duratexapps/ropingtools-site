@@ -219,21 +219,21 @@ $w.onReady(async function () {
     // wrapped in safeCall(), same as the cosmetic setup already was -
     // one bad element can never again take any of the others down with
     // it, regardless of which specific element it turns out to be next.
-    safeCall(() => $w('#btnCreateEvent').onClick(handleCreateEvent));
-    safeCall(() => $w('#btnAddClass').onClick(handleAddClass));
-    safeCall(() => $w('#btnGenerateQr').onClick(handleGenerateQr));
-    safeCall(() => $w('#btnReplayTutorial').onClick(startProducerTour));
-    safeCall(() => $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields));
-    safeCall(() => $w('#radioPaymentMethod').onChange(checkPayoutReadiness));
-    safeCall(() => $w('#inputEventLocation').onInput(handleLocationInput));
-    safeCall(() => $w('#inputEventSite').onInput(handleVenueInput));
+    safeCall(() => $w('#btnCreateEvent').onClick(handleCreateEvent), '#btnCreateEvent.onClick');
+    safeCall(() => $w('#btnAddClass').onClick(handleAddClass), '#btnAddClass.onClick');
+    safeCall(() => $w('#btnGenerateQr').onClick(handleGenerateQr), '#btnGenerateQr.onClick');
+    safeCall(() => $w('#btnReplayTutorial').onClick(startProducerTour), '#btnReplayTutorial.onClick');
+    safeCall(() => $w('#radioClassCloseMode').onChange(toggleClassCloseModeFields), '#radioClassCloseMode.onChange');
+    safeCall(() => $w('#radioPaymentMethod').onChange(checkPayoutReadiness), '#radioPaymentMethod.onChange');
+    safeCall(() => $w('#inputEventLocation').onInput(handleLocationInput), '#inputEventLocation.onInput');
+    safeCall(() => $w('#inputEventSite').onInput(handleVenueInput), '#inputEventSite.onInput');
 
     // Cosmetic/starting-state setup - each wrapped in safeCall() so one
     // element behaving unexpectedly (wrong widget type, unsupported
     // method, etc.) logs a console error and moves on instead of taking
     // the rest of onReady() down with it.
-    safeCall(() => $w('#btnGenerateQr').disable());
-    safeCall(() => { $w('#toggleListOnSteerMe').checked = true; }); // opt-out, not opt-in - continuity is the intended default
+    safeCall(() => $w('#btnGenerateQr').disable(), '#btnGenerateQr.disable (initial)');
+    safeCall(() => { $w('#toggleListOnSteerMe').checked = true; }, '#toggleListOnSteerMe.checked=true'); // opt-out, not opt-in - continuity is the intended default
 
     // EXPERIMENTAL FIX, added 2026-07-30 - confirmed live via the Editor's
     // own "API Reference: Box Element" label that #boxAddClass genuinely
@@ -273,11 +273,21 @@ $w.onReady(async function () {
 
 // Runs fn() and swallows/logs any error instead of letting it propagate -
 // see the big comment at the top of $w.onReady() for why this exists.
-function safeCall(fn) {
+//
+// FIXED live 2026-07-30 - real gap flagged directly by the user: every
+// failure this logged said the same generic "$w(...).onClick is not a
+// function," with no element name attached, which meant diagnosing WHICH
+// specific element was failing required pure process-of-elimination
+// (counting wiring calls and guessing) rather than direct confirmation -
+// a real methodology gap, not just a Wix-side mystery. label is now
+// required at every call site below specifically so future console
+// output names the exact element, no more guessing which of several
+// "onClick is not a function" lines corresponds to which ID.
+function safeCall(fn, label) {
     try {
         fn();
     } catch (err) {
-        console.error(`[producer-event-setup] setup step failed (page keeps working): ${err.message}`);
+        console.error(`[producer-event-setup] setup step failed (page keeps working) for ${label}: ${err.message}`);
     }
 }
 
@@ -300,7 +310,17 @@ function safeCall(fn) {
 // collapse()/expand() if that throws, so the real visual result lands
 // regardless of which pair this specific element turns out to support -
 // rather than every future page needing its own guess-and-check pass.
+// FIXED live 2026-07-30 - same gap as safeCall() above: this used to log
+// a generic "setVisible failed" with no element name, forcing pure
+// process-of-elimination to figure out which of several identical-looking
+// failures corresponded to which ID. Pulls the actual "#someId" straight
+// out of getElement's own source text (every call site here is a plain
+// `() => $w('#someId')` arrow, so this is reliable without touching
+// each of the ~25 call sites individually) rather than requiring a
+// separate label argument everywhere.
 function setVisible(getElement, visible) {
+    const idMatch = getElement.toString().match(/\$w\(\s*(['"])(.*?)\1\s*\)/);
+    const label = idMatch ? idMatch[2] : 'unknown element (could not parse getElement source)';
     try {
         const el = getElement();
         if (visible) el.show();
@@ -311,7 +331,7 @@ function setVisible(getElement, visible) {
             if (visible) el.expand();
             else el.collapse();
         } catch (err2) {
-            console.error(`[producer-event-setup] setVisible failed via both hide/show and collapse/expand: ${err2.message}`);
+            console.error(`[producer-event-setup] setVisible(${label}, visible=${visible}) failed via both hide/show and collapse/expand: ${err2.message}`);
         }
     }
 }
@@ -319,9 +339,9 @@ function setVisible(getElement, visible) {
 // NEW, added 2026-07-28 - see drawpro-home.js's matching comment for the
 // full reasoning. Duplicated identically on all 4 producer pages.
 function wireProducerNav() {
-    safeCall(() => $w('#navDashboard').onClick(() => wixLocation.to('/producer-dashboard')));
-    safeCall(() => $w('#navCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')));
-    safeCall(() => $w('#navMyProfile').onClick(() => wixLocation.to('/producer-profile')));
+    safeCall(() => $w('#navDashboard').onClick(() => wixLocation.to('/producer-dashboard')), '#navDashboard.onClick');
+    safeCall(() => $w('#navCreateEvent').onClick(() => wixLocation.to('/producer-event-setup')), '#navCreateEvent.onClick');
+    safeCall(() => $w('#navMyProfile').onClick(() => wixLocation.to('/producer-profile')), '#navMyProfile.onClick');
 }
 
 function startProducerTour() {
@@ -349,7 +369,7 @@ async function checkPayoutReadiness() {
 
     const profile = await getPayoutProfile(member._id);
     if (!profile || profile.onboardingStatus !== 'complete') {
-        safeCall(() => { $w('#textPayoutWarning').text = "You'll need to finish payout setup before this event can accept online payments."; });
+        safeCall(() => { $w('#textPayoutWarning').text = "You'll need to finish payout setup before this event can accept online payments."; }, '#textPayoutWarning.text=');
         setVisible(() => $w('#textPayoutWarning'), true);
     } else {
         setVisible(() => $w('#textPayoutWarning'), false);

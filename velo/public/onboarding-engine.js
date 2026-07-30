@@ -36,32 +36,38 @@
 // added one here so every page using runTour() gets the same protection
 // page-code files already have, in one place rather than duplicated per
 // page.
-function safeCall(fn) {
+// FIXED live 2026-07-30 - same gap fixed the same day in
+// producer-event-setup.js's own safeCall()/setVisible(): every failure
+// here used to log the same generic "tour step failed," with no element
+// name attached, forcing pure process-of-elimination to figure out which
+// of several identical-looking failures corresponded to which ID. label
+// is now required at every call site below.
+function safeCall(fn, label) {
     try {
         fn();
     } catch (err) {
-        console.error(`[onboarding-engine] tour step failed (tour keeps working): ${err.message}`);
+        console.error(`[onboarding-engine] tour step failed (tour keeps working) for ${label}: ${err.message}`);
     }
 }
 
 export function runTour($w, steps, callbacks) {
     let currentStep = 0;
 
-    safeCall(() => $w('#tourOverlay').expand());
-    safeCall(() => $w('#btnTourNext').onClick(handleNext));
-    safeCall(() => $w('#btnTourBack').onClick(handleBack));
-    safeCall(() => $w('#btnTourSkip').onClick(handleSkip));
+    safeCall(() => $w('#tourOverlay').expand(), '#tourOverlay.expand');
+    safeCall(() => $w('#btnTourNext').onClick(handleNext), '#btnTourNext.onClick');
+    safeCall(() => $w('#btnTourBack').onClick(handleBack), '#btnTourBack.onClick');
+    safeCall(() => $w('#btnTourSkip').onClick(handleSkip), '#btnTourSkip.onClick');
 
     showStep(currentStep);
 
     async function showStep(index) {
         const step = steps[index];
-        safeCall(() => { $w('#tourTitle').text = step.title; });
-        safeCall(() => { $w('#tourBody').text = step.body; });
-        safeCall(() => { $w('#textTourStepCount').text = `Step ${index + 1} of ${steps.length}`; });
-        safeCall(() => $w('#btnTourBack').disable());
-        if (index > 0) safeCall(() => $w('#btnTourBack').enable());
-        safeCall(() => { $w('#btnTourNext').label = index === steps.length - 1 ? 'Finish' : 'Next'; });
+        safeCall(() => { $w('#tourTitle').text = step.title; }, '#tourTitle.text=');
+        safeCall(() => { $w('#tourBody').text = step.body; }, '#tourBody.text=');
+        safeCall(() => { $w('#textTourStepCount').text = `Step ${index + 1} of ${steps.length}`; }, '#textTourStepCount.text=');
+        safeCall(() => $w('#btnTourBack').disable(), '#btnTourBack.disable');
+        if (index > 0) safeCall(() => $w('#btnTourBack').enable(), '#btnTourBack.enable');
+        safeCall(() => { $w('#btnTourNext').label = index === steps.length - 1 ? 'Finish' : 'Next'; }, '#btnTourNext.label=');
 
         await positionTooltipNear(step.targetId);
     }
@@ -70,22 +76,22 @@ export function runTour($w, steps, callbacks) {
         try {
             const rect = await $w(targetId).getBoundingRect();
             // Frame the target element itself.
-            safeCall(() => $w('#tourHighlightBox').show());
-            safeCall(() => { $w('#tourHighlightBox').x = rect.x - 6; });
-            safeCall(() => { $w('#tourHighlightBox').y = rect.y - 6; });
-            safeCall(() => { $w('#tourHighlightBox').width = rect.width + 12; });
-            safeCall(() => { $w('#tourHighlightBox').height = rect.height + 12; });
+            safeCall(() => $w('#tourHighlightBox').show(), '#tourHighlightBox.show');
+            safeCall(() => { $w('#tourHighlightBox').x = rect.x - 6; }, '#tourHighlightBox.x=');
+            safeCall(() => { $w('#tourHighlightBox').y = rect.y - 6; }, '#tourHighlightBox.y=');
+            safeCall(() => { $w('#tourHighlightBox').width = rect.width + 12; }, '#tourHighlightBox.width=');
+            safeCall(() => { $w('#tourHighlightBox').height = rect.height + 12; }, '#tourHighlightBox.height=');
 
             // Place the tooltip just below the target, falling back to
             // above it if that would run off the bottom of the viewport.
             const tooltipY = rect.y + rect.height + 12;
-            safeCall(() => { $w('#tourTooltip').x = rect.x; });
-            safeCall(() => { $w('#tourTooltip').y = tooltipY; });
+            safeCall(() => { $w('#tourTooltip').x = rect.x; }, '#tourTooltip.x=');
+            safeCall(() => { $w('#tourTooltip').y = tooltipY; }, '#tourTooltip.y=');
         } catch (err) {
             // Target element isn't visible on this step (e.g. a
             // conditionally-shown field) — show the tooltip centered
             // instead of failing the whole tour over one missing target.
-            safeCall(() => $w('#tourHighlightBox').hide());
+            safeCall(() => $w('#tourHighlightBox').hide(), '#tourHighlightBox.hide');
             console.warn(`Tour step target "${targetId}" not found or not visible: ${err.message}`);
         }
     }
@@ -113,7 +119,7 @@ export function runTour($w, steps, callbacks) {
     }
 
     function endTour() {
-        safeCall(() => $w('#tourOverlay').collapse());
-        safeCall(() => $w('#tourHighlightBox').hide());
+        safeCall(() => $w('#tourOverlay').collapse(), '#tourOverlay.collapse');
+        safeCall(() => $w('#tourHighlightBox').hide(), '#tourHighlightBox.hide (endTour)');
     }
 }
