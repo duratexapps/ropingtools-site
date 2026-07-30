@@ -232,14 +232,35 @@ $w.onReady(async function () {
     // element behaving unexpectedly (wrong widget type, unsupported
     // method, etc.) logs a console error and moves on instead of taking
     // the rest of onReady() down with it.
-    setVisible(() => $w('#boxAddClass'), false);
     safeCall(() => $w('#btnGenerateQr').disable());
-    setVisible(() => $w('#imageQrCode'), false);
-    setVisible(() => $w('#textPayoutWarning'), false);
-    setVisible(() => $w('#textEventTitleLocation'), false);
-    setVisible(() => $w('#repeaterLocationSuggestions'), false);
-    setVisible(() => $w('#repeaterVenueSuggestions'), false);
     safeCall(() => { $w('#toggleListOnSteerMe').checked = true; }); // opt-out, not opt-in - continuity is the intended default
+
+    // EXPERIMENTAL FIX, added 2026-07-30 - confirmed live via the Editor's
+    // own "API Reference: Box Element" label that #boxAddClass genuinely
+    // IS a standard Box, not some exotic widget type - yet
+    // .hide()/.show()/.collapse()/.expand() all failed on it and its
+    // siblings at page load (confirmed via the live published site's own
+    // console, not just Preview). Every one of these is nested deepest
+    // inside the Multi-State Box on this page (section1 > statebox1 >
+    // state1 > box15 > boxAddClass) - testing whether Wix's runtime needs
+    // a brief moment after mount before deeply-nested state-box children
+    // are fully bound and ready to accept method calls at all, something
+    // shallower elements (buttons, the location input, both several
+    // levels shallower in the same tree) don't seem to need. If this
+    // fixes it, the delay stays permanently; if the exact same errors
+    // still show up after this, that rules out timing too and points at
+    // something more fundamental - worth reporting to Wix support
+    // directly at that point, since every other explanation (wrong ID,
+    // wrong widget type, wrong API pair) has now been individually ruled
+    // out by direct evidence.
+    setTimeout(() => {
+        setVisible(() => $w('#boxAddClass'), false);
+        setVisible(() => $w('#imageQrCode'), false);
+        setVisible(() => $w('#textPayoutWarning'), false);
+        setVisible(() => $w('#textEventTitleLocation'), false);
+        setVisible(() => $w('#repeaterLocationSuggestions'), false);
+        setVisible(() => $w('#repeaterVenueSuggestions'), false);
+    }, 150);
 
     toggleClassCloseModeFields();
     await checkPayoutReadiness();
